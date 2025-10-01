@@ -40,6 +40,8 @@
                                     class="btn btn-action btn-action-delete px-4 py-2 rounded-lg text-sm font-semibold"
                                     onclick="return confirm('Xác nhận xóa?')">Xóa</button>
                         </form>
+                        <a href="{{ route('objectives.create', ['cycle_id' => $cycle->cycle_id]) }}" 
+                           class="btn btn-action btn-action-edit px-4 py-2 rounded-lg text-sm font-semibold">Thêm Obj</a>
                     </td>
                 </tr>
                 @endforeach

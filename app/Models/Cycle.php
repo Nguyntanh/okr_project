@@ -10,4 +10,14 @@ class Cycle extends Model
 
     // Nếu khóa chính không phải là `id`
     protected $primaryKey = 'cycle_id'; // Thay 'cycle_id' bằng tên cột khóa chính thực tế
+
+    public function objectives()
+    {
+        return $this->hasMany(Objective::class, 'cycle_id', 'cycle_id');
+    }
+
+    public function keyResults()
+    {
+        return $this->hasMany(KeyResult::class, 'cycle_id', 'cycle_id');
+    }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 use App\Models\Cycle;
+use App\Models\Objective;
 
 use Illuminate\Http\Request;
 

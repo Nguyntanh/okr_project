@@ -13,9 +13,9 @@ return new class extends Migration
             $table->string('sub')->unique()->nullable();
             $table->string('email')->unique();
             $table->string('password_hash')->nullable();
-            $table->string('full_name')->nullable()->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
+            $table->string('full_name')->nullable();
             $table->string('phone')->nullable();
-            $table->string('job_title')->nullable()->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
+            $table->string('job_title')->nullable();
             $table->string('avatar_url')->nullable();
             $table->foreignId('department_id')->nullable()->constrained('departments','department_id')->nullOnDelete();
             $table->foreignId('role_id')->nullable()->constrained('roles','role_id')->nullOnDelete();

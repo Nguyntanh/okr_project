@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="{{ asset('assets/css/app.css') }}">
 </head>
 <body>
+
     @auth
     <div class="container flex flex-row min-h-screen">
         <!-- Sidebar -->
@@ -31,6 +32,7 @@
                         @csrf
                         <button type="submit" class="child-detail">Đăng xuất</button>
                     </form>
+                    {{-- <a href="/auth/logout">Đăng xuất</a> --}}
                 </div>
             </div>
             <nav class="container flex flex-col justify-center items-center">
@@ -48,6 +50,12 @@
                 </a>
                 <a href="{{ route('cycles.index') }}" class="tag container">
                     <span>Cycles</span>
+                </a>
+                <a href="{{ route('objectives.index') }}" class="tag container">
+                    <span>Objectives</span>
+                </a>
+                <a href="{{ route('my-okr.index') }}" class="tag container">
+                    <span>My OKR</span>
                 </a>
             </nav>
         </div>

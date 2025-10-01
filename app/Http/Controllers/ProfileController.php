@@ -5,14 +5,12 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\DB;
 
 class ProfileController extends Controller
 {
     public function show()
     {
         $user = Auth::user();
-        // dd(Auth::check(), Auth::user(), Auth::guard());
         return view('profile.show', compact('user'));
     }
 
@@ -29,12 +27,10 @@ class ProfileController extends Controller
         ]);
 
         // Cập nhật thông tin cơ bản
-        $data = [
-            'full_name' => $request->full_name,
-            'email' => $request->email,
-            'phone' => $request->phone,
-            'job_title' => $request->job_title,
-        ];
+        $user->full_name = $request->full_name;
+        $user->email = $request->email;
+        $user->phone = $request->phone;
+        $user->job_title = $request->job_title;
 
         // Xử lý upload avatar
         if ($request->hasFile('avatar')) {
@@ -45,11 +41,10 @@ class ProfileController extends Controller
 
             // Lưu avatar mới
             $path = $request->file('avatar')->store('avatars', 'public');
-            $data['avatar_url'] = '/storage/' . $path;
+            $user->avatar_url = '/storage/' . $path;
         }
 
-        // Cập nhật thông tin người dùng
-        DB::table('users')->where('user_id', $user->user_id)->update($data);
+        $user->save();
 
         return redirect()->route('profile.show')->with('success', 'Cập nhật hồ sơ thành công!');
     }
