@@ -203,6 +203,8 @@
         border-radius: 6px;
         background-color: white;
         font-size: 14px;
+        font-weight: 700;
+        text-transform: uppercase;
         cursor: pointer;
         min-width: 120px;
         margin: 0 auto;
@@ -212,6 +214,11 @@
     .role-dropdown:disabled {
         opacity: 0.5;
         cursor: not-allowed;
+    }
+
+    .role-dropdown option {
+        font-weight: 700;
+        text-transform: uppercase;
     }
 
     .table-custom td {
@@ -573,10 +580,10 @@ function showSuccessMessage(message) {
     const alertDiv = document.createElement('div');
     alertDiv.className = 'alert alert-success';
     alertDiv.innerHTML = `<i class="fas fa-check-circle"></i> ${message}`;
-    
+
     const container = document.querySelector('.users-container');
     container.insertBefore(alertDiv, container.firstChild);
-    
+
     // Tự động ẩn sau 5 giây
     setTimeout(() => {
         alertDiv.remove();
@@ -588,10 +595,10 @@ function showErrorMessage(message) {
     const alertDiv = document.createElement('div');
     alertDiv.className = 'alert alert-error';
     alertDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`;
-    
+
     const container = document.querySelector('.users-container');
     container.insertBefore(alertDiv, container.firstChild);
-    
+
     // Tự động ẩn sau 5 giây
     setTimeout(() => {
         alertDiv.remove();
