@@ -492,13 +492,21 @@
                     <div class="input-group">
                         <label for="level" class="form-label">Cấp OKR</label>
                         <div class="relative">
-                            <select id="level" name="level" autocomplete="level-name" class="form-select">
-                                <option>Công ty</option>
-                                <option>Phòng ban</option>
-                                <option>Nhóm</option>
-                                <option>Cá nhân</option>
+                            <select id="level" name="level" autocomplete="level-name" class="form-select" required>
+                                @if(Auth::user()->canCreateCompanyOKR())
+                                    <option value="Công ty" {{ old('level') == 'Công ty' ? 'selected' : '' }}>Công ty</option>
+                                    <option value="Phòng ban" {{ old('level') == 'Phòng ban' ? 'selected' : '' }}>Phòng ban</option>
+                                    <option value="Nhóm" {{ old('level') == 'Nhóm' ? 'selected' : '' }}>Nhóm</option>
+                                @endif
+                                <option value="Cá nhân" {{ old('level') == 'Cá nhân' ? 'selected' : '' }}>Cá nhân</option>
                             </select>
                         </div>
+                        @if(Auth::user()->isMember())
+                            <p class="text-sm text-gray-600 mt-1">
+                                <i class="fas fa-info-circle"></i> 
+                                Bạn chỉ có thể tạo OKR cấp cá nhân. Để tạo OKR cấp công ty/phòng ban, vui lòng liên hệ Admin.
+                            </p>
+                        @endif
                     </div>
 
                     <!-- Status -->

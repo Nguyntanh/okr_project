@@ -37,11 +37,21 @@ class ObjectiveController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        // Kiểm tra quyền tạo OKR theo level
+        $level = $request->input('level', 'Cá nhân');
+        $user = Auth::user();
+        
+        if (in_array($level, ['Công ty', 'Phòng ban', 'Nhóm']) && !$user->canCreateCompanyOKR()) {
+            return redirect()->back()
+                ->withErrors(['level' => 'Bạn không có quyền tạo OKR cấp ' . $level . '. Chỉ Admin và Manager mới có thể tạo OKR cấp công ty/phòng ban.'])
+                ->withInput();
+        }
+
        $validated = $request->validate([
 
             // validate objective
             'obj_title'       => 'required|string|max:255',
-            'level' => 'nullable|string|max:255',
+            'level' => 'required|string|in:Công ty,Phòng ban,Nhóm,Cá nhân',
             'description' => 'nullable|string|max:1000',
             'status'      => 'required|in:draft,active,completed',
             'progress_percent'    => 'nullable|numeric|min:0|max:100',

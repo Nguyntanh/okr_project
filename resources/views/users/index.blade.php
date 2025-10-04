@@ -285,6 +285,34 @@
         display: inline-block;
         text-transform: uppercase;
     }
+
+    /* Alert styles */
+    .alert {
+        padding: 12px 16px;
+        border-radius: 6px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    .alert-success {
+        background-color: #ecfdf5;
+        border: 1px solid #a7f3d0;
+        color: #065f46;
+    }
+
+    .alert-error {
+        background-color: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #b91c1c;
+    }
+
+    .alert i {
+        font-size: 16px;
+    }
 </style>
 
 <div class="users-container">
@@ -312,13 +340,15 @@
     </div>
 
     @if(session('success'))
-        <div class="alert alert-success">
+        <div class="alert alert-success" id="successAlert">
+            <i class="fas fa-check-circle"></i>
             {{ session('success') }}
         </div>
     @endif
 
     @if(session('error'))
-        <div class="alert alert-error">
+        <div class="alert alert-error" id="errorAlert">
+            <i class="fas fa-exclamation-circle"></i>
             {{ session('error') }}
         </div>
     @endif
@@ -536,6 +566,36 @@ function updateStatus(userId, status) {
     // Submit form
     document.body.appendChild(form);
     form.submit();
+}
+
+// Hiển thị thông báo thành công
+function showSuccessMessage(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-success';
+    alertDiv.innerHTML = `<i class="fas fa-check-circle"></i> ${message}`;
+    
+    const container = document.querySelector('.users-container');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    // Tự động ẩn sau 5 giây
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+
+// Hiển thị thông báo lỗi
+function showErrorMessage(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-error';
+    alertDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`;
+    
+    const container = document.querySelector('.users-container');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    // Tự động ẩn sau 5 giây
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
 }
 
 // Cập nhật vai trò
