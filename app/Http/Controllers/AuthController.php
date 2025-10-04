@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
-    protected $cognitoClient;
+    protected $cognitoClient=null;
 
     public function __construct()
     {
@@ -273,6 +273,13 @@ class AuthController extends Controller
         $provider = $this->detectProvider($userData);
         Log::info("Detected provider: " . $provider);
 
+        // Lấy role_id mặc định (Member) cho user mới
+        $memberRoleId = \App\Models\Role::where('role_name', 'Member')->value('role_id');
+        
+        // Lấy thông tin từ Google
+        $fullName = $userData['name'] ?? ($userData['given_name'] ?? '') . ' ' . ($userData['family_name'] ?? '') ?? 'User';
+        $avatarUrl = $userData['picture'] ?? null;
+
         // Lưu vào database với thông tin đầy đủ
         $user = User::updateOrCreate(
             ['email' => $email],
@@ -280,10 +287,26 @@ class AuthController extends Controller
                 'sub' => $sub,
                 'email' => $email,
                 'google_id' => $provider === 'Google' ? ($userData['sub'] ?? null) : null,
+                'role_id' => $memberRoleId, // Gán role Member mặc định
+                'status' => 'active', // Gán status active mặc định
             ]
         );
 
+        // Cập nhật thông tin từ Google mỗi lần đăng nhập (để cập nhật avatar, tên mới)
+        $user->update([
+            'full_name' => $fullName,
+            'avatar_url' => $avatarUrl,
+        ]);
+
+        // Kiểm tra trạng thái user
+        if ($user->status === 'inactive') {
+            return redirect('/login')->with('error', 'Tài khoản của bạn đã bị vô hiệu hóa. Vui lòng liên hệ Admin.');
+        }
+
         Log::info("User saved/updated: " . $user->email . " via " . $provider);
+
+        // Xóa cache users list để admin thấy user mới ngay lập tức
+        \Cache::forget('users_list');
 
         Auth::login($user);
 
