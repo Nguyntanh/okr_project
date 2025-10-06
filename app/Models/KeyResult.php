@@ -26,16 +26,13 @@ class KeyResult extends Model
         'progress_percent'
     ];
 
-    /**
-     * The attributes that should be cast.
-     */
-
-
-    /**
-     * Get the objective that owns the key result.
-     */
     public function objective(): BelongsTo
     {
-        return $this->belongsTo(Objective::class);
+        return $this->belongsTo(Objective::class, 'objective_id', 'objective_id');
+    }
+
+    public function cycle(): BelongsTo
+    {
+        return $this->belongsTo(Cycle::class, 'cycle_id', 'cycle_id');
     }
 }

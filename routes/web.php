@@ -95,9 +95,14 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     // Route::get('/objectives/create/tailwind', [ObjectiveController::class, 'createTailwind'])->name('objectives.create.tailwind');
 
     // Key Results Routes
-    Route::get('/objectives/{objective}/key-results',
-    [KeyResultController::class, 'show']
-    )->name('key_results.show');
+    Route::get('/objectives/{objective}/key-results', 
+    [KeyResultController::class, 'index'])
+    ->name('key_results.index');
+
+    Route::get('/objectives/{objective}/key-results/{key_result}', 
+    [KeyResultController::class, 'show'])
+    ->whereNumber('key_result')
+    ->name('key_results.show');
 
     // Form tạo mới Key Result
     Route::get('/objectives/{objective}/key-results/create',

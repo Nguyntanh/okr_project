@@ -9,13 +9,25 @@ use App\Models\Cycle;
 
 class KeyResultController extends Controller
 {
-    public function show($objectiveId)
+    public function index($objectiveId)
     {
         $objective = Objective::with('keyResults')->findOrFail($objectiveId);
         $keyResults = $objective->keyResults;
         $cycles = Cycle::all();
 
-        return view('key_results.show', compact('objective', 'keyResults', 'cycles'));
+        return view('key_results.index', compact('objective', 'keyResults', 'cycles'));
+    }
+
+    public function show($objectiveId, $keyResultId)
+    {
+        $objective = Objective::findOrFail($objectiveId);
+
+        $keyResult = KeyResult::with(['objective', 'cycle'])
+            ->where('objective_id', $objectiveId)
+            ->where('kr_id', $keyResultId)
+            ->firstOrFail();
+
+        return view('key_results.show', compact('objective', 'keyResult'));
     }
 
     public function create($objectiveId)
