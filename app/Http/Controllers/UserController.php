@@ -24,7 +24,7 @@ class UserController extends Controller
             // Cache users data for 5 minutes to improve performance
             $users = \Cache::remember('users_list', 300, function () {
                 return User::with(['role', 'department'])
-                    ->orderBy('created_at', 'desc')
+                    ->orderBy('user_id', 'asc')
                     ->get();
             });
 

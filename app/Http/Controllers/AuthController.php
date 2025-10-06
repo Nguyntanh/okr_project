@@ -280,23 +280,35 @@ class AuthController extends Controller
         $fullName = $userData['name'] ?? ($userData['given_name'] ?? '') . ' ' . ($userData['family_name'] ?? '') ?? 'User';
         $avatarUrl = $userData['picture'] ?? null;
 
-        // Lưu vào database với thông tin đầy đủ
-        $user = User::updateOrCreate(
-            ['email' => $email],
-            [
+        // Tìm user theo email
+        $user = User::where('email', $email)->first();
+
+        if (!$user) {
+            // User mới: gán role/status mặc định
+            $user = User::create([
                 'sub' => $sub,
                 'email' => $email,
                 'google_id' => $provider === 'Google' ? ($userData['sub'] ?? null) : null,
-                'role_id' => $memberRoleId, // Gán role Member mặc định
-                'status' => 'active', // Gán status active mặc định
-            ]
-        );
-
-        // Cập nhật thông tin từ Google mỗi lần đăng nhập (để cập nhật avatar, tên mới)
-        $user->update([
-            'full_name' => $fullName,
-            'avatar_url' => $avatarUrl,
-        ]);
+                'role_id' => $memberRoleId,
+                'status' => 'active',
+                'full_name' => $fullName,
+                'avatar_url' => $avatarUrl,
+            ]);
+        } else {
+            // User cũ: KHÔNG ghi đè role/status nếu đã có
+            $user->sub = $sub;
+            $user->google_id = $provider === 'Google' ? ($userData['sub'] ?? null) : $user->google_id;
+            if (!$user->role_id) {
+                $user->role_id = $memberRoleId;
+            }
+            if (!$user->status) {
+                $user->status = 'active';
+            }
+            // Luôn cập nhật tên và avatar mới nhất
+            $user->full_name = $fullName;
+            $user->avatar_url = $avatarUrl;
+            $user->save();
+        }
 
         // Kiểm tra trạng thái user
         if ($user->status === 'inactive') {

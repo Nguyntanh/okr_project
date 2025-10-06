@@ -268,7 +268,7 @@
     .status-dropdown.status-active {
         background-color: #d1fae5;
         color: #065f46;
-        border: none;
+        border: 1px solid #065f46;
         border-radius: 12px;
         padding: 4px 8px;
         font-size: 0.75rem;
@@ -282,7 +282,7 @@
     .status-dropdown.status-inactive {
         background-color: #fee2e2;
         color: #991b1b;
-        border: none;
+        border: 1px solid #991b1b;
         border-radius: 12px;
         padding: 4px 8px;
         font-size: 0.75rem;
@@ -575,10 +575,10 @@ function showSuccessMessage(message) {
     const container = document.querySelector('.users-container');
     container.insertBefore(alertDiv, container.firstChild);
 
-    // Tự động ẩn sau 5 giây
+    // Tự động ẩn sau 4 giây
     setTimeout(() => {
         alertDiv.remove();
-    }, 5000);
+    }, 4000);
 }
 
 // Hiển thị thông báo lỗi
@@ -590,10 +590,10 @@ function showErrorMessage(message) {
     const container = document.querySelector('.users-container');
     container.insertBefore(alertDiv, container.firstChild);
 
-    // Tự động ẩn sau 5 giây
+    // Tự động ẩn sau 4 giây
     setTimeout(() => {
         alertDiv.remove();
-    }, 5000);
+    }, 4000);
 }
 
 // Cập nhật vai trò
@@ -648,6 +648,22 @@ function updateRole(userId, roleId) {
 
 // Fallback cho event listener
 document.addEventListener('DOMContentLoaded', function() {
+    // Tự động ẩn thông báo session sau 4 giây
+    const successAlert = document.getElementById('successAlert');
+    const errorAlert = document.getElementById('errorAlert');
+
+    if (successAlert) {
+        setTimeout(() => {
+            successAlert.remove();
+        }, 4000);
+    }
+
+    if (errorAlert) {
+        setTimeout(() => {
+            errorAlert.remove();
+        }, 4000);
+    }
+
     const roleDropdowns = document.querySelectorAll('.role-dropdown');
     const statusDropdowns = document.querySelectorAll('.status-dropdown');
 
