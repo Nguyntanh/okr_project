@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Objective Details - CodeGym OKR')
+@section('title', '{{ $objective->title }} - CodeGym OKR')
 
 @section('content')
 <style>
@@ -8,144 +8,118 @@
    Objective Show – custom styles (no Bootstrap)
    ------------------------------------------------------------------ */
 
-/* Main wrapper – replaces .row */
+/* CSS Variables */
+:root {
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --bg-light: #ffffff;
+    --bg-dark: #161615;
+    --text-main: #111827;
+    --text-light: #6b7280;
+    --border-light: #e5e7eb;
+    --border-dark: #374151;
+}
+
+/* Main wrapper */
 .objective-row {
     display: flex;
     flex-wrap: wrap;
     margin: 0 -15px;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    max-width: 960px;
+    margin: 2.5rem auto;
+    padding: 0 1.5rem;
 }
 
-/* Column – replaces .col-md-8 */
+/* Column */
 .objective-column {
-    flex: 0 0 66.6667%;
-    max-width: 66.6667%;
+    flex: 0 0 100%;
+    max-width: 100%;
     padding: 0 15px;
 }
-@media (max-width: 767px) {
-    .objective-column {
-        flex: 0 0 100%;
-        max-width: 100%;
-    }
-}
 
-/* Card – replaces .card */
+/* Card */
 .objective-card {
-    background: #ffffff;
-    border: 1px solid #e5e7eb;
+    background: var(--bg-light);
+    border: 1px solid var(--border-light);
     border-radius: 0.375rem;
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     margin-bottom: 1.5rem;
 }
 .dark .objective-card {
-    background: #161615;
-    border-color: #374151;
+    background: var(--bg-dark);
+    border-color: var(--border-dark);
 }
 
-/* Card header – replaces .card-header.d-flex.justify-content-between.align-items-center */
+/* Card header */
 .card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 1rem 1.5rem;
     background: #f8f9fa;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--border-light);
 }
 .dark .card-header {
     background: #1f2937;
     border-color: #4b5563;
 }
 
-/* Card header title – replaces h3 */
+/* Card header title */
 .card-header-title {
-    font-size: 1.25rem;
+    font-size: 1.5rem;
     font-weight: 600;
-    color: #111827;
+    color: var(--text-main);
     margin: 0;
 }
 .dark .card-header-title {
     color: #e9ecef;
 }
 
-/* Card body – replaces .card-body */
+/* Card body */
 .card-body {
     padding: 1.5rem;
 }
 
-/* Objective title row – replaces .row.mb-4 */
-.objective-title-row {
-    display: flex;
-    flex-wrap: wrap;
-    margin: 0 -15px;
+/* Success message */
+.success-message {
+    background: #d4edda;
+    color: #155724;
+    padding: 1rem;
+    border-radius: 0.25rem;
+    margin-bottom: 1rem;
+    border-left: 4px solid #16a34a;
+}
+.dark .success-message {
+    background: #2d6a4f;
+    color: #d4edda;
+    border-left-color: #22c55e;
+}
+
+/* Objective info */
+.objective-info {
     margin-bottom: 1.5rem;
 }
-
-/* Objective title column – replaces .col-md-8 */
-.objective-title-column {
-    flex: 0 0 66.6667%;
-    max-width: 66.6667%;
-    padding: 0 15px;
+.objective-info-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    font-size: 0.95rem;
+    color: var(--text-light);
 }
-@media (max-width: 767px) {
-    .objective-title-column {
-        flex: 0 0 100%;
-        max-width: 100%;
-    }
+.objective-info-item strong {
+    width: 120px;
+    font-weight: 600;
+    color: var(--text-main);
 }
-
-/* Objective title – replaces h2.mb-3 */
-.objective-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #111827;
-    margin-bottom: 0.75rem;
+.dark .objective-info-item {
+    color: #9ca3af;
 }
-.dark .objective-title {
+.dark .objective-info-item strong {
     color: #e9ecef;
 }
 
-/* Description section – replaces .mb-4 */
-.description-section {
-    margin-bottom: 1.5rem;
-}
-
-/* Description subtitle – replaces h6 */
-.description-subtitle {
-    font-size: 1rem;
-    font-weight: 600;
-    color: #374151;
-    margin-bottom: 0.5rem;
-}
-.dark .description-subtitle {
-    color: #d1d5db;
-}
-
-/* Description text – replaces .text-muted */
-.description-text {
-    color: #6b7280;
-    margin: 0;
-}
-.dark .description-text {
-    color: #9ca3af;
-}
-
-/* Status column – replaces .col-md-4.text-end */
-.status-column {
-    flex: 0 0 33.3333%;
-    max-width: 33.3333%;
-    padding: 0 15px;
-    text-align: right;
-}
-@media (max-width: 767px) {
-    .status-column {
-        flex: 0 0 100%;
-        max-width: 100%;
-        text-align: left;
-        margin-top: 1rem;
-    }
-}
-
-/* Status badge – replaces .badge and dynamic status classes */
+/* Status badge */
 .status-badge {
     display: inline-flex;
     align-items: center;
@@ -159,7 +133,7 @@
     background: #6b7280;
 }
 .status-badge.active {
-    background: #2563eb;
+    background: var(--primary);
 }
 .status-badge.completed {
     background: #16a34a;
@@ -171,77 +145,90 @@
     color: #e5e7eb;
 }
 
-/* Key results section – replaces .mb-4 */
+/* Key results section */
 .key-results-section {
     margin-bottom: 1.5rem;
 }
-
-/* Key results title – replaces h5 */
 .key-results-title {
     font-size: 1.125rem;
     font-weight: 600;
-    color: #374151;
+    color: var(--text-main);
     margin-bottom: 0.75rem;
 }
 .dark .key-results-title {
-    color: #d1d5db;
+    color: #e9ecef;
 }
 
-/* Key results list – replaces .list-group */
+/* Key results list */
 .key-results-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-right: 0.5rem;
 }
 
-/* Key result item – replaces .list-group-item */
+/* Key result item */
 .key-result-item {
+    display: flex;
+    align-items: center;
     background: #f8f9fa;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border-light);
     border-radius: 0.25rem;
     padding: 1rem;
+    margin-bottom: 0.5rem;
+    transition: all 0.2s ease;
+}
+.key-result-item:hover {
+    background: #e5e7eb;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
 }
 .dark .key-result-item {
     background: #1f2937;
     border-color: #4b5563;
 }
-
-/* Key result flex – replaces .d-flex.w-100.justify-content-between */
-.key-result-flex {
-    display: flex;
-    justify-content: space-between;
-    width: 100%;
+.dark .key-result-item:hover {
+    background: #374151;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
 }
 
-/* Key result title – replaces h6.mb-1 */
+/* Key result icon */
+.key-result-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-right: 1rem;
+}
+
+/* Key result content */
+.key-result-content {
+    flex: 1;
+}
 .key-result-title {
     font-size: 1rem;
     font-weight: 500;
-    color: #111827;
-    margin-bottom: 0.25rem;
+    color: var(--text-main);
+    margin: 0;
 }
 .dark .key-result-title {
     color: #e9ecef;
 }
-
-/* Key result badge – replaces .badge.bg-light.text-dark */
-.key-result-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.75rem;
-    font-weight: 500;
-    background: #e5e7eb;
-    color: #111827;
-    border-radius: 0.25rem;
-    margin-right: 0.5rem;
+.key-result-desc {
+    font-size: 0.875rem;
+    color: var(--text-light);
+    margin: 0.25rem 0 0;
 }
-.dark .key-result-badge {
-    background: #4b5563;
-    color: #e5e7eb;
+.dark .key-result-desc {
+    color: #9ca3af;
 }
 
-/* Key result status – replaces .badge and dynamic KR status classes */
+/* Key result status */
 .key-result-status {
     display: inline-flex;
     align-items: center;
@@ -267,18 +254,9 @@
     color: #e5e7eb;
 }
 
-/* Key result description – replaces .mb-1 */
-.key-result-description {
-    margin-bottom: 0.25rem;
-    color: #374151;
-}
-.dark .key-result-description {
-    color: #d1d5db;
-}
-
-/* Progress bar wrapper – replaces .progress.mt-2 */
+/* Progress bar */
 .progress-wrapper {
-    height: 10px;
+    height: 12px;
     background: #e5e7eb;
     border-radius: 0.25rem;
     overflow: hidden;
@@ -287,76 +265,67 @@
 .dark .progress-wrapper {
     background: #4b5563;
 }
-
-/* Progress bar – replaces .progress-bar */
 .progress-bar {
     height: 100%;
-    background: #2563eb;
-    transition: width 0.3s ease;
+    background: var(--primary);
+    transition: width 0.5s ease-in-out;
 }
 .dark .progress-bar {
     background: #60a5fa;
 }
-
-/* Progress text – replaces .text-muted */
 .progress-text {
-    display: block;
     font-size: 0.75rem;
-    color: #6b7280;
+    color: var(--text-light);
+    margin-top: 0.25rem;
 }
 .dark .progress-text {
     color: #9ca3af;
 }
 
-/* Empty key results – replaces .text-center.py-4 */
+/* Empty key results */
 .empty-key-results {
     text-align: center;
-    padding: 1.5rem 0;
+    padding: 2rem 0;
 }
-
-/* Empty key results icon – replaces .display-1.text-muted */
 .empty-key-results-icon {
     font-size: 4rem;
-    color: #6b7280;
+    color: var(--text-light);
 }
 .dark .empty-key-results-icon {
     color: #9ca3af;
 }
-
-/* Empty key results title – replaces h6.mt-3 */
 .empty-key-results-title {
     font-size: 1rem;
     font-weight: 600;
-    color: #374151;
+    color: var(--text-main);
     margin-top: 0.75rem;
 }
 .dark .empty-key-results-title {
-    color: #d1d5db;
+    color: #e9ecef;
 }
-
-/* Empty key results text – replaces .text-muted */
 .empty-key-results-text {
-    color: #6b7280;
+    color: var(--text-light);
     margin: 0;
 }
 .dark .empty-key-results-text {
     color: #9ca3af;
 }
 
-/* Add KR button – replaces .btn.btn-primary */
+/* Add KR button */
 .add-kr-button {
     display: inline-flex;
     align-items: center;
     padding: 0.5rem 1rem;
-    background: #2563eb;
+    background: var(--primary);
     color: #ffffff;
     border-radius: 0.25rem;
     font-weight: 500;
     text-decoration: none;
-    transition: background 0.2s ease;
+    transition: all 0.2s ease;
 }
 .add-kr-button:hover {
-    background: #1d4ed8;
+    background: var(--primary-dark);
+    transform: translateY(-2px);
 }
 .dark .add-kr-button {
     background: #1e40af;
@@ -365,9 +334,27 @@
     background: #1e3a8a;
 }
 
-/* Icon styles for Bootstrap Icons (bi) */
+/* Icon styles for Bootstrap Icons */
 .bi {
     margin-right: 0.5rem;
+}
+
+/* Scrollbar styling */
+.key-results-list::-webkit-scrollbar {
+    width: 6px;
+}
+.key-results-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+.dark .key-results-list::-webkit-scrollbar-track {
+    background: #374151;
+}
+.key-results-list::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+.dark .key-results-list::-webkit-scrollbar-thumb {
+    background: #6b7280;
 }
 
 /* Dark mode support */
@@ -382,53 +369,57 @@
     <div class="objective-column">
         <div class="objective-card">
             <div class="card-header">
-                <h3 class="card-header-title"><i class="bi bi-eye"></i> Objective Details</h3>
+                <h3 class="card-header-title"><i class="bi bi-eye"></i> {{ $objective->title }}</h3>
+                @php
+                    $statusClass = match($objective->status) {
+                        'draft' => 'draft',
+                        'active' => 'active',
+                        'completed' => 'completed',
+                        default => 'default'
+                    };
+                    $statusIcon = match($objective->status) {
+                        'draft' => 'bi-pencil-square',
+                        'active' => 'bi-play-circle',
+                        'completed' => 'bi-check-circle',
+                        default => 'bi-question-circle'
+                    };
+                @endphp
+                <span class="status-badge {{ $statusClass }}">
+                    <i class="bi {{ $statusIcon }}"></i> {{ ucfirst($objective->status) }}
+                </span>
             </div>
             <div class="card-body">
-                <div class="objective-title-row">
-                    <div class="objective-title-column">
-                        <h2 class="objective-title">{{ $objective->title }}</h2>
-                        @if($objective->description)
-                            <div class="description-section">
-                                <h6 class="description-subtitle"><i class="bi bi-text-paragraph"></i> Description</h6>
-                                <p class="description-text">{{ $objective->description }}</p>
-                            </div>
-                        @endif
+                @if(session('success'))
+                    <div class="success-message">
+                        {{ session('success') }}
                     </div>
-                    <div class="status-column">
-                        @php
-                            $statusClass = match($objective->status) {
-                                'draft' => 'draft',
-                                'active' => 'active',
-                                'completed' => 'completed',
-                                default => 'default'
-                            };
-                            $statusIcon = match($objective->status) {
-                                'draft' => 'bi-pencil-square',
-                                'active' => 'bi-play-circle',
-                                'completed' => 'bi-check-circle',
-                                default => 'bi-question-circle'
-                            };
-                        @endphp
-                        <span class="status-badge {{ $statusClass }}">
-                            <i class="bi {{ $statusIcon }}"></i> {{ ucfirst($objective->status) }}
-                        </span>
+                @endif
+
+                <div class="objective-info">
+                    <div class="objective-info-item">
+                        <strong>Tiêu đề:</strong>
+                        <span>{{ $objective->obj_title }}</span>
                     </div>
+                    @if($objective->description)
+                        <div class="objective-info-item">
+                            <strong>Mô tả:</strong>
+                            <span>{{ $objective->description }}</span>
+                        </div>
+                    @endif
                 </div>
 
-                <!-- Key Results Section -->
                 <div class="key-results-section">
                     <h5 class="key-results-title"><i class="bi bi-key"></i> Key Results</h5>
                     @if($objective->keyResults->count() > 0)
                         <div class="key-results-list">
                             @foreach($objective->keyResults as $index => $keyResult)
                                 <div class="key-result-item">
-                                    <div class="key-result-flex">
+                                    <div class="key-result-icon">
+                                        KR {{ $index + 1 }}
+                                    </div>
+                                    <div class="key-result-content">
                                         <h6 class="key-result-title">
-                                            <span class="key-result-badge">KR {{ $index + 1 }}</span>
                                             {{ $keyResult->title }}
-                                        </h6>
-                                        <small>
                                             @php
                                                 $krStatusClass = match($keyResult->status) {
                                                     'not_started' => 'not_started',
@@ -440,36 +431,36 @@
                                             <span class="key-result-status {{ $krStatusClass }}">
                                                 {{ ucfirst(str_replace('_', ' ', $keyResult->status)) }}
                                             </span>
-                                        </small>
-                                    </div>
-                                    @if($keyResult->description)
-                                        <p class="key-result-description">{{ $keyResult->description }}</p>
-                                    @endif
-                                    <div class="progress-wrapper">
-                                        <div class="progress-bar" 
-                                             role="progressbar" 
-                                             style="width: {{ $keyResult->progress ?? 0 }}%"
-                                             aria-valuenow="{{ $keyResult->progress ?? 0 }}" 
-                                             aria-valuemin="0" 
-                                             aria-valuemax="100">
+                                        </h6>
+                                        @if($keyResult->description)
+                                            <p class="key-result-desc">{{ $keyResult->description }}</p>
+                                        @endif
+                                        <div class="progress-wrapper">
+                                            <div class="progress-bar" 
+                                                 role="progressbar" 
+                                                 style="width: {{ $keyResult->progress ?? 0 }}%"
+                                                 aria-valuenow="{{ $keyResult->progress ?? 0 }}" 
+                                                 aria-valuemin="0" 
+                                                 aria-valuemax="100">
+                                            </div>
                                         </div>
+                                        <small class="progress-text">{{ $keyResult->progress ?? 0 }}% complete</small>
                                     </div>
-                                    <small class="progress-text">{{ $keyResult->progress ?? 0 }}% complete</small>
                                 </div>
                             @endforeach
                         </div>
                     @else
                         <div class="empty-key-results">
                             <i class="bi bi-key empty-key-results-icon"></i>
-                            <h6 class="empty-key-results-title">No Key Results Yet</h6>
-                            <p class="empty-key-results-text">Add key results to track your progress towards this objective.</p>
+                            <h6 class="empty-key-results-title">Chưa có Key Results</h6>
+                            <p class="empty-key-results-text">Thêm key results để theo dõi tiến độ mục tiêu này.</p>
                         </div>
                     @endif
                 </div>
 
                 <div class="d-flex justify-content-start">
                     <a href="{{ route('key_results.create', $objective->objective_id) }}" class="add-kr-button">
-                        + Thêm KR
+                        <i class="bi bi-plus-circle"></i> Thêm KR
                     </a>
                 </div>
             </div>
