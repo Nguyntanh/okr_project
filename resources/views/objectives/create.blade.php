@@ -493,12 +493,11 @@
                         <label for="level" class="form-label">Cấp OKR</label>
                         <div class="relative">
                             <select id="level" name="level" autocomplete="level-name" class="form-select" required>
-                                @if(Auth::user()->canCreateCompanyOKR())
-                                    <option value="Công ty" {{ old('level') == 'Công ty' ? 'selected' : '' }}>Công ty</option>
-                                    <option value="Phòng ban" {{ old('level') == 'Phòng ban' ? 'selected' : '' }}>Phòng ban</option>
-                                    <option value="Nhóm" {{ old('level') == 'Nhóm' ? 'selected' : '' }}>Nhóm</option>
-                                @endif
-                                <option value="Cá nhân" {{ old('level') == 'Cá nhân' ? 'selected' : '' }}>Cá nhân</option>
+                                @foreach($allowedLevels as $level)
+                                    <option value="{{ $level }}" {{ old('level') == $level ? 'selected' : '' }}>
+                                        {{ $level }}
+                                    </option>
+                                @endforeach
                             </select>
                         </div>
                         @if(Auth::user()->isMember())

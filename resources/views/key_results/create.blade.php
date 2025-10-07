@@ -38,9 +38,13 @@
         <div class="form-group">
             <label>Đơn vị</label>
             <select name="unit" class="form-control" required>
-                <option value="number">Number</option>
-                <option value="percent">Percent</option>
-                <option value="completion">Completion</option>
+                <option value="number">Số lượng</option>
+                <option value="percent">Phần trăm</option>
+                <option value="completion">Hoàn thành</option>
+                <option value="currency">Tiền tệ</option>
+                <option value="hours">Giờ</option>
+                <option value="items">Sản phẩm</option>
+                <option value="score">Điểm</option>
             </select>
         </div>
 
@@ -64,7 +68,7 @@
         </div> --}}
 
         <button type="submit" class="btn-success">Lưu</button>
-        <a href="{{ route('objectives.show', $objective->objective_id) }}" class="btn-secondary">Hủy</a>
+        <a href="{{ session('back_url', url()->previous()) }}" class="btn-secondary">Hủy</a>
     </form>
 </div>
 
