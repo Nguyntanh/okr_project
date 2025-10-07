@@ -70,10 +70,9 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
 
     //Routes cho Cycle
     Route::get('/cycles',[CycleController::class,'index']) -> name('cycles.index');
-    Route::get('/cycles/{cycles}/detail',[CycleController::class,'show']) -> name('cycles.show');
+    Route::get('/cycles/{cycle}/detail',[CycleController::class,'show']) -> name('cycles.show');
     Route::get('/cycles/create',[CycleController::class,'create']) -> middleware('auth','admin') -> name('cycles.create');
     Route::post('/cycles/create',[CycleController::class,'store']) -> middleware('auth','admin') -> name('cycles.store');
-    // Route::resource('cycles', CycleController::class) -> middleware('auth','admin') -> except(['index','show']);
 
     //Routes cho Department
     Route::resource('departments', DepartmentController::class);
