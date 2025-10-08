@@ -386,9 +386,14 @@
                     </div>
                 </div>
 
-                <a href="{{ route('objectives.create', ['cycle_id' => $cycle->cycle_id]) }}" class="add-objective-button">
-                    <i class="bi bi-plus-circle"></i> Thêm Objective
-                </a>
+                @php
+                $isAdmin = Auth::user() && Auth::user()->isAdmin();
+                @endphp
+                @if($isAdmin)
+                    <a href="{{ route('objectives.create', ['cycle_id' => $cycle->cycle_id]) }}" class="add-objective-button">
+                        <i class="bi bi-plus-circle"></i> Thêm Objective
+                    </a>
+                @endif
 
                 <div class="objectives-wrapper">
                     @if($objectives->count() > 0)
@@ -401,9 +406,14 @@
                                     <h6 class="objective-title">{{ $objective->obj_title }}</h6>
                                     <p class="objective-desc">{{ $objective->description ?? 'Không có mô tả' }}</p>
                                 </div>
-                                <a href="{{ route('key_results.create', ['objective' => $objective->objective_id]) }}" class="add-key-result-button">
-                                    <i class="bi bi-plus-circle"></i> Thêm Key Result
-                                </a>
+                                @php
+                                $isAdmin = Auth::user() && Auth::user()->isAdmin();
+                                @endphp
+                                @if($isAdmin)
+                                    <a href="{{ route('key_results.create', ['objective' => $objective->objective_id]) }}" class="add-key-result-button">
+                                        <i class="bi bi-plus-circle"></i> Thêm Key Result
+                                    </a>
+                                @endif
                             </div>
                             <div class="key-results-wrapper hidden" id="key-results-{{ $objective->objective_id }}" style="margin-left: 2rem; margin-bottom: 0.5rem;">
                                 @if($objective->keyResults->count() > 0)
