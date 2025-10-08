@@ -81,14 +81,14 @@ class ObjectiveController extends Controller
             'cycle_id' => 'nullable|integer|exists:cycles,cycle_id',
 
             // Key Results
-            'key_results' => 'nullable|array',
-            'key_results.*.kr_title' => 'required|string|max:255',
-            'key_results.*.target_value' => 'required|numeric|min:0',
-            'key_results.*.current_value' => 'nullable|numeric|min:0',
-            'key_results.*.unit' => 'required|string|max:255',
-            'key_results.*.status' => 'nullable|string|max:255',
-            'key_results.*.weight' => 'nullable|integer|min:0|max:100',
-            'key_results.*.progress_percent' => 'nullable|numeric|min:0|max:100',
+            // 'key_results' => 'nullable|array',
+            // 'key_results.*.kr_title' => 'required|string|max:255',
+            // 'key_results.*.target_value' => 'required|numeric|min:0',
+            // 'key_results.*.current_value' => 'nullable|numeric|min:0',
+            // 'key_results.*.unit' => 'required|string|max:255',
+            // 'key_results.*.status' => 'nullable|string|max:255',
+            // 'key_results.*.weight' => 'nullable|integer|min:0|max:100',
+            // 'key_results.*.progress_percent' => 'nullable|numeric|min:0|max:100',
         ]);
 
         // Tạo Objective và Key Results trong transaction
@@ -100,7 +100,7 @@ class ObjectiveController extends Controller
                 'status' => $validated['status'],
                 'progress_percent' => $validated['progress_percent'] ?? 0,
                 'user_id' => Auth::id() ?? 2,
-                'cycle_id' => $validated['cycle_id'],
+                'cycle_id' => $validated['cycle_id'] ?? null,
             ];
             $objective = Objective::create($objectiveData);
 

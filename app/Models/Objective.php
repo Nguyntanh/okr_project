@@ -26,6 +26,7 @@ class Objective extends Model
         'progress_percent',
         'user_id',
         'cycle_id',
+        'department_id',
     ];
 
     /**
@@ -58,6 +59,13 @@ class Objective extends Model
     public function cycle()
     {
         return $this->belongsTo(Cycle::class, 'cycle_id', 'cycle_id');
+    }
+
+    /**
+     * Get the department that the objective belongs to.
+     */
+    public function department(){
+        return $this->belongsTo(Department::class, 'department_id', 'department_id');
     }
 }
 
