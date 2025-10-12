@@ -65,7 +65,7 @@
                 <a href="{{ route('cycles.index') }}" class="tag container">
                     <span>Cycles</span>
                 </a>
-                <a href="{{ route('objectives.index') }}" class="tag container">
+                <a href="{{ route('my-objectives.index') }}" class="tag container">
                     <span>Objectives</span>
                 </a>
                 <a href="{{ route('departments.index') }}" class="tag container">

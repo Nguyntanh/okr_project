@@ -552,7 +552,7 @@
 
                     <!-- Submit Button -->
                     <div class="form-buttons">
-                        <a href="{{ route('cycles.show', $cycle_id) }}"
+                        <a href="{{ $cycle_id ? route('cycles.show', $cycle_id) : '' }}"
                            class="cancel-button">
                             Cancel
                         </a>

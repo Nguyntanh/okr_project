@@ -26,6 +26,8 @@ class KeyResult extends Model
         'progress_percent'
     ];
 
+    protected $primaryKey = 'kr_id';
+
     public function objective(): BelongsTo
     {
         return $this->belongsTo(Objective::class, 'objective_id', 'objective_id');

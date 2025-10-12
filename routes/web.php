@@ -7,7 +7,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ObjectiveController;
 use App\Http\Controllers\KeyResultController;
 use App\Http\Controllers\DepartmentController;
-use App\Http\Controllers\MyOKRController;
+use App\Http\Controllers\MyObjectiveController;
+use App\Http\Controllers\MyKeyResultController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
@@ -119,6 +120,26 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     Route::delete('/objectives/{objective}/key-results/{kr}',
         [KeyResultController::class, 'destroy']
     )->name('key_results.destroy');
+
+    Route::prefix('my-objectives')->group(function () {
+        Route::get('/', [MyObjectiveController::class, 'index'])->name('my-objectives.index');
+        Route::get('/create', [MyObjectiveController::class, 'create'])->name('my-objectives.create');
+        Route::post('/store', [MyObjectiveController::class, 'store'])->name('my-objectives.store');
+        Route::get('/edit/{id}', [MyObjectiveController::class, 'edit'])->name('my-objectives.edit');
+        Route::put('/update/{id}', [MyObjectiveController::class, 'update'])->name('my-objectives.update');
+        Route::delete('/destroy/{id}', [MyObjectiveController::class, 'destroy'])->name('my-objectives.destroy');
+        Route::get('/details/{id}', [MyObjectiveController::class, 'getObjectiveDetails'])->name('my-objectives.details');
+        Route::get('/my-objectives/key-result-details/{id}', [MyObjectiveController::class, 'getKeyResultDetails'])->name('my-objectives.key-result-details');
+    });
+
+    Route::prefix('my-key-results')->group(function () {
+        Route::get('/', [MyKeyResultController::class, 'index'])->name('my-key-results.index');
+        Route::get('/create/{objectiveId}', [MyKeyResultController::class, 'create'])->name('my-key-results.create');
+        Route::post('/store', [MyKeyResultController::class, 'store'])->name('my-key-results.store');
+        Route::get('/edit/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'edit'])->name('my-key-results.edit');
+        Route::put('/update/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'update'])->name('my-key-results.update');
+        Route::delete('/destroy/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'destroy'])->name('my-key-results.destroy');
+    });
 });
 
 // Phục vụ file trong storage khi thiếu symlink public/storage
