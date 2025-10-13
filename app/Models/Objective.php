@@ -27,7 +27,10 @@ class Objective extends Model
         'user_id',
         'cycle_id',
         'department_id',
+>>>>>>> feature/manager-funtion
         'parent_key_result_id',
+=======
+>>>>>>> 53aac8f01bead5df701031cb4d85e4d438e9f0e8
     ];
 
     /**
@@ -65,15 +68,48 @@ class Objective extends Model
     /**
      * Get the department that the objective belongs to.
      */
+<<<<<<< HEAD
     public function department(){
+=======
+    public function department()
+    {
+>>>>>>> 53aac8f01bead5df701031cb4d85e4d438e9f0e8
         return $this->belongsTo(Department::class, 'department_id', 'department_id');
     }
 
     /**
+<<<<<<< HEAD
      * Get the parent key result that the objective belongs to.
      */
     public function parentKeyResult(){
         return $this->belongsTo(KeyResult::class, 'parent_key_result_id', 'kr_id');
     }   
+=======
+     * Get the progress percentage attribute.
+     */
+    public function getProgressPercentAttribute()
+    {
+        // Nếu có progress_percent trong database, sử dụng nó
+        if (isset($this->attributes['progress_percent']) && $this->attributes['progress_percent'] !== null) {
+            return $this->attributes['progress_percent'];
+        }
+
+        // Nếu không có, tính toán dựa trên key results
+        if ($this->keyResults && $this->keyResults->count() > 0) {
+            $totalWeight = $this->keyResults->sum('weight');
+            if ($totalWeight > 0) {
+                $weightedProgress = $this->keyResults->sum(function ($kr) {
+                    return ($kr->progress_percent ?? 0) * ($kr->weight ?? 0);
+                });
+                return $totalWeight > 0 ? $weightedProgress / $totalWeight : 0;
+            } else {
+                // Nếu không có weight, tính trung bình
+                return $this->keyResults->avg('progress_percent') ?? 0;
+            }
+        }
+
+        return 0;
+    }
+>>>>>>> 53aac8f01bead5df701031cb4d85e4d438e9f0e8
 }
 
