@@ -210,10 +210,10 @@ class MyKeyResultController extends Controller
     private function getAllowedLevels(string $roleName): array
     {
         return match ($roleName) {
-            'Admin' => ['Công ty', 'Phòng ban', 'Cá nhân'],
-            'Manager' => ['Công ty', 'Phòng ban'],
-            'Member' => ['Cá nhân'],
-            default => ['Cá nhân'],
+            'admin' => ['company', 'unit', 'team', 'person'],
+            'master', 'facilitator' => ['unit', 'team', 'person'],
+            'member' => ['person'],
+            default => ['person'],
         };
     }
 }

@@ -44,18 +44,25 @@
                             <th>Trạng thái</th>
                             <th>Tiến độ (%)</th>
                             <th>Phòng ban</th>
-                            <th>Key Result cấp công ty</th>
                             <th>Hành động</th>
                         </tr>
                     </thead>
                     <tbody>
+                        @php
+                            $levelNames = [
+                                'company' => 'Công ty',
+                                'unit' => 'Đơn vị',
+                                'team' => 'Đội nhóm',
+                                'person' => 'Cá nhân',
+                            ];
+                        @endphp
                         @foreach ($objectives as $objective)
                             <tr>
-                                <td colspan="8">
+                                <td colspan="7">
                                     <details>
                                         <summary>
                                             <div class="summary-row">
-                                                <span>{{ $this->getLevelDisplayName($objective->level) }}</span>
+                                                <span>{{ $levelNames[$objective->level] ?? $objective->level }}</span>
                                                 <span>{{ $objective->obj_title }}</span>
                                                 <span>{{ $objective->cycle->cycle_name ?? 'Chưa có' }}</span>
                                                 <span class="{{ $objective->status }}">
@@ -63,7 +70,6 @@
                                                 </span>
                                                 <span>{{ $objective->progress_percent }}%</span>
                                                 <span>{{ $objective->level === 'company' ? 'Không áp dụng' : ($objective->department->d_name ?? 'Chưa có') }}</span>
-                                                <span>{{ $objective->parentKeyResult->kr_title ?? 'Không liên kết' }}</span>
                                                 <span>
                                                     @if (Auth::user()->role)
                                                         @php
@@ -136,19 +142,7 @@
                                         @else
                                             <div class="empty-kr">Không có Key Result cho Objective này.</div>
                                         @endif
-                                        @if ($objective->parentKeyResult)
-                                            <div class="parent-key-result-details">
-                                                <h4>Key Result cấp công ty liên kết: {{ $objective->parentKeyResult->kr_title }}</h4>
-                                                <p><strong>Mục tiêu:</strong> {{ $objective->parentKeyResult->target_value }}</p>
-                                                <p><strong>Giá trị hiện tại:</strong> {{ $objective->parentKeyResult->current_value }}</p>
-                                                <p><strong>Đơn vị:</strong> {{ $objective->parentKeyResult->unit }}</p>
-                                                <p><strong>Trạng thái:</strong> {{ ucfirst($objective->parentKeyResult->status) }}</p>
-                                                <p><strong>Trọng số:</strong> {{ $objective->parentKeyResult->weight }}%</p>
-                                                <p><strong>Tiến độ:</strong> {{ $objective->parentKeyResult->progress_percent }}%</p>
-                                                <h4>Objective cấp công ty: {{ $objective->parentKeyResult->objective->obj_title }}</h4>
-                                                <p><strong>Mô tả:</strong> {{ $objective->parentKeyResult->objective->description ?? 'Không có' }}</p>
-                                            </div>
-                                        @endif
+                                        {{-- parentKeyResult details removed --}}
                                     </details>
                                 </td>
                             </tr>

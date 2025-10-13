@@ -93,7 +93,7 @@
                 </div>
 
                 <!-- Phòng ban -->
-                @if (Auth::user()->role && Auth::user()->role->role_name === 'admin')
+                @if (Auth::user()->role )
                     <div class="form-group" id="department-group" style="{{ old('level') == 'company' ? 'display: none;' : '' }}">
                         <label for="department_id" class="form-label">Phòng ban *</label>
                         <select name="department_id" id="department_id" class="form-input form-select">
@@ -115,34 +115,7 @@
                     </div>
                 @endif
 
-                <!-- Key Result cấp công ty -->
-                <div class="form-group">
-                    <label for="parent_key_result_id" class="form-label">Liên kết Key Result cấp công ty</label>
-                    <select name="parent_key_result_id" id="parent_key_result_id" class="form-input form-select">
-                        <option value="">Không liên kết</option>
-                        @foreach($companyKeyResults as $keyResult)
-                            <option value="{{ $keyResult->kr_id }}" {{ old('parent_key_result_id') == $keyResult->kr_id ? 'selected' : '' }}>
-                                {{ $keyResult->kr_title }} (Objective: {{ $keyResult->objective->obj_title }})
-                            </option>
-                        @endforeach
-                    </select>
-                    @error('parent_key_result_id') <span class="error-message">{{ $message }}</span> @enderror
-                </div>
-
-                <!-- Chi tiết Key Result cấp công ty -->
-                <div id="company-key-result-details" style="display: none;">
-                    <h3>Chi tiết Key Result cấp công ty</h3>
-                    <p><strong>Tiêu đề Key Result:</strong> <span id="company-kr-title"></span></p>
-                    <p><strong>Mục tiêu:</strong> <span id="company-kr-target"></span></p>
-                    <p><strong>Giá trị hiện tại:</strong> <span id="company-kr-current"></span></p>
-                    <p><strong>Đơn vị:</strong> <span id="company-kr-unit"></span></p>
-                    <p><strong>Trạng thái:</strong> <span id="company-kr-status"></span></p>
-                    <p><strong>Trọng số:</strong> <span id="company-kr-weight"></span></p>
-                    <p><strong>Tiến độ:</strong> <span id="company-kr-progress"></span></p>
-                    <h4>Objective cấp công ty liên kết</h4>
-                    <p><strong>Tiêu đề:</strong> <span id="company-obj-title"></span></p>
-                    <p><strong>Mô tả:</strong> <span id="company-obj-description"></span></p>
-                </div>
+                {{-- parent key result linking removed --}}
 
                 <!-- Key Results -->
                 <div class="form-group full-width">
@@ -406,59 +379,7 @@
 </style>
 
 <script>
-    document.getElementById('parent_key_result_id').addEventListener('change', function() {
-        const keyResultId = this.value;
-        const detailsContainer = document.getElementById('company-key-result-details');
-        const krTitleSpan = document.getElementById('company-kr-title');
-        const krTargetSpan = document.getElementById('company-kr-target');
-        const krCurrentSpan = document.getElementById('company-kr-current');
-        const krUnitSpan = document.getElementById('company-kr-unit');
-        const krStatusSpan = document.getElementById('company-kr-status');
-        const krWeightSpan = document.getElementById('company-kr-weight');
-        const krProgressSpan = document.getElementById('company-kr-progress');
-        const objTitleSpan = document.getElementById('company-obj-title');
-        const objDescriptionSpan = document.getElementById('company-obj-description');
-
-        if (!keyResultId) {
-            detailsContainer.style.display = 'none';
-            krTitleSpan.textContent = '';
-            krTargetSpan.textContent = '';
-            krCurrentSpan.textContent = '';
-            krUnitSpan.textContent = '';
-            krStatusSpan.textContent = '';
-            krWeightSpan.textContent = '';
-            krProgressSpan.textContent = '';
-            objTitleSpan.textContent = '';
-            objDescriptionSpan.textContent = '';
-            return;
-        }
-
-        fetch(`/my-objectives/key-result-details/${keyResultId}`, {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': '{{ csrf_token() }}'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            krTitleSpan.textContent = data.kr_title;
-            krTargetSpan.textContent = data.target_value;
-            krCurrentSpan.textContent = data.current_value;
-            krUnitSpan.textContent = data.unit;
-            krStatusSpan.textContent = data.status;
-            krWeightSpan.textContent = data.weight + '%';
-            krProgressSpan.textContent = data.progress_percent + '%';
-            objTitleSpan.textContent = data.objective_title;
-            objDescriptionSpan.textContent = data.objective_description || 'Không có mô tả';
-            detailsContainer.style.display = 'block';
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            detailsContainer.style.display = 'none';
-            alert('Không thể tải chi tiết Key Result cấp công ty.');
-        });
-    });
+    // parent key result fetch logic removed
 
     let krIndex = 1;
     document.getElementById('add-key-result').addEventListener('click', function() {

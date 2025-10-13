@@ -72,8 +72,8 @@ class Objective extends Model
     /**
      * Get the parent key result that the objective belongs to.
      */
-    public function parentKeyResult(){
-        return $this->belongsTo(KeyResult::class, 'parent_key_result_id', 'kr_id');
-    }   
+    // public function parentKeyResult(){
+    //     return $this->belongsTo(KeyResult::class, 'parent_key_result_id', 'kr_id');
+    // }   
 }
 

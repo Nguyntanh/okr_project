@@ -2,7 +2,7 @@
 
 @section('content')
     <div class="content-container">
-        <h1 class="page-title">Chỉnh Sửa OKR - {{ $this->getLevelDisplayName($objective->level) }}</h1>
+        <h1 class="page-title">Chỉnh Sửa OKR - {{ $levelNames[$objective->level] ?? $objective->level }}</h1>
 
         @if ($errors->any())
             <div class="error-alert" role="alert">

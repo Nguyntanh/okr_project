@@ -4,14 +4,28 @@
     <div class="content-container">
         <h1>Tạo Key Result Mới</h1>
 
-        @if ($errors->any())
+        @php
+            $isCustomError = is_array($errors ?? null) && isset($errors['error']);
+        @endphp
+
+        @if ($isCustomError)
             <div class="error-alert" role="alert">
                 <ul>
-                    @foreach ($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
+                    <li>{{ $errors['error'] }}</li>
                 </ul>
             </div>
+        @endif
+
+        @if (!$isCustomError)
+            @if ($errors->any())
+                <div class="error-alert" role="alert">
+                    <ul>
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
         @endif
 
         <form action="{{ route('my-key-results.store') }}" method="POST">
@@ -30,28 +44,36 @@
                 <div>
                     <label for="kr_title">Tiêu đề Key Result *</label>
                     <input type="text" name="kr_title" id="kr_title" value="{{ old('kr_title') }}">
-                    @error('kr_title') <span class="error-message">{{ $message }}</span> @enderror
+                    @if (!$isCustomError)
+                        @error('kr_title') <span class="error-message">{{ $message }}</span> @enderror
+                    @endif
                 </div>
 
                 <!-- Mục tiêu -->
                 <div>
                     <label for="target_value">Mục tiêu *</label>
                     <input type="number" name="target_value" id="target_value" value="{{ old('target_value') }}" step="0.01">
-                    @error('target_value') <span class="error-message">{{ $message }}</span> @enderror
+                    @if (!$isCustomError)
+                        @error('target_value') <span class="error-message">{{ $message }}</span> @enderror
+                    @endif
                 </div>
 
                 <!-- Giá trị hiện tại -->
                 <div>
                     <label for="current_value">Giá trị hiện tại *</label>
                     <input type="number" name="current_value" id="current_value" value="{{ old('current_value') }}" step="0.01">
-                    @error('current_value') <span class="error-message">{{ $message }}</span> @enderror
+                    @if (!$isCustomError)
+                        @error('current_value') <span class="error-message">{{ $message }}</span> @enderror
+                    @endif
                 </div>
 
                 <!-- Đơn vị -->
                 <div>
                     <label for="unit">Đơn vị *</label>
                     <input type="text" name="unit" id="unit" value="{{ old('unit') }}">
-                    @error('unit') <span class="error-message">{{ $message }}</span> @enderror
+                    @if (!$isCustomError)
+                        @error('unit') <span class="error-message">{{ $message }}</span> @enderror
+                    @endif
                 </div>
 
                 <!-- Trạng thái -->
@@ -62,21 +84,27 @@
                         <option value="active" {{ old('status') == 'active' ? 'selected' : '' }}>Đang thực hiện</option>
                         <option value="completed" {{ old('status') == 'completed' ? 'selected' : '' }}>Hoàn thành</option>
                     </select>
-                    @error('status') <span class="error-message">{{ $message }}</span> @enderror
+                    @if (!$isCustomError)
+                        @error('status') <span class="error-message">{{ $message }}</span> @enderror
+                    @endif
                 </div>
 
                 <!-- Trọng số -->
                 <div>
                     <label for="weight">Trọng số (%)*</label>
                     <input type="number" name="weight" id="weight" value="{{ old('weight') }}" min="0" max="100">
-                    @error('weight') <span class="error-message">{{ $message }}</span> @enderror
+                    @if (!$isCustomError)
+                        @error('weight') <span class="error-message">{{ $message }}</span> @enderror
+                    @endif
                 </div>
 
                 <!-- Tiến độ -->
                 <div>
                     <label for="progress_percent">Tiến độ (%)</label>
                     <input type="number" name="progress_percent" id="progress_percent" value="{{ old('progress_percent') }}" min="0" max="100">
-                    @error('progress_percent') <span class="error-message">{{ $message }}</span> @enderror
+                    @if (!$isCustomError)
+                        @error('progress_percent') <span class="error-message">{{ $message }}</span> @enderror
+                    @endif
                 </div>
             </div>
 

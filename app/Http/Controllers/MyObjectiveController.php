@@ -32,7 +32,7 @@ class MyObjectiveController extends Controller
         $allowedLevels = $this->getAllowedLevels($user->role ? $user->role->role_name : 'member');
         $currentLevel = $allowedLevels[0]; // Lấy level đầu tiên làm mặc định cho index
 
-        $query = Objective::with(['user', 'department', 'keyResults', 'cycle', 'parentKeyResult.objective'])
+    $query = Objective::with(['user', 'department', 'keyResults', 'cycle'])
             ->whereIn('level', $allowedLevels)
             ->where(function ($query) use ($user) {
                 $query->where('user_id', $user->id)
@@ -84,7 +84,7 @@ class MyObjectiveController extends Controller
         // Kiểm tra vai trò của người dùng
         if (!$user->role) {
             Log::warning('User has no role assigned', ['user_id' => $user->id]);
-            $objectives = Objective::with(['user', 'department', 'keyResults', 'cycle', 'parentKeyResult.objective'])
+            $objectives = Objective::with(['user', 'department', 'keyResults', 'cycle'])
                 ->where('level', 'person')
                 ->where(function ($query) use ($user) {
                     $query->where('user_id', $user->id)
@@ -173,7 +173,6 @@ class MyObjectiveController extends Controller
             'progress_percent' => 'nullable|numeric|min:0|max:100',
             'level' => 'required|in:' . implode(',', $allowedLevels),
             'cycle_id' => 'required|integer|exists:cycles,cycle_id',
-            'parent_key_result_id' => 'nullable|integer|exists:key_results,kr_id',
             'key_results' => 'required|array|min:1',
             'key_results.*.kr_title' => 'required|string|max:255',
             'key_results.*.target_value' => 'required|numeric',
@@ -198,21 +197,7 @@ class MyObjectiveController extends Controller
                 ->withInput();
         }
 
-        // Kiểm tra parent key result
-        if ($validated['parent_key_result_id']) {
-            $parentKeyResult = KeyResult::where('kr_id', $validated['parent_key_result_id'])
-                ->whereHas('objective', function ($query) use ($validated) {
-                    $query->where('level', 'company')
-                          ->where('cycle_id', $validated['cycle_id']);
-                })
-                ->first();
-
-            if (!$parentKeyResult) {
-                return redirect()->back()
-                    ->withErrors(['error' => 'Key Result cấp công ty không hợp lệ hoặc không thuộc chu kỳ hiện tại.'])
-                    ->withInput();
-            }
-        }
+        // parent key result logic removed
 
         try {
             $startTime = microtime(true);
@@ -227,7 +212,6 @@ class MyObjectiveController extends Controller
                     'user_id' => $user->id,
                     'cycle_id' => $validated['cycle_id'],
                     'department_id' => $validated['level'] === 'company' ? null : $validated['department_id'],
-                    'parent_key_result_id' => $validated['parent_key_result_id'],
                 ]);
 
                 foreach ($validated['key_results'] as $kr) {
@@ -268,7 +252,7 @@ class MyObjectiveController extends Controller
         $user = Auth::user();
         if (!$user || !$user->role) {
             Log::warning('User has no role assigned', ['user_id' => $user ? $user->id : 'No user']);
-            $objectives = Objective::with(['user', 'department', 'keyResults', 'cycle', 'parentKeyResult.objective'])
+            $objectives = Objective::with(['user', 'department', 'keyResults', 'cycle'])
                 ->where('level', 'person')
                 ->where(function ($query) use ($user) {
                     $query->where('user_id', $user->id)
@@ -369,7 +353,7 @@ class MyObjectiveController extends Controller
             'progress_percent' => 'nullable|numeric|min:0|max:100',
             'level' => 'required|in:' . implode(',', $allowedLevels),
             'cycle_id' => 'required|integer|exists:cycles,cycle_id',
-            'parent_key_result_id' => 'nullable|integer|exists:key_results,kr_id',
+            // parent_key_result_id removed
         ];
 
         // Chỉ yêu cầu department_id nếu level không phải là company
@@ -385,21 +369,7 @@ class MyObjectiveController extends Controller
                 ->withErrors(['error' => 'Bạn chỉ có thể cập nhật OKR cho phòng ban của mình.']);
         }
 
-        // Kiểm tra parent key result
-        if ($validated['parent_key_result_id']) {
-            $parentKeyResult = KeyResult::where('kr_id', $validated['parent_key_result_id'])
-                ->whereHas('objective', function ($query) use ($validated) {
-                    $query->where('level', 'company')
-                          ->where('cycle_id', $validated['cycle_id']);
-                })
-                ->first();
-
-            if (!$parentKeyResult) {
-                return redirect()->back()
-                    ->withErrors(['error' => 'Key Result cấp công ty không hợp lệ hoặc không thuộc chu kỳ hiện tại.'])
-                    ->withInput();
-            }
-        }
+        // parent key result logic removed
 
         try {
             DB::transaction(function () use ($validated, $objective) {
@@ -411,8 +381,7 @@ class MyObjectiveController extends Controller
                     'progress_percent' => $validated['progress_percent'] ?? 0,
                     'department_id' => $validated['level'] === 'company' ? null : $validated['department_id'],
                     'cycle_id' => $validated['cycle_id'],
-                    'parent_key_result_id' => $validated['parent_key_result_id'],
-                    'parent_objective_id' => null,
+                    // parent_key_result_id and parent_objective_id removed
                 ]);
             });
 
