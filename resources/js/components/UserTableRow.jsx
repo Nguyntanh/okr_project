@@ -149,7 +149,6 @@ export default function UserTableRow({
                                 </span>
                             )}
                         </div>
-                        <div className="text-sm text-slate-500">{user.email}</div>
                     </div>
                 </div>
             </td>
