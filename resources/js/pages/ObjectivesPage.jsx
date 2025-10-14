@@ -214,7 +214,7 @@ export default function ObjectivesPage() {
                 />
             )}
             {editingObjective && (
-                <KeyResultModal
+                <ObjectiveModal
                     editingObjective={editingObjective}
                     setEditingObjective={setEditingObjective}
                     departments={departments}
