@@ -218,7 +218,7 @@ class MyObjectiveController extends Controller
             ]);
         }
 
-        // Thông báo nếu thay đổi
+        // Thông báo nếu thay đổi 
         event(new OkrParentChanged($objective));
 
         try {
