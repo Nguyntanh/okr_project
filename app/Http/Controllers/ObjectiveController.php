@@ -16,17 +16,13 @@ class ObjectiveController extends Controller
     /**
      * Display a listing of objectives
      */
-    public function index(): View
+    public function index(Request $request)
     {
-        $user = Auth::user();
-        // Kiểm tra role_name thông qua mối quan hệ với bảng roles
-        if ($user->role->role_name !== 'admin') {
-            abort(403, 'Unauthorized access');
+        $objectives = Objective::with(['user', 'cycle', 'keyResults'])->get();
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'data' => $objectives]);
         }
-
-        $objectives = Objective::with(['user', 'cycle', 'keyResults'])
-                               ->paginate(10);
-        return view('objectives.index', compact('objectives'));
+        return view('app');
     }
 
     /**
@@ -35,17 +31,13 @@ class ObjectiveController extends Controller
     public function create(Request $request): View
     {
         $user = Auth::user();
-        // Kiểm tra role_name thông qua mối quan hệ với bảng roles
-        if ($user->role->role_name !== 'admin') {
-            abort(403, 'Unauthorized access');
-        }
-
         $cycle_id = $request->query('cycle_id', null);
 
-        // Xác định các level được phép tạo theo role_name
-        $allowedLevels = match($user->role->role_name) {
-            'admin' => ['Công ty', 'Phòng ban', 'Nhóm', 'Cá nhân'], // Admin
-            default => [], // Không cho phép
+        // Xác định các level được phép tạo theo role_id
+        $allowedLevels = match($user->role_id) {
+            1 => ['Công ty', 'Phòng ban', 'Nhóm', 'Cá nhân'], // Admin
+            2 => ['Phòng ban', 'Nhóm', 'Cá nhân'],            // Manager
+            default => ['Nhóm', 'Cá nhân'],                   // Member
         };
 
         return view('objectives.create', compact('cycle_id', 'allowedLevels'));
@@ -54,34 +46,52 @@ class ObjectiveController extends Controller
     /**
      * Store a newly created objective
      */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request)
     {
         $user = Auth::user();
-        // Kiểm tra role_name thông qua mối quan hệ với bảng roles
-        if ($user->role->role_name !== 'admin') {
-            abort(403, 'Unauthorized access');
+        $level = $request->input('level', 'Cá nhân');
+
+        // Xác định các level được phép tạo theo role_id (cho điều hướng web thông thường)
+        $allowedLevels = ['Nhóm', 'Cá nhân'];
+        if ($user && $user->role_id == 2) { // Manager
+            $allowedLevels = ['Phòng ban', 'Nhóm', 'Cá nhân'];
+        } elseif ($user && $user->role_id == 1) { // Admin
+            $allowedLevels = ['Công ty', 'Phòng ban', 'Nhóm', 'Cá nhân'];
         }
 
-        $level = $request->input('level', 'Công ty'); // Default to 'Công ty'
+        // Nếu là JSON từ SPA: nới lỏng rule và trả JSON
+        if ($request->expectsJson()) {
+            $validated = $request->validate([
+                'obj_title' => 'required|string|max:255',
+                'level' => 'nullable|string|max:255',
+                'description' => 'nullable|string|max:1000',
+                'status' => 'nullable|string|max:255',
+                'progress_percent' => 'nullable|numeric|min:0|max:100',
+                'cycle_id' => 'nullable|integer|exists:cycles,cycle_id',
+            ]);
 
-        // Xác định các level được phép tạo theo role_name
-        switch ($user->role->role_name) {
-            case 'admin': // Admin
-                $allowedLevels = ['Công ty', 'Phòng ban', 'Nhóm', 'Cá nhân'];
-                break;
-            default:
-                $allowedLevels = [];
-                break;
+            $objectiveData = [
+                'obj_title' => $validated['obj_title'],
+                'level' => $validated['level'] ?? $level,
+                'description' => $validated['description'] ?? null,
+                'status' => $validated['status'] ?? 'active',
+                'progress_percent' => $validated['progress_percent'] ?? 0,
+                'user_id' => Auth::id() ?? null,
+                'cycle_id' => $validated['cycle_id'] ?? null,
+            ];
+            $objective = Objective::create($objectiveData);
+            $objective->load(['user','cycle','keyResults']);
+            return response()->json(['success' => true, 'message' => 'Tạo Objective thành công!', 'data' => $objective]);
         }
 
-        // Kiểm tra quyền
+        // Trường hợp điều hướng web thường (Blade cũ): giữ nguyên rule và kiểm tra quyền
         if (!in_array($level, $allowedLevels)) {
             return redirect()->back()
                 ->withErrors(['level' => 'Bạn không có quyền tạo OKR cấp ' . $level . '.'])
                 ->withInput();
         }
 
-        // Validate dữ liệu
+        // Validate dữ liệu (web)
         $validated = $request->validate([
             // Objective
             'obj_title' => 'required|string|max:255',
@@ -90,6 +100,16 @@ class ObjectiveController extends Controller
             'status' => 'required|in:draft,active,completed',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
             'cycle_id' => 'nullable|integer|exists:cycles,cycle_id',
+
+            // Key Results
+            'key_results' => 'nullable|array',
+            'key_results.*.kr_title' => 'required|string|max:255',
+            'key_results.*.target_value' => 'required|numeric|min:0',
+            'key_results.*.current_value' => 'nullable|numeric|min:0',
+            'key_results.*.unit' => 'required|string|max:255',
+            'key_results.*.status' => 'nullable|string|max:255',
+            'key_results.*.weight' => 'nullable|integer|min:0|max:100',
+            'key_results.*.progress_percent' => 'nullable|numeric|min:0|max:100',
         ]);
 
         // Tạo Objective và Key Results trong transaction
@@ -101,7 +121,7 @@ class ObjectiveController extends Controller
                 'status' => $validated['status'],
                 'progress_percent' => $validated['progress_percent'] ?? 0,
                 'user_id' => Auth::id() ?? 2,
-                'cycle_id' => $validated['cycle_id'] ?? null,
+                'cycle_id' => $validated['cycle_id'],
             ];
             $objective = Objective::create($objectiveData);
 
@@ -131,16 +151,13 @@ class ObjectiveController extends Controller
     /**
      * Display the specified objective
      */
-    public function show(string $id): View
+    public function show(Request $request, string $id)
     {
-        $user = Auth::user();
-        // Kiểm tra role_name thông qua mối quan hệ với bảng roles
-        if ($user->role->role_name !== 'admin') {
-            abort(403, 'Unauthorized access');
-        }
-
         $objective = Objective::with('keyResults')->findOrFail($id);
-        return view('objectives.show', compact('objective'));
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'data' => $objective]);
+        }
+        return view('app');
     }
 
     /**
@@ -148,12 +165,6 @@ class ObjectiveController extends Controller
      */
     public function edit(string $id): View
     {
-        $user = Auth::user();
-        // Kiểm tra role_name thông qua mối quan hệ với bảng roles
-        if ($user->role->role_name !== 'admin') {
-            abort(403, 'Unauthorized access');
-        }
-
         $objective = Objective::findOrFail($id);
         return view('objectives.edit', compact('objective'));
     }
@@ -161,14 +172,33 @@ class ObjectiveController extends Controller
     /**
      * Update the specified objective
      */
-    public function update(Request $request, string $id): RedirectResponse
+    public function update(Request $request, string $id)
     {
-        $user = Auth::user();
-        // Kiểm tra role_name thông qua mối quan hệ với bảng roles
-        if ($user->role->role_name !== 'admin') {
-            abort(403, 'Unauthorized access');
+        // JSON update từ SPA
+        if ($request->expectsJson()) {
+            $objective = Objective::where('objective_id', $id)->firstOrFail();
+            $validated = $request->validate([
+                'obj_title' => 'nullable|string|max:255',
+                'description' => 'nullable|string|max:1000',
+                'level' => 'nullable|string|max:255',
+                'status' => 'nullable|string|max:255',
+                'progress_percent' => 'nullable|numeric|min:0|max:100',
+                'cycle_id' => 'nullable|integer|exists:cycles,cycle_id',
+            ]);
+
+            if (array_key_exists('obj_title', $validated)) $objective->obj_title = $validated['obj_title'];
+            if (array_key_exists('description', $validated)) $objective->description = $validated['description'];
+            if (array_key_exists('level', $validated)) $objective->level = $validated['level'];
+            if (array_key_exists('status', $validated)) $objective->status = $validated['status'];
+            if (array_key_exists('progress_percent', $validated)) $objective->progress_percent = $validated['progress_percent'];
+            if (array_key_exists('cycle_id', $validated)) $objective->cycle_id = $validated['cycle_id'];
+
+            $objective->save();
+            $objective->load(['user','cycle','keyResults']);
+            return response()->json(['success' => true, 'message' => 'Cập nhật Objective thành công!', 'data' => $objective]);
         }
 
+        // Luồng legacy (Blade cũ)
         $validated = $request->validate([
             'title'       => 'required|string|max:255',
             'description' => 'nullable|string|max:1000',
@@ -186,17 +216,20 @@ class ObjectiveController extends Controller
     /**
      * Remove the specified objective
      */
-    public function destroy(string $id): RedirectResponse
+    public function destroy(Request $request, string $id)
     {
-        $user = Auth::user();
-        // Kiểm tra role_name thông qua mối quan hệ với bảng roles
-        if ($user->role->role_name !== 'admin') {
-            abort(403, 'Unauthorized access');
+        // Dùng cột khóa chính thực tế 'objective_id' thay vì mặc định 'id'
+        $objective = Objective::where('objective_id', $id)->first();
+        if (!$objective) {
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Objective không tồn tại.'], 404);
+            }
+            return redirect()->route('objectives.index')->withErrors('Objective không tồn tại.');
         }
-
-        $objective = Objective::findOrFail($id);
         $objective->delete();
-
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Đã xóa Objective thành công.']);
+        }
         return redirect()->route('objectives.index')
             ->with('success', 'Objective deleted successfully!');
     }

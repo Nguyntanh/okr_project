@@ -19,7 +19,7 @@ class MyObjectiveController extends Controller
     /**
      * Hiển thị danh sách OKR theo quyền người dùng
      */
-    public function index(): View
+    public function index(Request $request): View|JsonResponse
     {
         $user = Auth::user();
         if (!$user) {
@@ -32,7 +32,7 @@ class MyObjectiveController extends Controller
         $allowedLevels = $this->getAllowedLevels($user->role ? $user->role->role_name : 'member');
         $currentLevel = $allowedLevels[0]; // Lấy level đầu tiên làm mặc định cho index
 
-    $query = Objective::with(['user', 'department', 'keyResults', 'cycle'])
+        $query = Objective::with(['user', 'department', 'keyResults', 'cycle'])
             ->whereIn('level', $allowedLevels)
             ->where(function ($query) use ($user) {
                 $query->where('user_id', $user->id)
@@ -64,7 +64,15 @@ class MyObjectiveController extends Controller
             Log::warning('Tải danh sách OKR vượt quá 3 giây: ' . $executionTime . 's');
         }
 
-        return view('my-objectives.index', compact('objectives', 'allowedLevels'));
+        // Kiểm tra nếu yêu cầu muốn JSON (API) hay view
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'data' => $objectives
+            ]);
+        }
+
+        return view('app', compact('objectives', 'allowedLevels'));
     }
 
     /**
@@ -154,10 +162,13 @@ class MyObjectiveController extends Controller
     /**
      * Lưu OKR (Objective và Key Results)
      */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request)
     {
         $user = Auth::user();
         if (!$user || !$user->role) {
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Bạn không có vai trò để tạo OKR.'], 403);
+            }
             return redirect()->back()
                 ->withErrors(['error' => 'Bạn không có vai trò để tạo OKR.'])
                 ->withInput();
@@ -170,7 +181,6 @@ class MyObjectiveController extends Controller
             'obj_title' => 'required|string|max:255',
             'description' => 'nullable|string|max:1000',
             'status' => 'required|in:draft,active,completed',
-            'progress_percent' => 'nullable|numeric|min:0|max:100',
             'level' => 'required|in:' . implode(',', $allowedLevels),
             'cycle_id' => 'required|integer|exists:cycles,cycle_id',
             'key_results' => 'required|array|min:1',
@@ -179,8 +189,6 @@ class MyObjectiveController extends Controller
             'key_results.*.current_value' => 'required|numeric',
             'key_results.*.unit' => 'required|string|max:50',
             'key_results.*.status' => 'required|in:draft,active,completed',
-            'key_results.*.weight' => 'required|numeric|min:0|max:100',
-            'key_results.*.progress_percent' => 'nullable|numeric|min:0|max:100',
         ];
 
         // Chỉ yêu cầu department_id nếu level không phải là company
@@ -197,36 +205,49 @@ class MyObjectiveController extends Controller
                 ->withInput();
         }
 
-        // parent key result logic removed
-
         try {
             $startTime = microtime(true);
 
-            DB::transaction(function () use ($validated, $user) {
+            $created = DB::transaction(function () use ($validated, $user) {
+                // Tính tiến độ Objective dựa trên các KR (trung bình % KR)
+                $krPercents = [];
+                foreach ($validated['key_results'] as $kr) {
+                    $target = (float)($kr['target_value'] ?? 0);
+                    $current = (float)($kr['current_value'] ?? 0);
+                    $percent = $target > 0 ? max(0, min(100, ($current / $target) * 100)) : 0;
+                    $krPercents[] = $percent;
+                }
+                $objectiveProgress = count($krPercents) ? array_sum($krPercents) / count($krPercents) : 0;
+
                 $objective = Objective::create([
                     'obj_title' => $validated['obj_title'],
                     'level' => $validated['level'],
                     'description' => $validated['description'],
                     'status' => $validated['status'],
-                    'progress_percent' => $validated['progress_percent'] ?? 0,
+                    'progress_percent' => $objectiveProgress,
                     'user_id' => $user->id,
                     'cycle_id' => $validated['cycle_id'],
                     'department_id' => $validated['level'] === 'company' ? null : $validated['department_id'],
                 ]);
 
                 foreach ($validated['key_results'] as $kr) {
+                    $target = (float)($kr['target_value'] ?? 0);
+                    $current = (float)($kr['current_value'] ?? 0);
+                    $progress = $target > 0 ? max(0, min(100, ($current / $target) * 100)) : 0;
                     KeyResult::create([
                         'kr_title' => $kr['kr_title'],
                         'target_value' => $kr['target_value'],
                         'current_value' => $kr['current_value'],
                         'unit' => $kr['unit'],
                         'status' => $kr['status'],
-                        'weight' => $kr['weight'],
-                        'progress_percent' => $kr['progress_percent'] ?? 0,
+                        'progress_percent' => $progress,
                         'objective_id' => $objective->objective_id,
+                        'cycle_id' => $validated['cycle_id'],
+                        'department_id' => $validated['level'] === 'company' ? null : ($validated['department_id'] ?? null),
                         'user_id' => $user->id,
                     ]);
                 }
+                return $objective;
             });
 
             $executionTime = microtime(true) - $startTime;
@@ -234,10 +255,17 @@ class MyObjectiveController extends Controller
                 Log::warning('Lưu OKR vượt quá 2 giây: ' . $executionTime . 's');
             }
 
+            if ($request->expectsJson()) {
+                $created->load(['keyResults']);
+                return response()->json(['success' => true, 'message' => 'OKR được tạo thành công!', 'data' => $created]);
+            }
             return redirect()->route('my-objectives.index')
                 ->with('success', 'OKR được tạo thành công!');
         } catch (\Exception $e) {
             Log::error('Error creating OKR', ['error' => $e->getMessage(), 'user_id' => $user->id]);
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Lưu OKR thất bại: ' . $e->getMessage()], 500);
+            }
             return redirect()->back()
                 ->withErrors(['error' => 'Lưu OKR thất bại: ' . $e->getMessage()])
                 ->withInput();
@@ -353,7 +381,6 @@ class MyObjectiveController extends Controller
             'progress_percent' => 'nullable|numeric|min:0|max:100',
             'level' => 'required|in:' . implode(',', $allowedLevels),
             'cycle_id' => 'required|integer|exists:cycles,cycle_id',
-            // parent_key_result_id removed
         ];
 
         // Chỉ yêu cầu department_id nếu level không phải là company
@@ -369,8 +396,6 @@ class MyObjectiveController extends Controller
                 ->withErrors(['error' => 'Bạn chỉ có thể cập nhật OKR cho phòng ban của mình.']);
         }
 
-        // parent key result logic removed
-
         try {
             DB::transaction(function () use ($validated, $objective) {
                 $objective->update([
@@ -381,7 +406,6 @@ class MyObjectiveController extends Controller
                     'progress_percent' => $validated['progress_percent'] ?? 0,
                     'department_id' => $validated['level'] === 'company' ? null : $validated['department_id'],
                     'cycle_id' => $validated['cycle_id'],
-                    // parent_key_result_id and parent_objective_id removed
                 ]);
             });
 
@@ -440,7 +464,7 @@ class MyObjectiveController extends Controller
     {
         return match ($roleName) {
             'admin' => ['company', 'unit', 'team', 'person'],
-            'master', 'facilitator' => ['unit', 'team', 'person'],
+            'manager' => ['unit', 'team', 'person'],
             'member' => ['person'],
             default => ['person'],
         };

@@ -31,7 +31,7 @@ class Role extends Model
      */
     public function isAdmin()
     {
-        return $this->role_name === 'admin';
+        return strtolower($this->role_name) === 'admin';
     }
 
     /**
@@ -39,7 +39,7 @@ class Role extends Model
      */
     public function isManager()
     {
-        return $this->role_name === 'Manager';
+        return strtolower($this->role_name) === 'master';
     }
 
     /**
@@ -47,7 +47,7 @@ class Role extends Model
      */
     public function isMember()
     {
-        return $this->role_name === 'Member';
+        return strtolower($this->role_name) === 'member';
     }
 
     /**

@@ -50,13 +50,16 @@ class MyKeyResultController extends Controller
     /**
      * Lưu Key Result
      */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request)
     {
         $user = Auth::user();
         $objectiveId = $request->input('objective_id');
 
         // Kiểm tra objective_id không null
         if (!$objectiveId) {
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Không tìm thấy ID của Objective.'], 422);
+            }
             return redirect()->back()
                 ->withErrors(['error' => 'Không tìm thấy ID của Objective.'])
                 ->withInput();
@@ -67,6 +70,9 @@ class MyKeyResultController extends Controller
         // Kiểm tra quyền tạo KR
         $allowedLevels = $this->getAllowedLevels($user->role->role_name);
         if (!in_array($objective->level, $allowedLevels) || ($objective->user_id !== $user->id && $objective->level === 'Cá nhân')) {
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Bạn không có quyền tạo Key Result cho Objective này.'], 403);
+            }
             return redirect()->back()->withErrors(['error' => 'Bạn không có quyền tạo Key Result cho Objective này.']);
         }
 
@@ -77,29 +83,40 @@ class MyKeyResultController extends Controller
             'current_value' => 'required|numeric',
             'unit' => 'required|string|max:50',
             'status' => 'required|in:draft,active,completed',
-            'weight' => 'required|numeric|min:0|max:100',
+            'department_id' => 'nullable|integer|exists:departments,department_id',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
         ]);
 
         try {
-            DB::transaction(function () use ($validated, $objective, $user) {
+            $created = DB::transaction(function () use ($validated, $objective, $user) {
+                $target = (float)$validated['target_value'];
+                $current = (float)$validated['current_value'];
+                $progress = $target > 0 ? max(0, min(100, ($current / $target) * 100)) : 0;
                 $keyResultData = [
                     'kr_title' => $validated['kr_title'],
                     'target_value' => $validated['target_value'],
                     'current_value' => $validated['current_value'],
                     'unit' => $validated['unit'],
                     'status' => $validated['status'],
-                    'weight' => $validated['weight'],
-                    'progress_percent' => $validated['progress_percent'] ?? 0,
+                    'weight' => 0,
+                    'progress_percent' => $validated['progress_percent'] ?? $progress,
                     'objective_id' => $objective->objective_id, // Sử dụng objective_id
+                    'cycle_id' => $objective->cycle_id,
+                    'department_id' => $validated['department_id'] ?? $objective->department_id,
                     'user_id' => $user->id,
                 ];
-                KeyResult::create($keyResultData);
+                return KeyResult::create($keyResultData);
             });
 
+            if ($request->expectsJson()) {
+                return response()->json(['success' => true, 'message' => 'Key Result được tạo thành công!', 'data' => $created]);
+            }
             return redirect()->route('my-key-results.index')
                 ->with('success', 'Key Result được tạo thành công!');
         } catch (\Exception $e) {
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Lưu Key Result thất bại: ' . $e->getMessage()], 500);
+            }
             return redirect()->back()
                 ->withErrors(['error' => 'Lưu Key Result thất bại: ' . $e->getMessage()])
                 ->withInput();
@@ -211,7 +228,7 @@ class MyKeyResultController extends Controller
     {
         return match ($roleName) {
             'admin' => ['company', 'unit', 'team', 'person'],
-            'master', 'facilitator' => ['unit', 'team', 'person'],
+            'manager' => ['unit', 'team', 'person'],
             'member' => ['person'],
             default => ['person'],
         };

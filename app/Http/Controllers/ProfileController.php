@@ -12,9 +12,22 @@ class ProfileController extends Controller
     {
         $user = Auth::user();
         if (!$user) {
-            return redirect()->route('login')->withErrors('Bạn cần đăng nhập để xem hồ sơ.');
+            return response()->json([
+                'success' => false,
+                'message' => 'Bạn cần đăng nhập để xem hồ sơ.'
+            ], 401);
         }
-        return view('profile.show', compact('user'));
+        
+        return response()->json([
+            'success' => true,
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->full_name,
+                'email' => $user->email,
+                'avatar' => $user->avatar_url,
+                'status' => $user->status,
+            ]
+        ]);
     }
 
     public function update(Request $request)
@@ -43,6 +56,17 @@ class ProfileController extends Controller
 
         $user->save();
 
-        return redirect()->route('profile.show')->with('success', 'Cập nhật hồ sơ thành công!');
+        return response()->json([
+            'success' => true,
+            'message' => 'Cập nhật hồ sơ thành công!',
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->full_name,
+                'email' => $user->email,
+                'avatar' => $user->avatar_url,
+                'status' => $user->status,
+            ],
+            'redirect' => '/dashboard'
+        ]);
     }
 }

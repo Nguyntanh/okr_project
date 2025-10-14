@@ -15,22 +15,53 @@ class RoleSeeder extends Seeder
     {
         $roles = [
             [
-                'role_name' => 'Admin',
+                'role_name' => 'admin',
                 'description' => 'Quản trị viên hệ thống',
+                'level' => 'company',
             ],
             [
-                'role_name' => 'Manager',
-                'description' => 'Quản lý phòng ban',
+                'role_name' => 'master',
+                'description' => 'Quản lý cấp đơn vị',
+                'level' => 'unit',
             ],
             [
-                'role_name' => 'Member',
-                'description' => 'Thành viên',
+                'role_name' => 'master',
+                'description' => 'Quản lý cấp nhóm',
+                'level' => 'team',
+            ],
+            [
+                'role_name' => 'facilitator',
+                'description' => 'Điều phối viên cấp đơn vị',
+                'level' => 'unit',
+            ],
+            [
+                'role_name' => 'facilitator',
+                'description' => 'Điều phối viên cấp nhóm',
+                'level' => 'team',
+            ],
+            [
+                'role_name' => 'member',
+                'description' => 'Thành viên cấp đơn vị',
+                'level' => 'unit',
+            ],
+            [
+                'role_name' => 'member',
+                'description' => 'Thành viên cấp nhóm',
+                'level' => 'team',
+            ],
+            [
+                'role_name' => 'member',
+                'description' => 'Thành viên cá nhân',
+                'level' => 'person',
             ],
         ];
 
         foreach ($roles as $role) {
             Role::updateOrCreate(
-                ['role_name' => $role['role_name']],
+                [
+                    'role_name' => $role['role_name'],
+                    'level' => $role['level']
+                ],
                 $role
             );
         }

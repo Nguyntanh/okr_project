@@ -100,19 +100,23 @@ class AuthController extends Controller
             Session::forget('cognito_access_token');
             Session::forget('cognito_refresh_token');
             Session::forget('cognito_id_token');
-
-            Log::info('Cleared session tokens after password change', [
-                'user_id' => Auth::id(),
-                'remaining_session_keys' => array_keys(Session::all())
-            ]);
-
-            // Đăng xuất người dùng để yêu cầu đăng nhập lại
+            Session::flush(); // Xóa toàn bộ session
             Auth::logout();
 
             Log::info('User logged out after password change', [
                 'user_id' => Auth::id()
             ]);
-            return redirect()->route('login')->with('success', 'Đổi mật khẩu thành công! Vui lòng đăng nhập lại.');
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Đổi mật khẩu thành công! Vui lòng đăng nhập lại.',
+                    'redirect' => '/landingpage',
+                    'logout' => true
+                ]);
+            }
+            
+            return redirect()->route('landingpage')->with('success', 'Đổi mật khẩu thành công! Vui lòng đăng nhập lại.');
 
         } catch (AwsException $e) {
             $errorCode = $e->getAwsErrorCode(); // Lấy code lỗi chính xác
@@ -376,6 +380,6 @@ class AuthController extends Controller
         Session::forget('cognito_access_token');
         Session::forget('cognito_refresh_token');
         Session::forget('cognito_id_token');
-        return redirect('/dashboard')->with('success', 'Đăng xuất thành công!');
+        return redirect()->route('landingpage')->with('success', 'Đăng xuất thành công!');
     }
 }

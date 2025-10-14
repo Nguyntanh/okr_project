@@ -20,7 +20,7 @@ return new class extends Migration
             // $table->string('type', 50)->nullable()->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
             $table->bigInteger('parent_department_id')->unsigned()->nullable();
             // Nếu cần, thêm khóa ngoại tự tham chiếu
-            $table->foreign('parent_department_id')->references('parent_department_id')->on('departments')->onDelete('set null');
+            $table->foreign('parent_department_id')->references('department_id')->on('departments')->onDelete('set null');
         });
 
         Schema::table('key_results', function (Blueprint $table) {
@@ -76,10 +76,12 @@ return new class extends Migration
 
         Schema::table('departments', function (Blueprint $table) {
             // $table->dropColumn('type');
+            $table->dropForeign(['parent_department_id']);
             $table->dropColumn('parent_department_id');
         });
 
         Schema::table('key_results', function (Blueprint $table) {
+            $table->dropForeign(['department_id']);
             $table->dropColumn('department_id');
         });
 

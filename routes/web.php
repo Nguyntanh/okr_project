@@ -7,19 +7,20 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ObjectiveController;
 use App\Http\Controllers\KeyResultController;
 use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\MyOKRController;
 use App\Http\Controllers\MyObjectiveController;
 use App\Http\Controllers\MyKeyResultController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\File;
 
 Route::get('/', function () {
-    return view('landingpage');
+    return view('app');
 });
 
 // Landing Page - hiển thị nút đăng nhập
 Route::get('/landingpage', function () {
-    return view('landingpage');
+    return view('app');
 })->name('landingpage');
 
 Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () {
@@ -70,19 +71,30 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('auth')->name('dashboard');
 
     //Routes cho Cycle
-    Route::get('/cycles',[CycleController::class,'index']) -> name('cycles.index');
-    Route::get('/cycles/{cycle}/detail',[CycleController::class,'show']) -> name('cycles.show');
-    Route::get('/cycles/create',[CycleController::class,'create']) -> middleware('auth','admin') -> name('cycles.create');
-    Route::post('/cycles/create',[CycleController::class,'store']) -> middleware('auth','admin') -> name('cycles.store');
+    Route::get('/cycles',[CycleController::class,'index'])->name('cycles.index');
+    Route::post('/cycles',[CycleController::class,'store'])->middleware('auth','admin')->name('cycles.store');
+    Route::get('/cycles/{cycle}/detail',[CycleController::class,'show'])->name('cycles.show');
+    Route::put('/cycles/{cycle}',[CycleController::class,'update'])->middleware('auth','admin')->name('cycles.update');
+    Route::delete('/cycles/{cycle}',[CycleController::class,'destroy'])->middleware('auth','admin')->name('cycles.destroy');
+    Route::get('/cycles/create',[CycleController::class,'create'])->middleware('auth','admin')->name('cycles.create');
+    Route::post('/cycles/create',[CycleController::class,'store'])->middleware('auth','admin')->name('cycles.store.create');
 
     //Routes cho Department
     Route::resource('departments', DepartmentController::class);
 
-    // Routes cho Profile
-    Route::get('/profile', [ProfileController::class, 'show'])->middleware('auth')->name('profile.show');
+    // Routes cho Profile - trả về React app
+    Route::get('/profile', function () {
+        return view('app');
+    })->middleware('auth')->name('profile.show');
     Route::post('/profile', [ProfileController::class, 'update'])->middleware('auth')->name('profile.update');
-    Route::get('/change-password', [App\Http\Controllers\AuthController::class, 'showChangePasswordForm'])->name('change.password.form');
-    Route::post('/change-password', [App\Http\Controllers\AuthController::class, 'changePassword'])->name('change.password');
+    
+    // API Routes cho Profile (trả về JSON)
+    Route::get('/api/profile', [ProfileController::class, 'show'])->middleware('auth');
+    Route::post('/api/profile', [ProfileController::class, 'update'])->middleware('auth');
+    Route::get('/change-password', function () {
+        return view('app');
+    })->middleware('auth')->name('change.password.form');
+    Route::post('/change-password', [App\Http\Controllers\AuthController::class, 'changePassword'])->middleware('auth')->name('change.password');
 
             // Routes cho User Management (chỉ Admin)
             Route::middleware(['auth', 'admin'])->group(function () {
@@ -117,35 +129,70 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         [KeyResultController::class, 'store']
     )->name('key_results.store');
 
+    // Cập nhật Key Result
+    Route::put('/objectives/{objective}/key-results/{kr}',
+        [KeyResultController::class, 'update']
+    )->name('key_results.update');
+
     Route::delete('/objectives/{objective}/key-results/{kr}',
         [KeyResultController::class, 'destroy']
     )->name('key_results.destroy');
 
     Route::prefix('my-objectives')->group(function () {
-        Route::get('/', [MyObjectiveController::class, 'index'])->name('my-objectives.index');
-        Route::get('/create', [MyObjectiveController::class, 'create'])->name('my-objectives.create');
-        Route::post('/store', [MyObjectiveController::class, 'store'])->name('my-objectives.store');
-        Route::get('/edit/{id}', [MyObjectiveController::class, 'edit'])->name('my-objectives.edit');
-        Route::put('/update/{id}', [MyObjectiveController::class, 'update'])->name('my-objectives.update');
-        Route::delete('/destroy/{id}', [MyObjectiveController::class, 'destroy'])->name('my-objectives.destroy');
-        Route::get('/details/{id}', [MyObjectiveController::class, 'getObjectiveDetails'])->name('my-objectives.details');
-        Route::get('/my-objectives/key-result-details/{id}', [MyObjectiveController::class, 'getKeyResultDetails'])->name('my-objectives.key-result-details');
+        Route::get('/', [MyObjectiveController::class, 'index'])
+            ->middleware('auth')
+            ->name('my-objectives.index');
+        Route::get('/create', [MyObjectiveController::class, 'create'])
+            ->middleware('auth')
+            ->name('my-objectives.create');
+        Route::post('/store', [MyObjectiveController::class, 'store'])
+            ->middleware('auth')
+            ->name('my-objectives.store');
+        Route::get('/edit/{id}', [MyObjectiveController::class, 'edit'])
+            ->middleware('auth')
+            ->name('my-objectives.edit');
+        Route::put('/update/{id}', [MyObjectiveController::class, 'update'])
+            ->middleware('auth')
+            ->name('my-objectives.update');
+        Route::delete('/destroy/{id}', [MyObjectiveController::class, 'destroy'])
+            ->middleware('auth')
+            ->name('my-objectives.destroy');
+        Route::get('/details/{id}', [MyObjectiveController::class, 'getObjectiveDetails'])
+            ->middleware('auth')
+            ->name('my-objectives.details');
+        Route::get('/key-result-details/{id}', [MyObjectiveController::class, 'getKeyResultDetails'])
+            ->middleware('auth')
+            ->name('my-objectives.key-result-details');
     });
 
     Route::prefix('my-key-results')->group(function () {
-        Route::get('/', [MyKeyResultController::class, 'index'])->name('my-key-results.index');
-        Route::get('/create/{objectiveId}', [MyKeyResultController::class, 'create'])->name('my-key-results.create');
-        Route::post('/store', [MyKeyResultController::class, 'store'])->name('my-key-results.store');
-        Route::get('/edit/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'edit'])->name('my-key-results.edit');
-        Route::put('/update/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'update'])->name('my-key-results.update');
-        Route::delete('/destroy/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'destroy'])->name('my-key-results.destroy');
+        Route::get('/', function () {
+            return view('app');
+        })->middleware('auth')->name('my-key-results.index');
+        Route::get('/create/{objectiveId}', function () {
+            return view('app');
+        })->middleware('auth')->name('my-key-results.create');
+        Route::post('/store', [MyKeyResultController::class, 'store'])->middleware('auth')->name('my-key-results.store');
+        Route::get('/edit/{objectiveId}/{keyResultId}', function () {
+            return view('app');
+        })->middleware('auth')->name('my-key-results.edit');
+        Route::put('/update/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'update'])->middleware('auth')->name('my-key-results.update');
+        Route::delete('/destroy/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'destroy'])->middleware('auth')->name('my-key-results.destroy');
     });
 });
 
 // Phục vụ file trong storage khi thiếu symlink public/storage
-Route::get('/storage/{path}', function (string $path) {
-    if (Storage::disk('public')->exists($path)) {
-        return Storage::disk('public')->response($path);
+Route::get('/storage/{path}', function ($path) {
+    $path = storage_path('app/public/' . $path);
+    
+    if (!File::exists($path)) {
+        abort(404);
     }
-    abort(404);
+    
+    $file = File::get($path);
+    $type = File::mimeType($path);
+    
+    $response = response($file, 200)->header("Content-Type", $type);
+    
+    return $response;
 })->where('path', '.*');
