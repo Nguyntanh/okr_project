@@ -170,6 +170,10 @@ export default function CyclesPanel() {
     const [toast, setToast] = useState({ type: "success", message: "" });
     const [openCreateObjective, setOpenCreateObjective] = useState(false);
     const [openCreateKRForObjId, setOpenCreateKRForObjId] = useState(null);
+    
+    // Lấy thông tin user hiện tại
+    const currentUser = window.__USER__ || null;
+    const isAdmin = currentUser?.is_admin || false;
 
     const toInputDate = (v) => {
         if (!v) return "";
@@ -272,66 +276,70 @@ export default function CyclesPanel() {
                 </h2>
                 {isDetail ? (
                     <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setEditOpen(true)}
-                            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-                        >
-                            Sửa
-                        </button>
-                        <button
-                            onClick={async () => {
-                                const ok = window.confirm(
-                                    "Xóa chu kỳ này? Hành động không thể hoàn tác."
-                                );
-                                if (!ok) return;
-                                try {
-                                    const token = document
-                                        .querySelector(
-                                            'meta[name="csrf-token"]'
-                                        )
-                                        .getAttribute("content");
-                                    const id =
-                                        detail?.cycle?.cycle_id ||
-                                        detail?.cycle_id;
-                                    const res = await fetch(`/cycles/${id}`, {
-                                        method: "DELETE",
-                                        headers: {
-                                            "X-CSRF-TOKEN": token,
-                                            Accept: "application/json",
-                                        },
-                                    });
-                                    const json = await res
-                                        .json()
-                                        .catch(() => ({ success: res.ok }));
-                                    if (!res.ok || json.success === false)
-                                        throw new Error(
-                                            json.message ||
-                                                "Xóa chu kỳ thất bại"
-                                        );
-                                    setCycles((prev) =>
-                                        prev.filter(
-                                            (c) =>
-                                                String(c.cycle_id || c.id) !==
-                                                String(id)
-                                        )
+                        {isAdmin && (
+                            <button
+                                onClick={() => setEditOpen(true)}
+                                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                            >
+                                Sửa
+                            </button>
+                        )}
+                        {isAdmin && (
+                            <button
+                                onClick={async () => {
+                                    const ok = window.confirm(
+                                        "Xóa chu kỳ này? Hành động không thể hoàn tác."
                                     );
-                                    setToast({
-                                        type: "success",
-                                        message: "Đã xóa chu kỳ",
-                                    });
-                                    goBack();
-                                } catch (e) {
-                                    setToast({
-                                        type: "error",
-                                        message:
-                                            e.message || "Xóa chu kỳ thất bại",
-                                    });
-                                }
-                            }}
-                            className="rounded-md border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
-                        >
-                            Xóa
-                        </button>
+                                    if (!ok) return;
+                                    try {
+                                        const token = document
+                                            .querySelector(
+                                                'meta[name="csrf-token"]'
+                                            )
+                                            .getAttribute("content");
+                                        const id =
+                                            detail?.cycle?.cycle_id ||
+                                            detail?.cycle_id;
+                                        const res = await fetch(`/cycles/${id}`, {
+                                            method: "DELETE",
+                                            headers: {
+                                                "X-CSRF-TOKEN": token,
+                                                Accept: "application/json",
+                                            },
+                                        });
+                                        const json = await res
+                                            .json()
+                                            .catch(() => ({ success: res.ok }));
+                                        if (!res.ok || json.success === false)
+                                            throw new Error(
+                                                json.message ||
+                                                    "Xóa chu kỳ thất bại"
+                                            );
+                                        setCycles((prev) =>
+                                            prev.filter(
+                                                (c) =>
+                                                    String(c.cycle_id || c.id) !==
+                                                    String(id)
+                                            )
+                                        );
+                                        setToast({
+                                            type: "success",
+                                            message: "Đã xóa chu kỳ",
+                                        });
+                                        goBack();
+                                    } catch (e) {
+                                        setToast({
+                                            type: "error",
+                                            message:
+                                                e.message || "Xóa chu kỳ thất bại",
+                                        });
+                                    }
+                                }}
+                                className="rounded-md border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
+                            >
+                                Xóa
+                            </button>
+                        )}
                         <button
                             onClick={goBack}
                             className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
@@ -340,12 +348,14 @@ export default function CyclesPanel() {
                         </button>
                     </div>
                 ) : (
-                    <button
-                        onClick={() => setOpen(true)}
-                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700"
-                    >
-                        Tạo mới
-                    </button>
+                    isAdmin && (
+                        <button
+                            onClick={() => setOpen(true)}
+                            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700"
+                        >
+                            Tạo mới
+                        </button>
+                    )
                 )}
             </div>
             {editOpen && (

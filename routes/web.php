@@ -72,9 +72,9 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('auth')->name('dashboard');
 
     //Routes cho Cycle
-    Route::get('/cycles',[CycleController::class,'index'])->name('cycles.index');
+    Route::get('/cycles',[CycleController::class,'index'])->middleware('auth')->name('cycles.index');
     Route::post('/cycles',[CycleController::class,'store'])->middleware('auth','admin')->name('cycles.store');
-    Route::get('/cycles/{cycle}/detail',[CycleController::class,'show'])->name('cycles.show');
+    Route::get('/cycles/{cycle}/detail',[CycleController::class,'show'])->middleware('auth')->name('cycles.show');
     Route::put('/cycles/{cycle}',[CycleController::class,'update'])->middleware('auth','admin')->name('cycles.update');
     Route::delete('/cycles/{cycle}',[CycleController::class,'destroy'])->middleware('auth','admin')->name('cycles.destroy');
     Route::get('/cycles/create',[CycleController::class,'create'])->middleware('auth','admin')->name('cycles.create');
