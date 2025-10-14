@@ -177,23 +177,24 @@ class UserController extends Controller
         // Áp dụng thay đổi
         if (!is_null($roleId)) {
             $user->role_id = $roleId;
-            // Cập nhật level từ role mới
-            $newRole = Role::find($roleId);
-            if ($newRole) {
-                $user->role->level = $newRole->level;
-                $user->role->save();
-            }
         }
         if ($request->filled('department_id')) {
             $user->department_id = $request->department_id;
         }
         
-        // Cập nhật cấp độ nếu có (chỉ khi không thay đổi role_id)
-        if ($request->filled('level') && is_null($roleId)) {
+        // Cập nhật cấp độ nếu có - tìm role phù hợp với level và role_name hiện tại
+        if ($request->filled('level')) {
             $user->load('role');
             if ($user->role) {
-                $user->role->level = $request->level;
-                $user->role->save();
+                // Tìm role phù hợp với level mới và role_name hiện tại
+                $matchingRole = Role::where('level', $request->level)
+                                   ->where('role_name', $user->role->role_name)
+                                   ->first();
+                
+                if ($matchingRole) {
+                    // Chỉ thay đổi role_id để trỏ đến role phù hợp
+                    $user->role_id = $matchingRole->role_id;
+                }
             }
         }
         
