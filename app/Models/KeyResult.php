@@ -12,6 +12,7 @@ class KeyResult extends Model
     use HasFactory;
 
     public $timestamps = false;
+    protected $primaryKey = 'kr_id';
     /**
      * The attributes that are mass assignable.
      */
@@ -22,12 +23,11 @@ class KeyResult extends Model
         'unit',
         'status',
         'weight',
+        'department_id',
         'objective_id',
         'cycle_id',
         'progress_percent'
     ];
-
-    protected $primaryKey = 'kr_id';
 
     public function objective(): BelongsTo
     {

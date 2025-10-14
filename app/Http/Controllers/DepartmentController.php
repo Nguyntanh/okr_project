@@ -8,8 +8,11 @@ use Illuminate\Support\Facades\Auth;
 
 class DepartmentController extends Controller
 {
-    //
     public function index() {
+        $departments = Department::orderBy('created_at', 'asc')->get();
+        if (request()->wantsJson()) {
+            return response()->json([ 'success' => true, 'data' => $departments ]);
+        }
         return view('app');
     }
 
@@ -23,11 +26,17 @@ class DepartmentController extends Controller
             'd_description' => 'nullable|string',
         ]);
 
-        Department::create($request->all());
-        return redirect()->route('departments.index')->with('success', 'Tạo phòng ban thành công!').set_time_limit(300);
+        $department = Department::create($request->only(['d_name','d_description']));
+        if ($request->wantsJson()) {
+            return response()->json([ 'success' => true, 'message' => 'Tạo phòng ban thành công!', 'data' => $department ]);
+        }
+        return redirect()->route('departments.index')->with('success', 'Tạo phòng ban thành công!');
     }
 
     public function show(Department $department) {
+        if (request()->wantsJson()) {
+            return response()->json([ 'success' => true, 'data' => $department ]);
+        }
         return view('app');
     }
 
@@ -41,12 +50,18 @@ class DepartmentController extends Controller
             'd_description' => 'nullable|string',
         ]);
 
-        $department->update($request->all());
-        return redirect()->route('departments.index')->with('success', 'Cập nhật phòng ban thành công!').set_time_limit(300);
+        $department->update($request->only(['d_name','d_description']));
+        if ($request->wantsJson()) {
+            return response()->json([ 'success' => true, 'message' => 'Cập nhật phòng ban thành công!', 'data' => $department ]);
+        }
+        return redirect()->route('departments.index')->with('success', 'Cập nhật phòng ban thành công!');
     }
 
     public function destroy(Department $department) {
         $department->delete();
-        return redirect()->route('departments.index')->with('success', 'Xóa phòng ban thành công!').set_time_limit(300);
+        if (request()->wantsJson()) {
+            return response()->json([ 'success' => true, 'message' => 'Xóa phòng ban thành công!' ]);
+        }
+        return redirect()->route('departments.index')->with('success', 'Xóa phòng ban thành công!');
     }
 }

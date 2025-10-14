@@ -89,8 +89,8 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     Route::post('/profile', [ProfileController::class, 'update'])->middleware('auth')->name('profile.update');
     
     // API Routes cho Profile (trả về JSON)
-    Route::get('/api/profile', [ProfileController::class, 'apiShow'])->middleware('auth');
-    Route::post('/api/profile', [ProfileController::class, 'apiUpdate'])->middleware('auth');
+    Route::get('/api/profile', [ProfileController::class, 'show'])->middleware('auth');
+    Route::post('/api/profile', [ProfileController::class, 'update'])->middleware('auth');
     Route::get('/change-password', function () {
         return view('app');
     })->middleware('auth')->name('change.password.form');

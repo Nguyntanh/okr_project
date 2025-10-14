@@ -19,7 +19,7 @@ class MyObjectiveController extends Controller
     /**
      * Hiển thị danh sách OKR theo quyền người dùng
      */
-    public function index(): View
+    public function index(Request $request): View|JsonResponse
     {
         $user = Auth::user();
         if (!$user) {
@@ -32,7 +32,7 @@ class MyObjectiveController extends Controller
         $allowedLevels = $this->getAllowedLevels($user->role ? $user->role->role_name : 'member');
         $currentLevel = $allowedLevels[0]; // Lấy level đầu tiên làm mặc định cho index
 
-        $query = Objective::with(['user', 'department', 'keyResults.checkIns', 'cycle', 'parentKeyResult.objective'])
+        $query = Objective::with(['user', 'department', 'keyResults', 'cycle'])
             ->whereIn('level', $allowedLevels)
             ->where(function ($query) use ($user) {
                 $query->where('user_id', $user->id)
@@ -45,193 +45,76 @@ class MyObjectiveController extends Controller
         // Ghi log truy vấn SQL và bindings trước khi paginate
         Log::info('Index objectives', [
             'user_id' => $user->id,
-            'department_id' => $user->department_id,
-            'role' => $user->role ? $user->role->role_name : 'No role',
             'allowed_levels' => $allowedLevels,
-            'query' => $query->toSql(),
-            'bindings' => $query->getBindings()
+            'current_level' => $currentLevel,
+            'department_id' => $user->department_id,
+            'role_name' => $user->role ? $user->role->role_name : 'unknown'
         ]);
 
-        $objectives = $query->paginate(10);
+        $objectives = $query->get();
 
-        Log::info('Objectives count', [
+        $endTime = microtime(true);
+        $executionTime = round(($endTime - $startTime) * 1000, 2);
+
+        Log::info('Objectives loaded successfully', [
             'user_id' => $user->id,
-            'objectives_count' => $objectives->count()
+            'count' => $objectives->count(),
+            'execution_time_ms' => $executionTime
         ]);
 
-        $executionTime = microtime(true) - $startTime;
-        if ($executionTime > 3) {
-            Log::warning('Tải danh sách OKR vượt quá 3 giây: ' . $executionTime . 's');
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'data' => $objectives,
+                'meta' => [
+                    'allowed_levels' => $allowedLevels,
+                    'current_level' => $currentLevel,
+                    'execution_time_ms' => $executionTime
+                ]
+            ]);
         }
 
         return view('app');
     }
 
     /**
-     * Hiển thị form tạo OKR
+     * Hiển thị form tạo Objective
      */
-    public function create(): View
+    public function create(Request $request): View
     {
-        $user = Auth::user();
-        if (!$user) {
-            abort(403, 'Unauthorized: No authenticated user found.');
-        }
-
-        $departments = [];
-        $cycles = Cycle::all();
-        $allowedLevels = [];
-
-        // Kiểm tra vai trò của người dùng
-        if (!$user->role) {
-            Log::warning('User has no role assigned', ['user_id' => $user->id]);
-            $objectives = Objective::with(['user', 'department', 'keyResults', 'cycle', 'parentKeyResult.objective'])
-                ->where('level', 'person')
-                ->where(function ($query) use ($user) {
-                    $query->where('user_id', $user->id)
-                          ->orWhereHas('department', function ($q) use ($user) {
-                              $q->where('department_id', $user->department_id);
-                          });
-                })
-                ->orderBy('created_at', 'desc')
-                ->paginate(10);
-
-            return view('app');
-        }
-
-        $roleName = $user->role->role_name;
-        $allowedLevels = $this->getAllowedLevels($roleName);
-
-        // Tất cả role đều có thể tạo OKR, chỉ khác level được phép
-        if ($roleName === 'Admin') {
-            $departments = Department::all();
-        } else {
-            // Manager, Member chỉ có thể tạo cho department của mình
-            $departments = [$user->department];
-        }
-
         return view('app');
     }
 
     /**
-     * Lấy chi tiết Key Result qua AJAX
+     * Lưu Objective mới
      */
-    public function getKeyResultDetails(Request $request, $id): JsonResponse
-    {
-        $startTime = microtime(true);
-
-        $keyResult = KeyResult::with(['objective'])
-            ->whereHas('objective', function ($query) {
-                $query->where('level', 'company');
-            })
-            ->findOrFail($id);
-
-        $executionTime = microtime(true) - $startTime;
-        if ($executionTime > 3) {
-            Log::warning('Tải chi tiết Key Result vượt quá 3 giây: ' . $executionTime . 's');
-        }
-
-        return response()->json([
-            'kr_title' => $keyResult->kr_title,
-            'target_value' => $keyResult->target_value,
-            'current_value' => $keyResult->current_value,
-            'unit' => $keyResult->unit,
-            'status' => $keyResult->status,
-            'weight' => $keyResult->weight,
-            'progress_percent' => $keyResult->progress_percent,
-            'objective_title' => $keyResult->objective->obj_title,
-            'objective_description' => $keyResult->objective->description,
-        ]);
-    }
-
-    /**
-     * Lưu OKR (Objective và Key Results)
-     */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request)
     {
         $user = Auth::user();
-        if (!$user || !$user->role) {
-            return redirect()->back()
-                ->withErrors(['error' => 'Bạn không có vai trò để tạo OKR.'])
-                ->withInput();
-        }
-
-        $roleName = $user->role->role_name;
-        $allowedLevels = $this->getAllowedLevels($roleName);
-
-        $rules = [
+        
+        $request->validate([
             'obj_title' => 'required|string|max:255',
-            'description' => 'nullable|string|max:1000',
-            'status' => 'required|in:draft,active,completed',
-            'progress_percent' => 'nullable|numeric|min:0|max:100',
-            'level' => 'required|in:' . implode(',', $allowedLevels),
-            'cycle_id' => 'required|integer|exists:cycles,cycle_id',
-            'key_results' => 'required|array|min:1',
-            'key_results.*.kr_title' => 'required|string|max:255',
-            'key_results.*.target_value' => 'required|numeric',
-            'key_results.*.current_value' => 'required|numeric',
-            'key_results.*.unit' => 'required|string|max:50',
-            'key_results.*.status' => 'required|in:draft,active,completed',
-            'key_results.*.weight' => 'required|numeric|min:0|max:100',
-            'key_results.*.progress_percent' => 'nullable|numeric|min:0|max:100',
-        ];
+            'level' => 'required|string|in:Công ty,Phòng ban,Nhóm,Cá nhân',
+            'description' => 'nullable|string',
+            'cycle_id' => 'required|exists:cycles,cycle_id',
+            'department_id' => 'nullable|exists:departments,department_id',
+        ]);
 
-        // Chỉ yêu cầu department_id nếu level không phải là company
-        if ($request->input('level') !== 'company') {
-            $rules['department_id'] = 'required|integer|exists:departments,department_id';
+        $objective = Objective::create([
+            'obj_title' => $request->obj_title,
+            'level' => $request->level,
+            'description' => $request->description,
+            'user_id' => $user->id,
+            'cycle_id' => $request->cycle_id,
+            'department_id' => $request->department_id,
+            'status' => 'active',
+            'progress_percent' => 0,
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'data' => $objective]);
         }
-
-        $validated = $request->validate($rules);
-
-        // Kiểm tra quyền department
-        if ($validated['level'] !== 'company' && $roleName !== 'Admin' && $user->department_id != $validated['department_id']) {
-            return redirect()->back()
-                ->withErrors(['error' => 'Bạn chỉ có thể tạo OKR cho phòng ban của mình.'])
-                ->withInput();
-        }
-
-        try {
-            $startTime = microtime(true);
-
-            DB::transaction(function () use ($validated, $user) {
-                $objective = Objective::create([
-                    'obj_title' => $validated['obj_title'],
-                    'level' => $validated['level'],
-                    'description' => $validated['description'],
-                    'status' => $validated['status'],
-                    'progress_percent' => $validated['progress_percent'] ?? 0,
-                    'user_id' => $user->user_id,
-                    'cycle_id' => $validated['cycle_id'],
-                    'department_id' => $validated['level'] === 'company' ? null : $validated['department_id'],
-                ]);
-
-                foreach ($validated['key_results'] as $kr) {
-                    KeyResult::create([
-                        'kr_title' => $kr['kr_title'],
-                        'target_value' => $kr['target_value'],
-                        'current_value' => $kr['current_value'],
-                        'unit' => $kr['unit'],
-                        'status' => $kr['status'],
-                        'weight' => $kr['weight'],
-                        'progress_percent' => $kr['progress_percent'] ?? 0,
-                        'objective_id' => $objective->objective_id,
-                        'cycle_id' => $validated['cycle_id'],
-                    ]);
-                }
-            });
-
-            $executionTime = microtime(true) - $startTime;
-            if ($executionTime > 2) {
-                Log::warning('Lưu OKR vượt quá 2 giây: ' . $executionTime . 's');
-            }
-
-            return redirect()->route('my-objectives.index')
-                ->with('success', 'OKR được tạo thành công!');
-        } catch (\Exception $e) {
-            Log::error('Error creating OKR', ['error' => $e->getMessage(), 'user_id' => $user->id]);
-            return redirect()->back()
-                ->withErrors(['error' => 'Lưu OKR thất bại: ' . $e->getMessage()])
-                ->withInput();
-        }
+        return redirect()->route('my-objectives.index')->with('success', 'Tạo objective thành công!');
     }
 
     /**
@@ -239,177 +122,76 @@ class MyObjectiveController extends Controller
      */
     public function edit(string $id): View
     {
-        $user = Auth::user();
-        if (!$user || !$user->role) {
-            Log::warning('User has no role assigned', ['user_id' => $user ? $user->id : 'No user']);
-            $objectives = Objective::with(['user', 'department', 'keyResults', 'cycle', 'parentKeyResult.objective'])
-                ->where('level', 'person')
-                ->where(function ($query) use ($user) {
-                    $query->where('user_id', $user->id)
-                          ->orWhereHas('department', function ($q) use ($user) {
-                              $q->where('department_id', $user->department_id);
-                          });
-                })
-                ->orderBy('created_at', 'desc')
-                ->paginate(10);
-
-            return view('app');
-        }
-
-        $objective = Objective::with('department')->findOrFail($id);
-        $departments = [];
-        $cycles = Cycle::all();
-
-        $roleName = $user->role->role_name;
-        $allowedLevels = $this->getAllowedLevels($roleName);
-
-        Log::info('Checking edit permissions', [
-            'user_id' => $user->id,
-            'role' => $roleName,
-            'objective_id' => $id,
-            'objective_level' => $objective->level,
-            'allowed_levels' => $allowedLevels,
-            'objective_department_id' => $objective->department_id,
-            'user_department_id' => $user->department_id
-        ]);
-
-        // Kiểm tra quyền chỉnh sửa
-        if (!in_array($objective->level, $allowedLevels) || 
-            ($roleName !== 'Admin' && $objective->level !== 'company' && $objective->department_id !== $user->department_id)) {
-            Log::warning('User does not have permission to edit objective', [
-                'user_id' => $user->id,
-                'objective_id' => $id
-            ]);
-            return view('app');
-        }
-
-        // Cấu hình departments dựa trên role
-        if ($roleName === 'Admin') {
-            $departments = Department::all();
-        } else {
-            // Manager, Member chỉ có thể chỉnh sửa department của mình
-            $departments = [$user->department];
-        }
-
         return view('app');
     }
 
     /**
      * Cập nhật Objective
      */
-    public function update(Request $request, string $id): RedirectResponse
+    public function update(Request $request, string $id)
     {
         $user = Auth::user();
-        if (!$user || !$user->role) {
-            return redirect()->back()
-                ->withErrors(['error' => 'Bạn không có vai trò để cập nhật OKR.']);
-        }
-
         $objective = Objective::findOrFail($id);
-        $roleName = $user->role->role_name;
-        $allowedLevels = $this->getAllowedLevels($roleName);
 
-        // Kiểm tra quyền chỉnh sửa
-        if (!in_array($objective->level, $allowedLevels) || 
-            ($roleName !== 'Admin' && $objective->level !== 'company' && $objective->department_id !== $user->department_id)) {
-            return redirect()->back()
-                ->withErrors(['error' => 'Bạn không có quyền cập nhật Objective này.']);
+        // Kiểm tra quyền sở hữu
+        if ($objective->user_id !== $user->id) {
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Bạn không có quyền chỉnh sửa objective này'], 403);
+            }
+            return back()->withErrors(['error' => 'Bạn không có quyền chỉnh sửa objective này']);
         }
 
-        $rules = [
-            'obj_title' => 'required|string|max:255',
-            'description' => 'nullable|string|max:1000',
-            'status' => 'required|in:draft,active,completed',
+        $request->validate([
+            'obj_title' => 'nullable|string|max:255',
+            'level' => 'nullable|string|in:Công ty,Phòng ban,Nhóm,Cá nhân',
+            'description' => 'nullable|string',
+            'status' => 'nullable|string|in:active,inactive,completed',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
-            'level' => 'required|in:' . implode(',', $allowedLevels),
-            'cycle_id' => 'required|integer|exists:cycles,cycle_id',
-        ];
+        ]);
 
-        // Chỉ yêu cầu department_id nếu level không phải là company
-        if ($request->input('level') !== 'company') {
-            $rules['department_id'] = 'required|integer|exists:departments,department_id';
+        $objective->update($request->only([
+            'obj_title', 'level', 'description', 'status', 'progress_percent'
+        ]));
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'data' => $objective]);
         }
-
-        $validated = $request->validate($rules);
-
-        // Kiểm tra quyền department cho update
-        if ($validated['level'] !== 'company' && $roleName !== 'Admin' && $user->department_id != $validated['department_id']) {
-            return redirect()->back()
-                ->withErrors(['error' => 'Bạn chỉ có thể cập nhật OKR cho phòng ban của mình.']);
-        }
-
-        try {
-            DB::transaction(function () use ($validated, $objective) {
-                $objective->update([
-                    'obj_title' => $validated['obj_title'],
-                    'level' => $validated['level'],
-                    'description' => $validated['description'],
-                    'status' => $validated['status'],
-                    'progress_percent' => $validated['progress_percent'] ?? 0,
-                    'department_id' => $validated['level'] === 'company' ? null : $validated['department_id'],
-                    'cycle_id' => $validated['cycle_id'],
-                    'parent_objective_id' => null,
-                ]);
-            });
-
-            return redirect()->route('my-objectives.index')
-                ->with('success', 'Objective được cập nhật thành công!');
-        } catch (\Exception $e) {
-            Log::error('Error updating OKR', ['error' => $e->getMessage(), 'objective_id' => $id]);
-            return redirect()->back()
-                ->withErrors(['error' => 'Cập nhật Objective thất bại: ' . $e->getMessage()])
-                ->withInput();
-        }
+        return redirect()->route('my-objectives.index')->with('success', 'Cập nhật objective thành công!');
     }
 
     /**
      * Xóa Objective
      */
-    public function destroy(string $id): RedirectResponse
+    public function destroy(string $id)
     {
         $user = Auth::user();
-        if (!$user || !$user->role) {
-            return redirect()->back()
-                ->withErrors(['error' => 'Bạn không có vai trò để xóa OKR.']);
-        }
-
         $objective = Objective::findOrFail($id);
-        $roleName = $user->role->role_name;
-        $allowedLevels = $this->getAllowedLevels($roleName);
 
-        // Kiểm tra quyền xóa
-        if (!in_array($objective->level, $allowedLevels) || 
-            ($roleName !== 'Admin' && $objective->level !== 'company' && $objective->department_id !== $user->department_id)) {
-            return redirect()->back()
-                ->withErrors(['error' => 'Bạn không có quyền xóa Objective này.']);
+        // Kiểm tra quyền sở hữu
+        if ($objective->user_id !== $user->id) {
+            if (request()->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Bạn không có quyền xóa objective này'], 403);
+            }
+            return back()->withErrors(['error' => 'Bạn không có quyền xóa objective này']);
         }
 
-        try {
-            DB::transaction(function () use ($objective) {
-                $objective->keyResults()->delete();
-                $objective->delete();
-            });
+        $objective->delete();
 
-            return redirect()->route('my-objectives.index')
-                ->with('success', 'Objective đã được xóa thành công!');
-        } catch (\Exception $e) {
-            Log::error('Error deleting OKR', ['error' => $e->getMessage(), 'objective_id' => $id]);
-            return redirect()->back()
-                ->withErrors(['error' => 'Xóa Objective thất bại: ' . $e->getMessage()]);
+        if (request()->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Xóa objective thành công!']);
         }
+        return redirect()->route('my-objectives.index')->with('success', 'Xóa objective thành công!');
     }
 
     /**
-     * Lấy danh sách cấp Objective được phép dựa trên vai trò
-     * Tất cả role đều có thể tạo OKR cấp person
+     * Lấy danh sách level được phép tạo theo role
      */
     private function getAllowedLevels(string $roleName): array
     {
-        return match ($roleName) {
-            'Admin' => ['company', 'unit', 'team', 'person'],
-            'Manager' => ['unit', 'team', 'person'],
-            'Member' => ['person'],
-            default => ['person'],
+        return match (strtolower($roleName)) {
+            'admin' => ['Công ty', 'Phòng ban', 'Nhóm', 'Cá nhân'],
+            'master', 'manager' => ['Phòng ban', 'Nhóm', 'Cá nhân'],
+            default => ['Nhóm', 'Cá nhân'],
         };
     }
 }
