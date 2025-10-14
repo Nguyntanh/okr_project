@@ -243,8 +243,8 @@ export default function UsersPage(){
                                         [u.user_id]: {
                                             ...prev[u.user_id],
                                             role_id: val,
-                                            role_name: selectedRole?.role_name
-                                            // Không cập nhật level, giữ nguyên level hiện tại
+                                            role_name: selectedRole?.role_name,
+                                            level: selectedRole?.level // Cập nhật level theo role được chọn
                                         }
                                     }));
                                     setUsers(prev=>prev.map(x=>x.user_id===u.user_id?{
@@ -252,8 +252,8 @@ export default function UsersPage(){
                                         role:{
                                             ...(x.role||{}), 
                                             role_id: val,
-                                            role_name: selectedRole?.role_name
-                                            // Không cập nhật level, giữ nguyên level hiện tại
+                                            role_name: selectedRole?.role_name,
+                                            level: selectedRole?.level // Cập nhật level theo role được chọn
                                         }
                                     }:x));
                                 };
@@ -272,23 +272,50 @@ export default function UsersPage(){
                                 };
                                 const onChangeLevel = (val) => {
                                     // Chỉ cập nhật giao diện, không gọi API
-                                    setPendingChanges(prev => ({
-                                        ...prev,
-                                        [u.user_id]: {
-                                            ...prev[u.user_id],
-                                            level: val
-                                            // Không cập nhật role_id và role_name, giữ nguyên vai trò hiện tại
-                                        }
-                                    }));
+                                    // Tìm role phù hợp với level mới và role_name hiện tại
+                                    const currentRoleName = u.role?.role_name;
+                                    const matchingRole = roles.find(r => 
+                                        r.level === val && r.role_name === currentRoleName
+                                    );
                                     
-                                    setUsers(prev=>prev.map(x=>x.user_id===u.user_id?{
-                                        ...x, 
-                                        role:{
-                                            ...(x.role||{}), 
-                                            level: val
-                                            // Không cập nhật role_id và role_name, giữ nguyên vai trò hiện tại
-                                        }
-                                    }:x));
+                                    if (matchingRole) {
+                                        setPendingChanges(prev => ({
+                                            ...prev,
+                                            [u.user_id]: {
+                                                ...prev[u.user_id],
+                                                level: val,
+                                                role_id: matchingRole.role_id,
+                                                role_name: matchingRole.role_name
+                                            }
+                                        }));
+                                        
+                                        setUsers(prev=>prev.map(x=>x.user_id===u.user_id?{
+                                            ...x, 
+                                            role:{
+                                                ...(x.role||{}), 
+                                                level: val,
+                                                role_id: matchingRole.role_id,
+                                                role_name: matchingRole.role_name
+                                            }
+                                        }:x));
+                                    } else {
+                                        // Nếu không tìm thấy role phù hợp, chỉ cập nhật level
+                                        setPendingChanges(prev => ({
+                                            ...prev,
+                                            [u.user_id]: {
+                                                ...prev[u.user_id],
+                                                level: val
+                                            }
+                                        }));
+                                        
+                                        setUsers(prev=>prev.map(x=>x.user_id===u.user_id?{
+                                            ...x, 
+                                            role:{
+                                                ...(x.role||{}), 
+                                                level: val
+                                            }
+                                        }:x));
+                                    }
                                 };
                                 const toggleStatus = () => {
                                     // Chỉ cập nhật giao diện, không gọi API

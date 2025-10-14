@@ -59,10 +59,12 @@ class AdminController extends Controller
                 $request->role_name
             );
 
-            // 3. Lấy role_id từ role_name
-            $role = Role::where('role_name', $request->role_name)->first();
+            // 3. Lấy role_id từ role_name và level
+            $role = Role::where('role_name', $request->role_name)
+                        ->where('level', $request->level)
+                        ->first();
             if (!$role) {
-                throw new \Exception('Role không tồn tại');
+                throw new \Exception('Role không tồn tại với level này');
             }
 
             // 4. Lưu vào database với is_invited = true
