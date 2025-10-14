@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Toast, Modal } from '../components/ui';
 
-function DepartmentFormModal({ open, onClose, mode='create', initialData=null, onSaved, onDelete=null }){
+function DepartmentFormModal({ open, onClose, mode='create', initialData=null, onSaved, onDelete=null, isAdmin=true }){
     const [name, setName] = useState(initialData?.d_name || '');
     const [desc, setDesc] = useState(initialData?.d_description || '');
     const [saving, setSaving] = useState(false);
@@ -40,15 +40,26 @@ function DepartmentFormModal({ open, onClose, mode='create', initialData=null, o
             <form onSubmit={submit} className="space-y-4">
                 <div>
                     <label className="mb-1 block text-sm font-semibold text-slate-700">Tên phòng ban</label>
-                    <input value={name} onChange={e=>setName(e.target.value)} className="w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500" required />
+                    <input 
+                        value={name} 
+                        onChange={e=>setName(e.target.value)} 
+                        className={`w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 ${!isAdmin ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                        disabled={!isAdmin}
+                        required 
+                    />
                 </div>
                 <div>
                     <label className="mb-1 block text-sm font-semibold text-slate-700">Mô tả</label>
-                    <textarea value={desc} onChange={e=>setDesc(e.target.value)} className="h-24 w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500" />
+                    <textarea 
+                        value={desc} 
+                        onChange={e=>setDesc(e.target.value)} 
+                        className={`h-24 w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 ${!isAdmin ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                        disabled={!isAdmin}
+                    />
                 </div>
                 <div className="flex justify-between gap-3 pt-2">
                     <div className="flex gap-3">
-                        {mode === 'edit' && onDelete && (
+                        {mode === 'edit' && onDelete && isAdmin && (
                             <button 
                                 type="button" 
                                 onClick={onDelete} 
@@ -60,7 +71,9 @@ function DepartmentFormModal({ open, onClose, mode='create', initialData=null, o
                     </div>
                     <div className="flex gap-3">
                         <button type="button" onClick={onClose} className="rounded-2xl border border-slate-300 px-5 py-2 text-sm">Hủy</button>
-                        <button disabled={saving} type="submit" className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-2 text-sm font-semibold text-white shadow disabled:opacity-60">{mode==='edit' ? 'Lưu thay đổi' : 'Lưu'}</button>
+                        {isAdmin && (
+                            <button disabled={saving} type="submit" className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-2 text-sm font-semibold text-white shadow disabled:opacity-60">{mode==='edit' ? 'Lưu thay đổi' : 'Lưu'}</button>
+                        )}
                     </div>
                 </div>
             </form>
@@ -76,6 +89,9 @@ export default function DepartmentsPanel(){
     const [editing, setEditing] = useState(null);
     const [toast, setToast] = useState({ type:'success', message:'' });
     const showToast = (type, message) => setToast({ type, message });
+    
+    // Kiểm tra quyền admin
+    const isAdmin = window.__USER__?.is_admin || false;
 
     useEffect(()=>{ (async() => {
         try {
@@ -119,7 +135,9 @@ export default function DepartmentsPanel(){
             <Toast type={toast.type} message={toast.message} onClose={()=>setToast({ type:'success', message:'' })} />
             <div className="mx-auto mb-3 flex w-full max-w-5xl items-center justify-between">
                 <h2 className="text-2xl font-extrabold text-slate-900">Phòng ban</h2>
-                <button onClick={()=>setOpenCreate(true)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700">Tạo mới</button>
+                {isAdmin && (
+                    <button onClick={()=>setOpenCreate(true)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700">Tạo mới</button>
+                )}
             </div>
             <div className="mx-auto w-full max-w-5xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <table className="min-w-full divide-y divide-slate-200 text-xs md:text-sm">
@@ -135,12 +153,16 @@ export default function DepartmentsPanel(){
                         {!loading && departments.map(d => (
                             <tr key={d.department_id} className="hover:bg-slate-50">
                                 <td className="px-3 py-2">
-                                    <button 
-                                        onClick={()=>openEditModal(d.department_id)} 
-                                        className="font-semibold text-slate-900 hover:text-blue-600 hover:underline cursor-pointer text-left"
-                                    >
-                                        {d.d_name}
-                                    </button>
+                                    {isAdmin ? (
+                                        <button 
+                                            onClick={()=>openEditModal(d.department_id)} 
+                                            className="font-semibold text-slate-900 hover:text-blue-600 hover:underline cursor-pointer text-left"
+                                        >
+                                            {d.d_name}
+                                        </button>
+                                    ) : (
+                                        <span className="font-semibold text-slate-900">{d.d_name}</span>
+                                    )}
                                 </td>
                                 <td className="px-3 py-2 text-slate-600">{d.d_description || '-'}</td>
                             </tr>
@@ -148,8 +170,8 @@ export default function DepartmentsPanel(){
                     </tbody>
                 </table>
             </div>
-            <DepartmentFormModal open={openCreate} onClose={()=>setOpenCreate(false)} mode="create" onSaved={(dep)=>{ setDepartments([...departments, dep]); showToast('success','Tạo phòng ban thành công'); }} />
-            <DepartmentFormModal open={openEdit} onClose={()=>{ setOpenEdit(false); setEditing(null); }} mode="edit" initialData={editing} onSaved={(dep)=>{ setDepartments(prev=>prev.map(x=>x.department_id===dep.department_id?dep:x)); showToast('success','Cập nhật phòng ban thành công'); }} onDelete={editing ? () => remove(editing.department_id) : null} />
+            <DepartmentFormModal open={openCreate} onClose={()=>setOpenCreate(false)} mode="create" onSaved={(dep)=>{ setDepartments([...departments, dep]); showToast('success','Tạo phòng ban thành công'); }} isAdmin={isAdmin} />
+            <DepartmentFormModal open={openEdit} onClose={()=>{ setOpenEdit(false); setEditing(null); }} mode="edit" initialData={editing} onSaved={(dep)=>{ setDepartments(prev=>prev.map(x=>x.department_id===dep.department_id?dep:x)); showToast('success','Cập nhật phòng ban thành công'); }} onDelete={editing ? () => remove(editing.department_id) : null} isAdmin={isAdmin} />
         </div>
     );
 }
