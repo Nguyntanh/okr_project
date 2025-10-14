@@ -37,18 +37,25 @@ export default function ObjectivesPage() {
                 throw new Error("CSRF token not found");
             }
 
-            const [resObj, resDept, resCycles] = await Promise.all([
-                fetch("/my-objectives", {
-                    headers: {
-                        Accept: "application/json",
-                        "X-CSRF-TOKEN": token,
-                    },
-                }),
-                fetch("/departments", {
-                    headers: { Accept: "application/json" },
-                }),
-                fetch("/cycles", { headers: { Accept: "application/json" } }),
-            ]);
+            const [resObj, resDept, resCycles, resLinkable] = await Promise.all(
+                [
+                    fetch("/my-objectives", {
+                        headers: {
+                            Accept: "application/json",
+                            "X-CSRF-TOKEN": token,
+                        },
+                    }),
+                    fetch("/departments", {
+                        headers: { Accept: "application/json" },
+                    }),
+                    fetch("/cycles", {
+                        headers: { Accept: "application/json" },
+                    }),
+                    fetch("/my-objectives/linkable", {
+                        headers: { Accept: "application/json" },
+                    }),
+                ]
+            );
 
             // Check /my-objectives
             if (!resObj.ok) {
@@ -85,6 +92,30 @@ export default function ObjectivesPage() {
                     message: `Lỗi tải departments: ${resDept.statusText}`,
                 });
             }
+
+            // Check /my-objectives/linkable
+            if (!resLinkable.ok) {
+                console.error(
+                    "Linkable Objectives API error:",
+                    resLinkable.status,
+                    resLinkable.statusText
+                );
+                setToast({
+                    type: "error",
+                    message: `Lỗi tải linkable objectives: ${resLinkable.statusText}`,
+                });
+                setLinkableObjectives([]);
+            } else {
+                const linkData = await resLinkable.json();
+                if (!Array.isArray(linkData.data)) {
+                    console.warn(
+                        "Linkable objectives data is not an array:",
+                        linkData
+                    );
+                }
+                setLinkableObjectives(linkData.data || []);
+            }
+
             const deptData = await resDept.json().catch((err) => {
                 console.error("Error parsing departments:", err);
                 return { data: [] };
@@ -133,11 +164,6 @@ export default function ObjectivesPage() {
                     message: "Không có chu kỳ nào",
                 });
             }
-            const resLinkable = await fetch("/my-objectives/linkable", {
-                headers: { Accept: "application/json" },
-            });
-            const linkData = await resLinkable.json();
-            setLinkableObjectives(linkData.data || []);
         } catch (err) {
             console.error("Load error:", err);
             setToast({
