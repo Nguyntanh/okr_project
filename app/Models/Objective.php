@@ -70,5 +70,9 @@ class Objective extends Model
         return $this->belongsTo(Department::class, 'department_id', 'department_id');
     }
 
+    public function assignments()
+    {
+        return $this->hasMany(OkrAssignment::class, 'objective_id', 'objective_id');
+    }
 }
 

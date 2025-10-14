@@ -4,6 +4,7 @@ export default function ObjectiveList({
     items,
     departments,
     cyclesList,
+    assignableData,
     loading,
     openObj,
     setOpenObj,
@@ -35,10 +36,13 @@ export default function ObjectiveList({
                 <table className="min-w-full table-fixed divide-y divide-slate-200 text-xs md:text-sm">
                     <thead className="bg-slate-50 text-left font-semibold text-slate-700">
                         <tr>
-                            <th className="px-3 py-2 border-r border-slate-200 w-[30%] text-left">
+                            <th className="px-3 py-2 border-r border-slate-200 w-[25%] text-left">
                                 Tiêu đề
                             </th>
-                            <th className="px-3 py-2 border-r border-slate-200 w-[14%] text-center">
+                            <th className="px-3 py-2 border-r border-slate-200 w-[12%] text-center">
+                                Người được gán
+                            </th>
+                            <th className="px-3 py-2 border-r border-slate-200 w-[12%] text-center">
                                 Phòng ban
                             </th>
                             <th className="px-3 py-2 border-r border-slate-200 w-[12%] text-center">
@@ -68,7 +72,7 @@ export default function ObjectiveList({
                         {loading && (
                             <tr>
                                 <td
-                                    colSpan={9}
+                                    colSpan={10}
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
                                     Đang tải...
@@ -83,7 +87,7 @@ export default function ObjectiveList({
                                             index > 0 ? "mt-4" : ""
                                         }`}
                                     >
-                                        <td colSpan={9} className="px-4 py-3">
+                                        <td colSpan={10} className="px-4 py-3">
                                             <div className="flex items-center justify-between">
                                                 <div className="inline-flex items-center gap-3">
                                                     <button
@@ -92,11 +96,10 @@ export default function ObjectiveList({
                                                                 (prev) => ({
                                                                     ...prev,
                                                                     [obj.objective_id]:
-                                                                        prev[
+                                                                        !prev[
                                                                             obj
                                                                                 .objective_id
-                                                                        ] ===
-                                                                        false,
+                                                                        ],
                                                                 })
                                                             )
                                                         }
@@ -167,6 +170,29 @@ export default function ObjectiveList({
                                                     </button>
                                                 </td>
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
+                                                    {obj.assignments
+                                                        ?.map(
+                                                            (a) =>
+                                                                `${
+                                                                    assignableData.users.find(
+                                                                        (u) =>
+                                                                            String(
+                                                                                u.user_id
+                                                                            ) ===
+                                                                            String(
+                                                                                a.user_id
+                                                                            )
+                                                                    )?.name ||
+                                                                    "-"
+                                                                } (${
+                                                                    a.role
+                                                                        ?.role_name ||
+                                                                    "-"
+                                                                })`
+                                                        )
+                                                        .join(", ") || "-"}
+                                                </td>
+                                                <td className="px-3 py-3 border-r border-slate-200 text-center">
                                                     {obj.department?.d_name ||
                                                         departments.find(
                                                             (d) =>
@@ -180,21 +206,13 @@ export default function ObjectiveList({
                                                         ""}
                                                 </td>
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
-                                                    {(() => {
-                                                        const cy =
-                                                            cyclesList.find(
-                                                                (c) =>
-                                                                    String(
-                                                                        c.cycle_id
-                                                                    ) ===
-                                                                    String(
-                                                                        kr.cycle_id
-                                                                    )
-                                                            );
-                                                        return (
-                                                            cy?.cycle_name || ""
-                                                        );
-                                                    })()}
+                                                    {cyclesList.find(
+                                                        (c) =>
+                                                            String(
+                                                                c.cycle_id
+                                                            ) ===
+                                                            String(kr.cycle_id)
+                                                    )?.cycle_name || ""}
                                                 </td>
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
                                                     <span

@@ -6,6 +6,7 @@ use App\Models\Objective;
 use App\Models\KeyResult;
 use App\Models\Cycle;
 use App\Models\Department;
+use App\Models\OkrAssignment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -16,13 +17,18 @@ use Illuminate\View\View;
 class MyObjectiveController extends Controller
 {
     /**
-     * Hiển thị danh sách Objective của người dùng.
+     * Hiển thị danh sách Objective của người dùng (chủ sở hữu hoặc được gán).
      */
     public function index(Request $request): JsonResponse|View
     {
         $user = Auth::user();
-        $objectives = Objective::with(['keyResults', 'department', 'cycle'])
-            ->where('user_id', $user->user_id)
+        $objectives = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role'])
+            ->where(function ($query) use ($user) {
+                $query->where('owner_id', $user->user_id)
+                      ->orWhereHas('assignments', function ($query) use ($user) {
+                          $query->where('user_id', $user->user_id);
+                      });
+            })
             ->paginate(10);
 
         if ($request->expectsJson()) {
@@ -39,7 +45,6 @@ class MyObjectiveController extends Controller
     {
         $cycles = Cycle::all();
         $departments = Department::all();
-
         return view('my-objectives.create', compact('cycles', 'departments'));
     }
 
@@ -65,7 +70,6 @@ class MyObjectiveController extends Controller
             'key_results.*.status' => 'required|in:draft,active,completed',
         ]);
 
-        // Kiểm tra quyền tạo dựa trên cấp độ
         $allowedLevels = $this->getAllowedLevels($user->role->role_name);
         if (!in_array($validated['level'], $allowedLevels)) {
             return $request->expectsJson()
@@ -73,7 +77,6 @@ class MyObjectiveController extends Controller
                 : redirect()->back()->withErrors(['error' => 'Bạn không có quyền tạo Objective ở cấp độ này.']);
         }
 
-        // Kiểm tra department_id cho cấp độ không phải company
         if ($validated['level'] !== 'company' && empty($validated['department_id'])) {
             return $request->expectsJson()
                 ? response()->json(['success' => false, 'message' => 'Phải chọn phòng ban cho cấp độ không phải company.'], 422)
@@ -89,7 +92,7 @@ class MyObjectiveController extends Controller
                     'status' => $validated['status'],
                     'cycle_id' => $validated['cycle_id'],
                     'department_id' => $validated['department_id'] ?? null,
-                    'owner_id' => $user->user_id, // Lưu user_id để xác định chủ sở hữu
+                    'owner_id' => $user->user_id,
                 ]);
 
                 if (isset($validated['key_results'])) {
@@ -111,7 +114,7 @@ class MyObjectiveController extends Controller
                     }
                 }
 
-                return $objective->load(['keyResults', 'department', 'cycle']);
+                return $objective->load(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role']);
             });
 
             return $request->expectsJson()
@@ -132,8 +135,8 @@ class MyObjectiveController extends Controller
         $user = Auth::user();
         $objective = Objective::findOrFail($id);
 
-        // Kiểm tra quyền: Chỉ chủ sở hữu (user_id) được cập nhật
-        if ($objective->owner_id !== $user->user_id) {
+        if ($objective->owner_id !== $user->user_id && 
+            !OkrAssignment::where('objective_id', $id)->where('user_id', $user->user_id)->exists()) {
             return $request->expectsJson()
                 ? response()->json(['success' => false, 'message' => 'Bạn không có quyền cập nhật Objective này.'], 403)
                 : redirect()->back()->withErrors(['error' => 'Bạn không có quyền cập nhật Objective này.']);
@@ -148,7 +151,6 @@ class MyObjectiveController extends Controller
             'department_id' => 'nullable|exists:departments,department_id',
         ]);
 
-        // Kiểm tra quyền cập nhật cấp độ
         $allowedLevels = $this->getAllowedLevels($user->role->role_name);
         if (!in_array($validated['level'], $allowedLevels)) {
             return $request->expectsJson()
@@ -159,7 +161,7 @@ class MyObjectiveController extends Controller
         try {
             $objective = DB::transaction(function () use ($validated, $objective) {
                 $objective->update($validated);
-                return $objective->load(['keyResults', 'department', 'cycle']);
+                return $objective->load(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role']);
             });
 
             return $request->expectsJson()
@@ -180,14 +182,15 @@ class MyObjectiveController extends Controller
         $user = Auth::user();
         $objective = Objective::findOrFail($id);
 
-        // Kiểm tra quyền: Chỉ chủ sở hữu (user_id) được xóa
-        if ($objective->owner_id !== $user->user_id) {
+        if ($objective->owner_id !== $user->user_id && 
+            !OkrAssignment::where('objective_id', $id)->where('user_id', $user->user_id)->exists()) {
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền xóa Objective này.'], 403);
         }
 
         try {
             DB::transaction(function () use ($objective) {
                 $objective->keyResults()->delete();
+                $objective->assignments()->delete();
                 $objective->delete();
             });
 
@@ -203,10 +206,11 @@ class MyObjectiveController extends Controller
     public function getObjectiveDetails(string $id): JsonResponse
     {
         $user = Auth::user();
-        $objective = Objective::with(['keyResults', 'department', 'cycle'])->findOrFail($id);
+        $objective = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role'])
+            ->findOrFail($id);
 
-        // Kiểm tra quyền: Chỉ chủ sở hữu (user_id) được xem
-        if ($objective->owner_id !== $user->user_id) {
+        if ($objective->owner_id !== $user->user_id && 
+            !OkrAssignment::where('objective_id', $id)->where('user_id', $user->user_id)->exists()) {
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền xem Objective này.'], 403);
         }
 
@@ -214,23 +218,7 @@ class MyObjectiveController extends Controller
     }
 
     /**
-     * Lấy chi tiết Key Result (API JSON).
-     */
-    public function getKeyResultDetails(string $id): JsonResponse
-    {
-        $user = Auth::user();
-        $keyResult = KeyResult::with(['objective', 'cycle'])->findOrFail($id);
-
-        // Kiểm tra quyền: Chỉ chủ sở hữu của Objective được xem
-        if ($keyResult->objective->user_id !== $user->user_id) {
-            return response()->json(['success' => false, 'message' => 'Bạn không có quyền xem Key Result này.'], 403);
-        }
-
-        return response()->json(['success' => true, 'data' => $keyResult]);
-    }
-
-    /**
-     * Lấy danh sách cấp độ được phép dựa trên vai trò (API JSON).
+     * Lấy danh sách cấp độ Objective được phép dựa trên vai trò.
      */
     public function getAllowedLevelsApi(): JsonResponse
     {
