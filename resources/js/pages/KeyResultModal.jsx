@@ -22,7 +22,6 @@ export default function KeyResultModal({
                     : 0;
             const payload = {
                 ...kr,
-                department_id: kr.department_id,
                 cycle_id: kr.cycle_id,
                 progress_percent: Number.isFinite(computed)
                     ? Number(computed.toFixed(2))
@@ -48,11 +47,6 @@ export default function KeyResultModal({
                 throw new Error(json.message || "Cập nhật thất bại");
             const serverKR = json.data || {};
             const enriched = { ...kr, ...serverKR };
-            const dep = departments.find(
-                (d) =>
-                    String(d.department_id) === String(enriched.department_id)
-            );
-            if (dep) enriched.department = dep;
             setItems((prev) =>
                 prev.map((o) =>
                     o.objective_id === kr.objective_id
@@ -138,7 +132,6 @@ export default function KeyResultModal({
                             current_value: Number(form.current_value.value),
                             unit: form.unit.value,
                             status: form.status.value,
-                            department_id: form.department_id.value,
                             cycle_id: form.cycle_id.value,
                         };
                         await saveKr(updated);
@@ -209,26 +202,6 @@ export default function KeyResultModal({
                         </div>
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Phòng ban
-                            </label>
-                            <select
-                                defaultValue={editingKR.department_id || ""}
-                                name="department_id"
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            >
-                                <option value="">Chọn phòng ban</option>
-                                {departments.map((d) => (
-                                    <option
-                                        key={d.department_id}
-                                        value={String(d.department_id)}
-                                    >
-                                        {d.d_name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
                                 Chu kỳ
                             </label>
                             <select
@@ -292,8 +265,6 @@ export default function KeyResultModal({
                                 unit: e.target.unit.value || "",
                                 status: e.target.status.value || "draft",
                                 cycle_id: creatingFor.cycle_id,
-                                department_id:
-                                    e.target.department_id.value || null,
                             };
                             const res = await fetch(`/my-key-results/store`, {
                                 method: "POST",
@@ -393,25 +364,6 @@ export default function KeyResultModal({
                                 <option value="draft">Draft</option>
                                 <option value="active">Active</option>
                                 <option value="completed">Completed</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Phòng ban
-                            </label>
-                            <select
-                                name="department_id"
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            >
-                                <option value="">Chọn phòng ban</option>
-                                {departments.map((d) => (
-                                    <option
-                                        key={d.department_id}
-                                        value={String(d.department_id)}
-                                    >
-                                        {d.d_name}
-                                    </option>
-                                ))}
                             </select>
                         </div>
                         <div>

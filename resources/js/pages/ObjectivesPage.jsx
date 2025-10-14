@@ -15,9 +15,12 @@ export default function ObjectivesPage() {
     const [creatingObjective, setCreatingObjective] = useState(false);
     const [editingObjective, setEditingObjective] = useState(null);
     const [openObj, setOpenObj] = useState({});
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
 
-    const load = async () => {
+    const load = async (pageNum = 1) => {
         try {
+            setLoading(true);
             const token = document
                 .querySelector('meta[name="csrf-token"]')
                 ?.getAttribute("content");
@@ -30,7 +33,7 @@ export default function ObjectivesPage() {
             }
 
             const [resObj, resDept, resCycles] = await Promise.all([
-                fetch("/my-objectives", {
+                fetch(`/my-objectives?page=${pageNum}`, {
                     headers: {
                         Accept: "application/json",
                         "X-CSRF-TOKEN": token,
@@ -59,9 +62,10 @@ export default function ObjectivesPage() {
                     type: "error",
                     message: "Lỗi phân tích dữ liệu objectives",
                 });
-                return { success: false, data: { data: [] } };
+                return { success: false, data: { data: [], last_page: 1 } };
             });
             setItems(Array.isArray(objData.data.data) ? objData.data.data : []);
+            setTotalPages(objData.data.last_page || 1);
 
             if (!resDept.ok) {
                 console.error(
@@ -127,13 +131,19 @@ export default function ObjectivesPage() {
     };
 
     useEffect(() => {
-        load();
-    }, []);
+        load(page);
+    }, [page]);
 
     const sortedItems = useMemo(
         () => (Array.isArray(items) ? items : []),
         [items]
     );
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setPage(newPage);
+        }
+    };
 
     return (
         <div className="px-4 py-6">
@@ -154,6 +164,25 @@ export default function ObjectivesPage() {
                 setEditingKR={setEditingKR}
                 setCreatingObjective={setCreatingObjective}
             />
+            <div className="mt-4 flex justify-center gap-2">
+                <button
+                    onClick={() => handlePageChange(page - 1)}
+                    disabled={page === 1}
+                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:bg-slate-300"
+                >
+                    Trước
+                </button>
+                <span className="text-sm text-slate-600">
+                    Trang {page} / {totalPages}
+                </span>
+                <button
+                    onClick={() => handlePageChange(page + 1)}
+                    disabled={page === totalPages}
+                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:bg-slate-300"
+                >
+                    Sau
+                </button>
+            </div>
             {editingKR && (
                 <KeyResultModal
                     editingKR={editingKR}
@@ -185,7 +214,7 @@ export default function ObjectivesPage() {
                 />
             )}
             {editingObjective && (
-                <ObjectiveModal
+                <KeyResultModal
                     editingObjective={editingObjective}
                     setEditingObjective={setEditingObjective}
                     departments={departments}

@@ -164,14 +164,14 @@ export default function ObjectiveList({
                                                       </button>
                                                   </td>
                                                   <td className="px-3 py-3 border-r border-slate-200 text-center">
-                                                      {kr.department?.d_name ||
+                                                      {obj.department?.d_name ||
                                                           departments.find(
                                                               (d) =>
                                                                   String(
                                                                       d.department_id
                                                                   ) ===
                                                                   String(
-                                                                      kr.department_id
+                                                                      obj.department_id
                                                                   )
                                                           )?.d_name ||
                                                           ""}

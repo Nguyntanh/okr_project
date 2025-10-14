@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Modal } from "../components/ui";
 
 export default function ObjectiveModal({
@@ -24,6 +24,37 @@ export default function ObjectiveModal({
               }
             : { ...editingObjective }
     );
+    const [allowedLevels, setAllowedLevels] = useState([]);
+
+    useEffect(() => {
+        const fetchAllowedLevels = async () => {
+            try {
+                const token = document
+                    .querySelector('meta[name="csrf-token"]')
+                    .getAttribute("content");
+                const res = await fetch("/my-objectives/getAllowedLevelsApi", {
+                    headers: {
+                        Accept: "application/json",
+                        "X-CSRF-TOKEN": token,
+                    },
+                });
+                const json = await res.json();
+                if (res.ok && json.success) {
+                    setAllowedLevels(json.data || []);
+                } else {
+                    throw new Error(
+                        json.message || "Không thể lấy danh sách cấp độ"
+                    );
+                }
+            } catch (err) {
+                setToast({
+                    type: "error",
+                    message: err.message || "Không thể lấy danh sách cấp độ",
+                });
+            }
+        };
+        fetchAllowedLevels();
+    }, [setToast]);
 
     const handleCreateFormChange = (field, value) => {
         setCreateForm((prev) => ({ ...prev, [field]: value }));
@@ -241,10 +272,12 @@ export default function ObjectiveModal({
                                 }
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                             >
-                                <option value="company">Company</option>
-                                <option value="unit">Unit</option>
-                                <option value="team">Team</option>
-                                <option value="person">Person</option>
+                                {allowedLevels.map((level) => (
+                                    <option key={level} value={level}>
+                                        {level.charAt(0).toUpperCase() +
+                                            level.slice(1)}
+                                    </option>
+                                ))}
                             </select>
                         </div>
                         <div className="md:col-span-2">
@@ -337,42 +370,42 @@ export default function ObjectiveModal({
                             </div>
                         )}
                     </div>
-                    <div className="pt-4">
-                        <div className="mb-2 flex items-center justify-between">
-                            <h3 className="text-sm font-semibold text-slate-700">
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                            <label className="mb-1 block text-xs font-semibold text-slate-600">
                                 Key Results
-                            </h3>
+                            </label>
                             <button
                                 type="button"
                                 onClick={addNewKR}
-                                className="text-xs text-blue-600 hover:underline"
+                                className="text-xs text-blue-600"
                             >
-                                Thêm KR
+                                Thêm Key Result
                             </button>
                         </div>
                         {createForm.key_results.map((kr, index) => (
                             <div
                                 key={index}
-                                className="mb-4 rounded-md border border-slate-200 p-3 space-y-2"
+                                className="rounded-lg border border-slate-200 p-3"
                             >
-                                <div>
-                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                        Tiêu đề KR
-                                    </label>
-                                    <input
-                                        value={kr.kr_title}
-                                        onChange={(e) =>
-                                            updateNewKR(
-                                                index,
-                                                "kr_title",
-                                                e.target.value
-                                            )
-                                        }
-                                        required
-                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                    />
-                                </div>
                                 <div className="grid gap-3 md:grid-cols-3">
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                            Tiêu đề
+                                        </label>
+                                        <input
+                                            value={kr.kr_title}
+                                            onChange={(e) =>
+                                                updateNewKR(
+                                                    index,
+                                                    "kr_title",
+                                                    e.target.value
+                                                )
+                                            }
+                                            required
+                                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                        />
+                                    </div>
                                     <div>
                                         <label className="mb-1 block text-xs font-semibold text-slate-600">
                                             Mục tiêu
@@ -502,10 +535,12 @@ export default function ObjectiveModal({
                                 name="level"
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                             >
-                                <option value="company">Company</option>
-                                <option value="unit">Unit</option>
-                                <option value="team">Team</option>
-                                <option value="person">Person</option>
+                                {allowedLevels.map((level) => (
+                                    <option key={level} value={level}>
+                                        {level.charAt(0).toUpperCase() +
+                                            level.slice(1)}
+                                    </option>
+                                ))}
                             </select>
                         </div>
                         <div className="md:col-span-2">
