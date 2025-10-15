@@ -253,6 +253,24 @@ class MyObjectiveController extends Controller
     }
 
     /**
+     * Lấy danh sách cấp độ được phép (API JSON)
+     */
+    public function getAllowedLevelsApi()
+    {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $allowedLevels = $this->getAllowedLevels($user->role ? $user->role->role_name : 'member');
+        
+        return response()->json([
+            'success' => true,
+            'data' => $allowedLevels
+        ]);
+    }
+
+    /**
      * Lấy thông tin user và các level được phép
      */
     public function getUserLevels(Request $request)

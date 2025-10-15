@@ -170,6 +170,12 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/key-result-details/{id}', [MyObjectiveController::class, 'getKeyResultDetails'])
             ->middleware('auth')
             ->name('my-objectives.key-result-details');
+        Route::get('/getAllowedLevelsApi', [MyObjectiveController::class, 'getAllowedLevelsApi'])
+            ->middleware('auth')
+            ->name('my-objectives.getAllowedLevelsApi');
+        Route::get('/user-levels', [MyObjectiveController::class, 'getUserLevels'])
+            ->middleware('auth')
+            ->name('my-objectives.user-levels');
     });
 
     Route::prefix('my-key-results')->group(function () {
