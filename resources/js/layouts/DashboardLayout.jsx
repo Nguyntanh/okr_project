@@ -69,7 +69,7 @@ function DashboardSidebar({ open, user }) {
                         </svg>
                     }
                 />
-                <SidebarItem
+                {/* <SidebarItem
                     collapsed={collapsed}
                     href="/team"
                     label="Đội nhóm"
@@ -83,7 +83,7 @@ function DashboardSidebar({ open, user }) {
                             <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zM8 11c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V20h14v-3.5C15 14.17 10.33 13 8 13z" />
                         </svg>
                     }
-                />
+                /> */}
                 <SidebarItem
                     collapsed={collapsed}
                     href="/cycles"
@@ -117,7 +117,7 @@ function DashboardSidebar({ open, user }) {
                 <SidebarItem
                     collapsed={collapsed}
                     href="/departments"
-                    label="Phòng ban"
+                    label="Phòng ban & Đội nhóm"
                     icon={
                         <svg
                             xmlns="http://www.w3.org/2000/svg"
