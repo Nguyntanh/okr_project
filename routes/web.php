@@ -14,7 +14,6 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\AdminController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\File;
-use App\Http\Controllers\LinkController;
 
 Route::get('/', function () {
     return view('app');
@@ -73,9 +72,9 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('auth')->name('dashboard');
 
     //Routes cho Cycle
-    Route::get('/cycles',[CycleController::class,'index'])->middleware('auth')->name('cycles.index');
+    Route::get('/cycles',[CycleController::class,'index'])->name('cycles.index');
     Route::post('/cycles',[CycleController::class,'store'])->middleware('auth','admin')->name('cycles.store');
-    Route::get('/cycles/{cycle}/detail',[CycleController::class,'show'])->middleware('auth')->name('cycles.show');
+    Route::get('/cycles/{cycle}/detail',[CycleController::class,'show'])->name('cycles.show');
     Route::put('/cycles/{cycle}',[CycleController::class,'update'])->middleware('auth','admin')->name('cycles.update');
     Route::delete('/cycles/{cycle}',[CycleController::class,'destroy'])->middleware('auth','admin')->name('cycles.destroy');
     Route::get('/cycles/create',[CycleController::class,'create'])->middleware('auth','admin')->name('cycles.create');
@@ -171,8 +170,6 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/key-result-details/{id}', [MyObjectiveController::class, 'getKeyResultDetails'])
             ->middleware('auth')
             ->name('my-objectives.key-result-details');
-        Route::get('/getAllowedLevelsApi', [MyObjectiveController::class, 'getAllowedLevelsApi'])
-            ->middleware('auth');
     });
 
     Route::prefix('my-key-results')->group(function () {
@@ -188,12 +185,6 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         })->middleware('auth')->name('my-key-results.edit');
         Route::put('/update/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'update'])->middleware('auth')->name('my-key-results.update');
         Route::delete('/destroy/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'destroy'])->middleware('auth')->name('my-key-results.destroy');
-    });
-
-    Route::prefix('my-links')->group(function () {
-        Route::get('/', [LinkController::class, 'index'])->middleware('auth')->name('my-links.index');
-        Route::get('/available-targets', [LinkController::class, 'getAvailableTargets'])->middleware('auth')->name('my-links.available-targets');
-        Route::post('/store', [LinkController::class, 'store'])->middleware('auth')->name('my-links.store');
     });
 });
 
