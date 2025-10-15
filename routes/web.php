@@ -171,6 +171,9 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/key-result-details/{id}', [MyObjectiveController::class, 'getKeyResultDetails'])
             ->middleware('auth')
             ->name('my-objectives.key-result-details');
+        Route::get('/getAllowedLevelsApi', [MyObjectiveController::class, 'getAllowedLevelsApi'])
+            ->middleware('auth')
+            ->name('my-objectives.getAllowedLevelsApi');
     });
 
     Route::prefix('my-key-results')->group(function () {

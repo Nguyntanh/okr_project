@@ -89,10 +89,11 @@ class MyObjectiveController extends Controller
                 : redirect()->back()->withErrors(['error' => 'Bạn không có quyền tạo Objective ở cấp độ này.']);
         }
 
-        if ($validated['level'] !== 'company' && empty($validated['department_id'])) {
+        // Chỉ yêu cầu department_id cho cấp độ unit và team, không yêu cầu cho person
+        if (in_array($validated['level'], ['unit', 'team']) && empty($validated['department_id'])) {
             return $request->expectsJson()
-                ? response()->json(['success' => false, 'message' => 'Phải chọn phòng ban cho cấp độ không phải company.'], 422)
-                : redirect()->back()->withErrors(['error' => 'Phải chọn phòng ban cho cấp độ không phải company.']);
+                ? response()->json(['success' => false, 'message' => 'Phải chọn phòng ban cho cấp độ unit và team.'], 422)
+                : redirect()->back()->withErrors(['error' => 'Phải chọn phòng ban cho cấp độ unit và team.']);
         }
 
         // Kiểm tra quyền truy cập department
@@ -361,6 +362,10 @@ class MyObjectiveController extends Controller
             return true;
         }
         if ($user->role->role_name === 'manager' && $user->department_id === $department->department_id) {
+            return true;
+        }
+        // Member có thể truy cập department của chính họ
+        if ($user->role->role_name === 'member' && $user->department_id === $department->department_id) {
             return true;
         }
         return false;

@@ -16,7 +16,7 @@ export default function ObjectiveModal({
             ? {
                   obj_title: "",
                   description: "",
-                  level: "company",
+                  level: "",
                   status: "draft",
                   cycle_id: "",
                   department_id: "",
@@ -28,6 +28,7 @@ export default function ObjectiveModal({
     );
     const [allowedLevels, setAllowedLevels] = useState([]);
     const [availableTargets, setAvailableTargets] = useState([]);
+    const [currentUser, setCurrentUser] = useState(null);
     const [linkForm, setLinkForm] = useState({
         source_objective_id: editingObjective?.objective_id || "",
         target_kr_id: "",
@@ -68,6 +69,43 @@ export default function ObjectiveModal({
         };
         fetchAllowedLevels();
     }, [setToast]);
+
+    useEffect(() => {
+        const fetchCurrentUser = async () => {
+            try {
+                const token = document
+                    .querySelector('meta[name="csrf-token"]')
+                    .getAttribute("content");
+                const res = await fetch("/api/profile", {
+                    headers: {
+                        Accept: "application/json",
+                        "X-CSRF-TOKEN": token,
+                    },
+                });
+                const json = await res.json();
+                if (res.ok && json.success) {
+                    setCurrentUser(json.user);
+                    // Set department_id sẵn cho user
+                    if (creatingObjective && json.user.department_id) {
+                        setCreateForm(prev => ({
+                            ...prev,
+                            department_id: String(json.user.department_id)
+                        }));
+                    }
+                } else {
+                    throw new Error(
+                        json.message || "Không thể lấy thông tin người dùng"
+                    );
+                }
+            } catch (err) {
+                setToast({
+                    type: "error",
+                    message: err.message || "Không thể lấy thông tin người dùng",
+                });
+            }
+        };
+        fetchCurrentUser();
+    }, [setToast, creatingObjective]);
 
     useEffect(() => {
         if (editingObjective) {
@@ -174,7 +212,7 @@ export default function ObjectiveModal({
             });
             return;
         }
-        if (createForm.level !== "company" && !createForm.department_id) {
+        if (createForm.level !== "company" && createForm.level !== "" && !createForm.department_id) {
             setToast({
                 type: "error",
                 message: "Phải chọn phòng ban cho level không phải company",
@@ -189,6 +227,8 @@ export default function ObjectiveModal({
                 ...createForm,
                 department_id:
                     createForm.level === "company"
+                        ? null
+                        : createForm.level === "person"
                         ? null
                         : createForm.department_id,
                 key_results: createForm.key_results.map((kr) => ({
@@ -435,12 +475,13 @@ export default function ObjectiveModal({
                             Cấp độ
                         </label>
                         <select
-                            value={createForm.level || "company"}
+                            value={createForm.level || ""}
                             onChange={(e) =>
                                 handleCreateFormChange("level", e.target.value)
                             }
                             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                         >
+                            <option value="">-- chọn cấp độ --</option>
                             {allowedLevels.map((level) => (
                                 <option key={level} value={level}>
                                     {level}
@@ -490,31 +531,19 @@ export default function ObjectiveModal({
                             ))}
                         </select>
                     </div>
-                    {createForm.level !== "company" && (
+                    {createForm.level !== "company" && createForm.level !== "" && (
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-600">
                                 Phòng ban
                             </label>
                             <select
                                 value={createForm.department_id || ""}
-                                onChange={(e) =>
-                                    handleCreateFormChange(
-                                        "department_id",
-                                        e.target.value
-                                    )
-                                }
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                required
+                                disabled={true}
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none bg-gray-100 cursor-not-allowed"
                             >
-                                <option value="">-- chọn phòng ban --</option>
-                                {departments.map((d) => (
-                                    <option
-                                        key={d.department_id}
-                                        value={String(d.department_id)}
-                                    >
-                                        {d.d_name}
-                                    </option>
-                                ))}
+                                <option value={createForm.department_id || ""}>
+                                    {currentUser?.department?.d_name || "-- chọn phòng ban --"}
+                                </option>
                             </select>
                         </div>
                     )}

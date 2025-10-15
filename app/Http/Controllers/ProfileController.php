@@ -18,14 +18,21 @@ class ProfileController extends Controller
             ], 401);
         }
         
+        // Load thêm thông tin role và department
+        $user->load(['role', 'department']);
+        
         return response()->json([
             'success' => true,
             'user' => [
                 'id' => $user->id,
+                'user_id' => $user->user_id,
                 'name' => $user->full_name,
                 'email' => $user->email,
                 'avatar' => $user->avatar_url,
                 'status' => $user->status,
+                'role' => $user->role,
+                'department' => $user->department,
+                'department_id' => $user->department_id,
             ]
         ]);
     }
