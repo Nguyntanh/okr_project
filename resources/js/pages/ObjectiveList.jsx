@@ -14,6 +14,8 @@ export default function ObjectiveList({
     links,
     cycleFilter,
     setCycleFilter,
+    myOKRFilter,
+    setMyOKRFilter,
 }) {
     const formatPercent = (value) => {
         const n = Number(value);
@@ -53,6 +55,16 @@ export default function ObjectiveList({
                     Danh sách mục tiêu
                 </h2>
                 <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setMyOKRFilter(!myOKRFilter)}
+                        className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
+                            myOKRFilter 
+                                ? 'bg-green-600 text-white hover:bg-green-700' 
+                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                    >
+                        {myOKRFilter ? 'My OKR' : 'Tất cả OKR'}
+                    </button>
                     <select
                         value={cycleFilter}
                         onChange={(e) => setCycleFilter(e.target.value)}

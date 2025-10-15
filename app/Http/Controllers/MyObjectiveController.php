@@ -28,19 +28,25 @@ class MyObjectiveController extends Controller
         }
 
         $objectives = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role'])
-            ->where(function ($query) use ($user) {
-                $query->where('user_id', $user->user_id)
-                      ->orWhereHas('assignments', function ($query) use ($user) {
-                          $query->where('user_id', $user->user_id);
-                      });
-                
-                // Nếu user là admin, thấy tất cả objectives
-                if ($user->role->role_name === 'admin') {
-                    $query->orWhereRaw('1=1'); // Điều kiện luôn đúng để thấy tất cả
-                }
-                // Nếu user là manager, thêm điều kiện để thấy tất cả objectives trong department của họ
-                elseif ($user->role->role_name === 'manager' && $user->department_id) {
-                    $query->orWhere('department_id', $user->department_id);
+            ->where(function ($query) use ($user, $request) {
+                // Nếu có filter My OKR, chỉ hiển thị OKR của user hiện tại
+                if ($request->has('my_okr') && $request->my_okr == '1') {
+                    $query->where('user_id', $user->user_id);
+                } else {
+                    // Logic cũ: hiển thị OKR của user và được gán
+                    $query->where('user_id', $user->user_id)
+                          ->orWhereHas('assignments', function ($query) use ($user) {
+                              $query->where('user_id', $user->user_id);
+                          });
+                    
+                    // Nếu user là admin, thấy tất cả objectives
+                    if ($user->role->role_name === 'admin') {
+                        $query->orWhereRaw('1=1'); // Điều kiện luôn đúng để thấy tất cả
+                    }
+                    // Nếu user là manager, thêm điều kiện để thấy tất cả objectives trong department của họ
+                    elseif ($user->role->role_name === 'manager' && $user->department_id) {
+                        $query->orWhere('department_id', $user->department_id);
+                    }
                 }
             });
 

@@ -19,6 +19,7 @@ export default function ObjectivesPage() {
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [cycleFilter, setCycleFilter] = useState("");
+    const [myOKRFilter, setMyOKRFilter] = useState(false);
 
     const loadStaticData = async () => {
         try {
@@ -61,7 +62,7 @@ export default function ObjectivesPage() {
         }
     };
 
-    const load = async (pageNum = 1, filter = "") => {
+    const load = async (pageNum = 1, filter = "", myOKR = false) => {
         try {
             setLoading(true);
             const token = document
@@ -79,6 +80,9 @@ export default function ObjectivesPage() {
             let url = `/my-objectives?page=${pageNum}`;
             if (filter) {
                 url += `&cycle_id=${filter}`;
+            }
+            if (myOKR) {
+                url += `&my_okr=1`;
             }
 
             const resObj = await fetch(url, {
@@ -122,14 +126,20 @@ export default function ObjectivesPage() {
     };
 
     useEffect(() => {
-        load(page, cycleFilter);
+        load(page, cycleFilter, myOKRFilter);
     }, [page]);
 
     useEffect(() => {
         // Khi filter thay đổi, reset về trang 1 và reload
         setPage(1);
-        load(1, cycleFilter);
+        load(1, cycleFilter, myOKRFilter);
     }, [cycleFilter]);
+
+    useEffect(() => {
+        // Khi My OKR filter thay đổi, reset về trang 1 và reload
+        setPage(1);
+        load(1, cycleFilter, myOKRFilter);
+    }, [myOKRFilter]);
 
     useEffect(() => {
         // Load static data một lần khi component mount
@@ -168,6 +178,8 @@ export default function ObjectivesPage() {
                 links={links}
                 cycleFilter={cycleFilter}
                 setCycleFilter={setCycleFilter}
+                myOKRFilter={myOKRFilter}
+                setMyOKRFilter={setMyOKRFilter}
             />
             <div className="mt-4 flex justify-center gap-2">
                 <button
