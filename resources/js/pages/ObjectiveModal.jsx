@@ -55,6 +55,9 @@ export default function ObjectiveModal({
                     );
                 }
             } catch (err) {
+                console.error("Error fetching allowed levels:", err);
+                // Fallback to default levels for member
+                setAllowedLevels(['person']);
                 setToast({
                     type: "error",
                     message: err.message || "Không thể lấy danh sách cấp độ",
@@ -118,7 +121,7 @@ export default function ObjectiveModal({
                     kr_title: "",
                     target_value: 0,
                     current_value: 0,
-                    unit: "",
+                    unit: "number",
                     status: "draft",
                 },
             ],
@@ -141,13 +144,19 @@ export default function ObjectiveModal({
     };
 
     const handleCreateObjective = async () => {
-        if (createForm.key_results.length < 1) {
+        // Filter out empty key results
+        const validKeyResults = createForm.key_results.filter(kr => 
+            kr.kr_title && kr.kr_title.trim() !== '' && kr.unit && kr.status
+        );
+        
+        if (validKeyResults.length < 1) {
             setToast({
                 type: "error",
                 message: "Phải có ít nhất một Key Result",
             });
             return;
         }
+        
         if (createForm.level !== "company" && !createForm.department_id) {
             setToast({
                 type: "error",
@@ -165,10 +174,10 @@ export default function ObjectiveModal({
                     createForm.level === "company"
                         ? null
                         : createForm.department_id,
-                key_results: createForm.key_results.map((kr) => ({
+                key_results: validKeyResults.map((kr) => ({
                     ...kr,
-                    target_value: Number(kr.target_value),
-                    current_value: Number(kr.current_value),
+                    target_value: Number(kr.target_value) || 0,
+                    current_value: Number(kr.current_value) || 0,
                 })),
             };
             const res = await fetch("/my-objectives/store", {
@@ -184,10 +193,23 @@ export default function ObjectiveModal({
             if (!res.ok || json.success === false)
                 throw new Error(json.message || "Tạo thất bại");
             const created = json.data;
-            setItems((prev) => [
-                ...prev,
-                { ...created, key_results: created.key_results || [] },
-            ]);
+            const next = [
+                ...(
+                    (Array.isArray(await (async () => null)()) && []) || []
+                ),
+            ];
+            const updatedList = (prev => {
+                const merged = [
+                    ...prev,
+                    { 
+                        ...created, 
+                        key_results: created.key_results || created.keyResults || [] 
+                    },
+                ];
+                try { localStorage.setItem('my_objectives', JSON.stringify(merged)); } catch {}
+                return merged;
+            });
+            setItems(updatedList);
             setCreatingObjective(false);
             setToast({ type: "success", message: "Tạo Objective thành công" });
         } catch (err) {
@@ -225,13 +247,13 @@ export default function ObjectiveModal({
             if (!res.ok || json.success === false)
                 throw new Error(json.message || "Cập nhật thất bại");
             const updated = json.data;
-            setItems((prev) =>
-                prev.map((o) =>
-                    o.objective_id === editingObjective.objective_id
-                        ? { ...o, ...updated }
-                        : o
-                )
-            );
+            setItems((prev) => {
+                const merged = prev.map((o) =>
+                    o.objective_id === editingObjective.objective_id ? { ...o, ...updated } : o
+                );
+                try { localStorage.setItem('my_objectives', JSON.stringify(merged)); } catch {}
+                return merged;
+            });
             setEditingObjective(null);
             setToast({
                 type: "success",
@@ -263,11 +285,11 @@ export default function ObjectiveModal({
             const json = await res.json().catch(() => ({ success: res.ok }));
             if (!res.ok || json.success === false)
                 throw new Error(json.message || "Xóa Objective thất bại");
-            setItems((prev) =>
-                prev.filter(
-                    (o) => o.objective_id !== editingObjective.objective_id
-                )
-            );
+            setItems((prev) => {
+                const merged = prev.filter((o) => o.objective_id !== editingObjective.objective_id);
+                try { localStorage.setItem('my_objectives', JSON.stringify(merged)); } catch {}
+                return merged;
+            });
             setEditingObjective(null);
             setToast({ type: "success", message: "Đã xóa Objective" });
         } catch (err) {
@@ -492,7 +514,7 @@ export default function ObjectiveModal({
                                     <label className="mb-1 block text-xs font-semibold text-slate-600">
                                         Đơn vị
                                     </label>
-                                    <input
+                                    <select
                                         value={kr.unit}
                                         onChange={(e) =>
                                             updateNewKR(
@@ -502,7 +524,12 @@ export default function ObjectiveModal({
                                             )
                                         }
                                         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                    />
+                                    >
+                                        <option value="number">Số lượng</option>
+                                        <option value="percent">Phần trăm</option>
+                                        <option value="completion">Hoàn thành</option>
+                                        <option value="bai">Bài</option>
+                                    </select>
                                 </div>
                                 <div>
                                     <label className="mb-1 block text-xs font-semibold text-slate-600">

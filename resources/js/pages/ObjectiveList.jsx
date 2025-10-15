@@ -134,6 +134,16 @@ export default function ObjectiveList({
                                                     >
                                                         {obj.obj_title}
                                                     </button>
+                                                    {(() => {
+                                                        const nameFromRelation = obj?.department?.d_name;
+                                                        const nameFromList = departments.find((d) => String(d?.department_id) === String(obj?.department_id))?.d_name;
+                                                        const derived = nameFromRelation || nameFromList || ((obj?.level !== 'company' && Array.isArray(departments) && departments.length === 1) ? (departments[0]?.d_name || '') : '');
+                                                        return derived ? (
+                                                            <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700 border border-slate-200" title="Phòng ban">
+                                                                {derived}
+                                                            </span>
+                                                        ) : null;
+                                                    })()}
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-xs text-slate-500">
@@ -167,17 +177,17 @@ export default function ObjectiveList({
                                                     </button>
                                                 </td>
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
-                                                    {obj.department?.d_name ||
-                                                        departments.find(
-                                                            (d) =>
-                                                                String(
-                                                                    d.department_id
-                                                                ) ===
-                                                                String(
-                                                                    obj.department_id
-                                                                )
-                                                        )?.d_name ||
-                                                        ""}
+                                                    {(() => {
+                                                        const fromRelation = obj?.department?.d_name;
+                                                        if (fromRelation) return fromRelation;
+                                                        const byId = departments.find((d) => String(d?.department_id) === String(obj?.department_id))?.d_name;
+                                                        if (byId) return byId;
+                                                        // Fallback: for non-company levels when only one department is visible to the user, show it
+                                                        if (obj?.level !== 'company' && Array.isArray(departments) && departments.length === 1) {
+                                                            return departments[0]?.d_name || '';
+                                                        }
+                                                        return '';
+                                                    })()}
                                                 </td>
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
                                                     {(() => {

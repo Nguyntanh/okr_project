@@ -72,17 +72,39 @@ class MyKeyResultController extends Controller
                 : redirect()->back()->withErrors(['error' => 'Bạn không có quyền tạo Key Result cho Objective này.']);
         }
 
-        $validated = $request->validate([
+        // Normalize unit/status before validation
+        $payload = $request->all();
+        if (isset($payload['unit'])) {
+            $u = is_string($payload['unit']) ? strtolower(trim($payload['unit'])) : $payload['unit'];
+            $unitMap = [
+                'number' => 'number', 'num' => 'number', 'count' => 'number', 'so luong' => 'number', 'số lượng' => 'number',
+                'percent' => 'percent', 'percentage' => 'percent', '%' => 'percent', 'phan tram' => 'percent', 'phần trăm' => 'percent',
+                'completion' => 'completion', 'complete' => 'completion', 'completed' => 'completion', 'hoan thanh' => 'completion', 'hoàn thành' => 'completion',
+                'bai' => 'bài', 'bài' => 'bài', 'bai viet' => 'bài', 'bài viết' => 'bài',
+            ];
+            if (is_string($u) && isset($unitMap[$u])) {
+                $payload['unit'] = $unitMap[$u];
+            }
+        }
+        if (isset($payload['status'])) {
+            $s = is_string($payload['status']) ? strtolower(trim($payload['status'])) : $payload['status'];
+            $statusMap = [ 'draft' => 'draft', 'active' => 'active', 'completed' => 'completed', 'in_progress' => 'active' ];
+            if (is_string($s) && isset($statusMap[$s])) {
+                $payload['status'] = $statusMap[$s];
+            }
+        }
+
+        $validated = \Illuminate\Support\Facades\Validator::make($payload, [
             'kr_title' => 'required|string|max:255',
             'target_value' => 'required|numeric|min:0',
             'current_value' => 'nullable|numeric|min:0',
-            'unit' => 'required|in:number,percent,completion',
+            'unit' => 'required|in:number,percent,completion,bai',
             'status' => 'required|in:draft,active,completed',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
         ], [
             'kr_title.required' => 'Tiêu đề Key Result là bắt buộc.',
             'unit.required' => 'Đơn vị là bắt buộc.',
-        ]);
+        ])->validate();
 
         try {
             $created = DB::transaction(function () use ($validated, $objective, $user) {
@@ -132,11 +154,33 @@ class MyKeyResultController extends Controller
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền cập nhật Key Result này.'], 403);
         }
 
-        $validated = $request->validate([
+        // Normalize unit/status before validation
+        $payload = $request->all();
+        if (isset($payload['unit'])) {
+            $u = is_string($payload['unit']) ? strtolower(trim($payload['unit'])) : $payload['unit'];
+            $unitMap = [
+                'number' => 'number', 'num' => 'number', 'count' => 'number', 'so luong' => 'number', 'số lượng' => 'number',
+                'percent' => 'percent', 'percentage' => 'percent', '%' => 'percent', 'phan tram' => 'percent', 'phần trăm' => 'percent',
+                'completion' => 'completion', 'complete' => 'completion', 'completed' => 'completion', 'hoan thanh' => 'completion', 'hoàn thành' => 'completion',
+                'bai' => 'bài', 'bài' => 'bài', 'bai viet' => 'bài', 'bài viết' => 'bài',
+            ];
+            if (is_string($u) && isset($unitMap[$u])) {
+                $payload['unit'] = $unitMap[$u];
+            }
+        }
+        if (isset($payload['status'])) {
+            $s = is_string($payload['status']) ? strtolower(trim($payload['status'])) : $payload['status'];
+            $statusMap = [ 'draft' => 'draft', 'active' => 'active', 'completed' => 'completed', 'in_progress' => 'active' ];
+            if (is_string($s) && isset($statusMap[$s])) {
+                $payload['status'] = $statusMap[$s];
+            }
+        }
+
+        $validated = \Illuminate\Support\Facades\Validator::make($payload, [
             'kr_title' => 'required|string|max:255',
             'target_value' => 'required|numeric|min:0',
             'current_value' => 'nullable|numeric|min:0',
-            'unit' => 'required|in:number,percent,completion',
+            'unit' => 'required|in:number,percent,completion,bai',
             'status' => 'required|in:draft,active,completed',
             'weight' => 'nullable|numeric|min:0|max:100',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
@@ -144,7 +188,7 @@ class MyKeyResultController extends Controller
         ], [
             'kr_title.required' => 'Tiêu đề Key Result là bắt buộc.',
             'unit.required' => 'Đơn vị là bắt buộc.',
-        ]);
+        ])->validate();
 
         try {
             $keyResult = DB::transaction(function () use ($validated, $keyResult) {

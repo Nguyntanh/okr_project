@@ -303,7 +303,7 @@ class CheckInController extends Controller
         // Manager/Member chỉ có thể check-in trong phòng ban của mình (trừ cá nhân)
         if ($user->department_id && $keyResult->objective && $keyResult->objective->department_id) {
             if ($keyResult->objective->department_id == $user->department_id && 
-                $keyResult->objective->level !== 'Cá nhân') {
+                $keyResult->objective->level !== 'person') {
                 return true;
             }
         }

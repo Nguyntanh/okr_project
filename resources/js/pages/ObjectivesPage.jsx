@@ -43,17 +43,22 @@ export default function ObjectivesPage() {
                     headers: {
                         Accept: "application/json",
                         "X-CSRF-TOKEN": token,
+                        "X-Requested-With": "XMLHttpRequest",
                     },
+                    credentials: 'same-origin',
                 }),
                 fetch("/departments", {
-                    headers: { Accept: "application/json" },
+                    headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+                    credentials: 'same-origin',
                 }),
-                fetch("/cycles", { headers: { Accept: "application/json" } }),
+                fetch("/cycles", { headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" }, credentials: 'same-origin' }),
                 fetch("/my-links", {
                     headers: {
                         Accept: "application/json",
                         "X-CSRF-TOKEN": token,
+                        "X-Requested-With": "XMLHttpRequest",
                     },
+                    credentials: 'same-origin',
                 }),
             ]);
 
@@ -76,8 +81,21 @@ export default function ObjectivesPage() {
                 });
                 return { success: false, data: { data: [], last_page: 1 } };
             });
-            setItems(Array.isArray(objData.data.data) ? objData.data.data : []);
-            setTotalPages(objData.data.last_page || 1);
+            // Normalize data: convert keyResults to key_results
+            const list = Array.isArray(objData?.data?.data) ? objData.data.data : (Array.isArray(objData?.data) ? objData.data : []);
+            const normalizedItems = Array.isArray(list)
+                ? list.map(obj => ({
+                    ...obj,
+                    key_results: obj.key_results || obj.keyResults || []
+                }))
+                : [];
+            if (resObj.ok && Array.isArray(list)) {
+                setItems(normalizedItems);
+                try { localStorage.setItem('my_objectives', JSON.stringify(normalizedItems)); } catch {}
+                if (objData?.data?.last_page) setTotalPages(objData.data.last_page);
+            } else {
+                console.warn('Keeping previous objectives due to bad response');
+            }
 
             if (!resDept.ok) {
                 console.error(
@@ -153,6 +171,14 @@ export default function ObjectivesPage() {
     };
 
     useEffect(() => {
+        // Warm load from cache to avoid empty UI on refresh
+        try {
+            const cached = localStorage.getItem('my_objectives');
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                if (Array.isArray(parsed)) setItems(parsed);
+            }
+        } catch {}
         load(page);
     }, [page]);
 

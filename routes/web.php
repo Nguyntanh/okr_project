@@ -10,6 +10,7 @@ use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\MyOKRController;
 use App\Http\Controllers\MyObjectiveController;
 use App\Http\Controllers\MyKeyResultController;
+use App\Http\Controllers\LinkController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AdminController;
 use Illuminate\Support\Facades\Route;
@@ -170,6 +171,19 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/key-result-details/{id}', [MyObjectiveController::class, 'getKeyResultDetails'])
             ->middleware('auth')
             ->name('my-objectives.key-result-details');
+        Route::get('/getAllowedLevelsApi', [MyObjectiveController::class, 'getAllowedLevelsApi'])
+            ->middleware('auth')
+            ->name('my-objectives.getAllowedLevelsApi');
+        Route::get('/user-levels', [MyObjectiveController::class, 'getUserLevels'])
+            ->middleware('auth')
+            ->name('my-objectives.user-levels');
+
+        // Dev seed endpoint (local only)
+        if (env('APP_ENV') === 'local') {
+            Route::post('/seed/current-user', [MyObjectiveController::class, 'seedForCurrentUser'])
+                ->middleware('auth')
+                ->name('my-objectives.seed.current-user');
+        }
     });
 
     Route::prefix('my-key-results')->group(function () {
@@ -185,6 +199,26 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         })->middleware('auth')->name('my-key-results.edit');
         Route::put('/update/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'update'])->middleware('auth')->name('my-key-results.update');
         Route::delete('/destroy/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'destroy'])->middleware('auth')->name('my-key-results.destroy');
+        Route::get('/can-add-kr/{objectiveId}', [MyKeyResultController::class, 'canAddKR'])->middleware('auth')->name('my-key-results.can-add-kr');
+    });
+
+    // Links between Objectives and higher-level KRs
+    Route::prefix('my-links')->middleware('auth')->group(function () {
+        Route::get('/', [LinkController::class, 'index'])->name('my-links.index');
+        Route::get('/available-targets', [LinkController::class, 'getAvailableTargets'])->name('my-links.available-targets');
+        Route::post('/store', [LinkController::class, 'store'])->name('my-links.store');
+    });
+
+    // Check-in routes
+    Route::prefix('check-in')->middleware('auth')->group(function () {
+        Route::post('/{objectiveId}/{krId}', [App\Http\Controllers\CheckInController::class, 'store'])->name('check-in.store');
+        Route::get('/{objectiveId}/{krId}/history', [App\Http\Controllers\CheckInController::class, 'getHistory'])->name('check-in.history');
+        Route::delete('/{objectiveId}/{krId}/{checkInId}', [App\Http\Controllers\CheckInController::class, 'destroy'])->name('check-in.destroy');
+    });
+
+    // API alias for check-in history (to match frontend path)
+    Route::prefix('api')->middleware('auth')->group(function () {
+        Route::get('/check-in/{objectiveId}/{krId}/history', [App\Http\Controllers\CheckInController::class, 'getHistory'])->name('api.check-in.history');
     });
 });
 

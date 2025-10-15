@@ -9,9 +9,18 @@ use Illuminate\Support\Facades\Auth;
 class DepartmentController extends Controller
 {
     public function index() {
-        $departments = Department::orderBy('created_at', 'asc')->get();
+        $departments = Department::orderBy('created_at', 'asc');
         if (request()->wantsJson()) {
-            return response()->json([ 'success' => true, 'data' => $departments ]);
+            $user = Auth::user();
+            if ($user && !$user->isAdmin()) {
+                // Members/Managers only see their own department
+                if ($user->department_id) {
+                    $departments = $departments->where('department_id', $user->department_id);
+                } else {
+                    return response()->json([ 'success' => true, 'data' => [] ]);
+                }
+            }
+            return response()->json([ 'success' => true, 'data' => $departments->get() ]);
         }
         return view('app');
     }
