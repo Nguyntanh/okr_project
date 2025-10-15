@@ -18,6 +18,32 @@ export default function ObjectiveList({
         return Number.isFinite(n) ? `${n.toFixed(2)}%` : "";
     };
 
+    const getStatusText = (status) => {
+        switch (status?.toLowerCase()) {
+            case 'draft':
+                return 'Bản nháp';
+            case 'active':
+                return 'Đang thực hiện';
+            case 'completed':
+                return 'Hoàn thành';
+            default:
+                return status || '';
+        }
+    };
+
+    const getUnitText = (unit) => {
+        switch (unit?.toLowerCase()) {
+            case 'number':
+                return 'Số lượng';
+            case 'percent':
+                return 'Phần trăm';
+            case 'completion':
+                return 'Hoàn thành';
+            default:
+                return unit || '';
+        }
+    };
+
     return (
         <div className="mx-auto w-full max-w-6xl">
             <div className="mb-4 flex w-full items-center justify-between">
@@ -38,29 +64,26 @@ export default function ObjectiveList({
                             <th className="px-3 py-2 border-r border-slate-200 w-[25%] text-left">
                                 Tiêu đề
                             </th>
-                            <th className="px-3 py-2 border-r border-slate-200 w-[12%] text-center">
-                                Người được gán
+                            <th className="px-3 py-2 border-r border-slate-200 w-[14%] text-center">
+                                Phòng ban
                             </th>
-                            <th className="px-3 py-2 border-r border-slate-200 w-[12%] text-center">
+                            <th className="px-3 py-2 border-r border-slate-200 w-[13%] text-center">
                                 Chu kỳ
                             </th>
                             <th className="px-3 py-2 border-r border-slate-200 w-[12%] text-center">
                                 Trạng thái
                             </th>
-                            <th className="px-3 py-2 border-r border-slate-200 w-[8%] text-center">
+                            <th className="px-3 py-2 border-r border-slate-200 w-[12%] text-center">
                                 Đơn vị
                             </th>
-                            <th className="px-3 py-2 border-r border-slate-200 w-[8%] text-center">
+                            <th className="px-3 py-2 border-r border-slate-200 w-[12%] text-center">
                                 Thực tế
                             </th>
-                            <th className="px-3 py-2 border-r border-slate-200 w-[8%] text-center">
+                            <th className="px-3 py-2 border-r border-slate-200 w-[12%] text-center">
                                 Mục tiêu
                             </th>
-                            <th className="px-3 py-2 border-r border-slate-200 w-[8%] text-center">
-                                Tiến độ (%)
-                            </th>
                             <th className="px-3 py-2 w-[12%] text-center">
-                                Liên kết
+                                Tiến độ (%)
                             </th>
                         </tr>
                     </thead>
@@ -68,7 +91,7 @@ export default function ObjectiveList({
                         {loading && (
                             <tr>
                                 <td
-                                    colSpan={9}
+                                    colSpan={8}
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
                                     Đang tải...
@@ -83,72 +106,79 @@ export default function ObjectiveList({
                                             index > 0 ? "mt-4" : ""
                                         }`}
                                     >
-                                        <td colSpan={9} className="px-4 py-3">
-                                            <div className="flex items-center justify-between">
-                                                <div className="inline-flex items-center gap-3">
-                                                    <button
-                                                        onClick={() =>
-                                                            setOpenObj(
-                                                                (prev) => ({
-                                                                    ...prev,
-                                                                    [obj.objective_id]:
-                                                                        !prev[
-                                                                            obj
-                                                                                .objective_id
-                                                                        ],
-                                                                })
-                                                            )
-                                                        }
-                                                        className="rounded-md border border-slate-300 bg-white p-1 text-slate-700 hover:bg-slate-50 shadow-sm"
-                                                        title="Đóng/mở Key Results"
-                                                    >
-                                                        <svg
-                                                            xmlns="http://www.w3.org/2000/svg"
-                                                            viewBox="0 0 20 20"
-                                                            fill="currentColor"
-                                                            className={`h-4 w-4 ${
-                                                                openObj[
-                                                                    obj
-                                                                        .objective_id
-                                                                ]
-                                                                    ? "rotate-180"
-                                                                    : ""
-                                                            }`}
-                                                        >
-                                                            <path
-                                                                fillRule="evenodd"
-                                                                d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                                                                clipRule="evenodd"
-                                                            />
-                                                        </svg>
-                                                    </button>
-                                                    <button
-                                                        onClick={() =>
-                                                            setEditingObjective(
+                                        <td className="px-3 py-3">
+                                            <div className="flex items-center gap-3">
+                                                <button
+                                                    onClick={() =>
+                                                        setOpenObj(
+                                                            (prev) => ({
+                                                                ...prev,
+                                                                [obj.objective_id]:
+                                                                    !prev[
+                                                                        obj
+                                                                            .objective_id
+                                                                    ],
+                                                            })
+                                                        )
+                                                    }
+                                                    className="rounded-md border border-slate-300 bg-white p-1 text-slate-700 hover:bg-slate-50 shadow-sm"
+                                                    title="Đóng/mở Key Results"
+                                                >
+                                                    <svg
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        viewBox="0 0 20 20"
+                                                        fill="currentColor"
+                                                        className={`h-4 w-4 ${
+                                                            openObj[
                                                                 obj
-                                                            )
-                                                        }
-                                                        className="inline-flex items-center rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90"
-                                                        title="Sửa Objective"
+                                                                    .objective_id
+                                                            ]
+                                                                ? "rotate-180"
+                                                                : ""
+                                                        }`}
                                                     >
-                                                        {obj.obj_title}
-                                                    </button>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-xs text-slate-500">
-                                                        {obj.description || ""}
-                                                    </span>
-                                                    <button
-                                                        onClick={() =>
-                                                            setCreatingFor(obj)
-                                                        }
-                                                        className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-700"
-                                                        title="Thêm Key Result"
-                                                    >
-                                                        Thêm KR
-                                                    </button>
-                                                </div>
+                                                        <path
+                                                            fillRule="evenodd"
+                                                            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                                            clipRule="evenodd"
+                                                        />
+                                                    </svg>
+                                                </button>
+                                                <button
+                                                    onClick={() =>
+                                                        setEditingObjective(
+                                                            obj
+                                                        )
+                                                    }
+                                                    className="inline-flex items-center rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90"
+                                                    title="Sửa Objective"
+                                                >
+                                                    {obj.obj_title}
+                                                </button>
                                             </div>
+                                        </td>
+                                        <td className="px-3 py-3">
+                                        </td>
+                                        <td className="px-3 py-3">
+                                        </td>
+                                        <td className="px-3 py-3">
+                                        </td>
+                                        <td className="px-3 py-3">
+                                        </td>
+                                        <td className="px-3 py-3">
+                                        </td>
+                                        <td className="px-3 py-3">
+                                        </td>
+                                        <td className="px-3 py-3">
+                                            <button
+                                                onClick={() =>
+                                                    setCreatingFor(obj)
+                                                }
+                                                className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-700"
+                                                title="Thêm Key Result"
+                                            >
+                                                Thêm KR
+                                            </button>
                                         </td>
                                     </tr>
                                     {openObj[obj.objective_id] &&
@@ -166,13 +196,11 @@ export default function ObjectiveList({
                                                     </button>
                                                 </td>
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
-                                                    {obj.assignments
-                                                        ?.map(
-                                                            (a) =>
-                                                                a.user?.email ||
-                                                                "-"
-                                                        )
-                                                        .join(", ") || "-"}
+                                                    {departments.find(
+                                                        (d) =>
+                                                            String(d.department_id) ===
+                                                            String(obj.department_id)
+                                                    )?.d_name || "-"}
                                                 </td>
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
                                                     {cyclesList.find(
@@ -200,11 +228,11 @@ export default function ObjectiveList({
                                                                 : "bg-slate-100 text-slate-700"
                                                         }`}
                                                     >
-                                                        {kr.status || ""}
+                                                        {getStatusText(kr.status)}
                                                     </span>
                                                 </td>
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
-                                                    {kr.unit || ""}
+                                                    {getUnitText(kr.unit)}
                                                 </td>
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
                                                     {kr.current_value ?? ""}
@@ -212,48 +240,10 @@ export default function ObjectiveList({
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
                                                     {kr.target_value ?? ""}
                                                 </td>
-                                                <td className="px-3 py-3 border-r border-slate-200 text-center">
+                                                <td className="px-3 py-3 text-center">
                                                     {formatPercent(
                                                         kr.progress_percent
                                                     )}
-                                                </td>
-                                                <td className="px-3 py-3 text-center">
-                                                    {links
-                                                        .filter(
-                                                            (l) =>
-                                                                l.source_objective_id ===
-                                                                obj.objective_id
-                                                        )
-                                                        .map((l) => {
-                                                            const targetKr =
-                                                                items
-                                                                    .flatMap(
-                                                                        (o) =>
-                                                                            o.key_results
-                                                                    )
-                                                                    .find(
-                                                                        (kr) =>
-                                                                            kr.kr_id ===
-                                                                            l.target_kr_id
-                                                                    );
-                                                            const targetObj =
-                                                                items.find(
-                                                                    (o) =>
-                                                                        o.key_results.some(
-                                                                            (
-                                                                                kr
-                                                                            ) =>
-                                                                                kr.kr_id ===
-                                                                                l.target_kr_id
-                                                                        )
-                                                                );
-                                                            return targetKr &&
-                                                                targetObj
-                                                                ? `Liên kết đến: ${targetObj.obj_title} - ${targetKr.kr_title} (${targetObj.level})`
-                                                                : "";
-                                                        })
-                                                        .filter((t) => t)
-                                                        .join(", ") || "-"}
                                                 </td>
                                             </tr>
                                         ))}
