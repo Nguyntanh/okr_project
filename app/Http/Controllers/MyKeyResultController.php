@@ -230,7 +230,7 @@ class MyKeyResultController extends Controller
 
         // Đối với manager, chỉ được tạo KR cho objectives của phòng ban mình (trừ cá nhân)
         if ($user->isManager() && $user->department_id) {
-            return $objective->department_id === $user->department_id && $objective->level !== 'Cá nhân';
+            return $objective->department_id === $user->department_id && $objective->level !== 'person';
         }
 
         return false;
@@ -263,10 +263,10 @@ class MyKeyResultController extends Controller
     private function getAllowedLevels(string $roleName): array
     {
         return match (strtolower($roleName)) {
-            'admin' => ['Công ty', 'Phòng ban', 'Nhóm', 'Cá nhân'],
-            'manager' => ['Phòng ban', 'Nhóm', 'Cá nhân'],
-            'member' => ['Nhóm', 'Cá nhân'],
-            default => ['Nhóm', 'Cá nhân'],
+            'admin' => ['company', 'unit', 'team', 'person'],
+            'manager' => ['unit', 'team', 'person'],
+            'member' => ['person'],
+            default => ['person'],
         };
     }
 }
