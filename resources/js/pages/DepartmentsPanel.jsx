@@ -164,7 +164,7 @@ export default function DepartmentsPanel(){
                                         </button>
                                     </AdminOnly>
                                 </td>
-                                <td className="px-3 py-2 text-slate-600">{d.d_description || '-'}</td>
+                                <td className="px-3 py-2 text-slate-600">{d.d_description || ''}</td>
                             </tr>
                         ))}
                     </tbody>

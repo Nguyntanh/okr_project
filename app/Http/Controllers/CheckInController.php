@@ -299,6 +299,7 @@ class CheckInController extends Controller
 
     /**
      * Kiểm tra quyền check-in
+     * Nhân viên phòng nào chỉ được check-in key result của phòng ban đó
      */
     private function canCheckIn($user, $keyResult): bool
     {
@@ -307,39 +308,17 @@ class CheckInController extends Controller
             $keyResult->load('objective');
         }
 
-        // Load role relationship nếu chưa có
-        if (!$user->relationLoaded('role')) {
-            $user->load('role');
-        }
-
         // Admin có quyền check-in cho tất cả
         if ($user->isAdmin()) {
             return true;
         }
 
-        // Người sở hữu Key Result có thể check-in
-        if ($keyResult->objective && $keyResult->objective->user_id == $user->user_id) {
+        // Kiểm tra xem key result có thuộc phòng ban của user không
+        if ($keyResult->objective && 
+            $keyResult->objective->department_id && 
+            $user->department_id &&
+            $keyResult->objective->department_id === $user->department_id) {
             return true;
-        }
-
-        // Member chỉ được check-in objectives trong phòng ban của họ
-        if ($user->role->role_name === 'member') {
-            if ($keyResult->objective && 
-                $keyResult->objective->department_id && 
-                $keyResult->objective->department_id === $user->department_id) {
-                return true;
-            }
-            return false;
-        }
-
-        // Manager có thể check-in objectives trong phòng ban của họ
-        if ($user->role->role_name === 'manager') {
-            if ($keyResult->objective && 
-                $keyResult->objective->department_id && 
-                $keyResult->objective->department_id === $user->department_id) {
-                return true;
-            }
-            return false;
         }
 
         return false;

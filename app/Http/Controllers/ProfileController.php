@@ -18,16 +18,34 @@ class ProfileController extends Controller
             ], 401);
         }
         
+        // Load relationships nếu chưa có
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
+        }
+        if (!$user->relationLoaded('department')) {
+            $user->load('department');
+        }
+        
         return response()->json([
             'success' => true,
             'user' => [
-                'id' => $user->user_id,
+                'user_id' => $user->user_id,
+                'id' => $user->user_id, // Alias for compatibility
                 'name' => $user->full_name,
+                'full_name' => $user->full_name,
                 'email' => $user->email,
                 'avatar' => $user->avatar_url,
                 'status' => $user->status,
-                'role' => $user->role ? $user->role->role_name : null,
-                'department' => $user->department ? $user->department->d_name : null,
+                'department_id' => $user->department_id,
+                'role_id' => $user->role_id,
+                'role' => $user->role ? [
+                    'role_id' => $user->role->role_id,
+                    'role_name' => $user->role->role_name
+                ] : null,
+                'department' => $user->department ? [
+                    'department_id' => $user->department->department_id,
+                    'd_name' => $user->department->d_name
+                ] : null,
             ]
         ]);
     }

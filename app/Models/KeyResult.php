@@ -26,6 +26,7 @@ class KeyResult extends Model
         'department_id',
         'objective_id',
         'cycle_id',
+        'user_id',
         'progress_percent'
     ];
 
@@ -37,6 +38,11 @@ class KeyResult extends Model
     public function cycle(): BelongsTo
     {
         return $this->belongsTo(Cycle::class, 'cycle_id', 'cycle_id');
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id', 'user_id');
     }
 
     /**

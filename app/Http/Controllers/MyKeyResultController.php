@@ -100,7 +100,8 @@ class MyKeyResultController extends Controller
                     'progress_percent' => $validated['progress_percent'] ?? $progress,
                     'objective_id' => $objective->objective_id,
                     'cycle_id' => $objective->cycle_id,
-                ])->load('objective', 'cycle');
+                    'user_id' => $user->user_id,
+                ])->load('objective', 'cycle', 'user');
             });
 
             return $request->expectsJson()
@@ -223,14 +224,17 @@ class MyKeyResultController extends Controller
             return false;
         }
 
-        // Đối với member, chỉ được tạo KR cho objectives của phòng ban mình
-        if ($user->isMember() && $user->department_id) {
-            return $objective->department_id === $user->department_id;
+        // Đối với member, CHỈ được tạo KR cho objectives mà họ sở hữu
+        // KHÔNG được tạo cho objectives của người khác, kể cả được assign
+        if ($user->isMember()) {
+            // Member đã được kiểm tra ở trên (line 218-220)
+            // Nếu không phải owner thì không có quyền
+            return false;
         }
 
-        // Đối với manager, chỉ được tạo KR cho objectives của phòng ban mình (trừ cá nhân)
+        // Đối với manager, được tạo KR cho objectives của phòng ban mình
         if ($user->isManager() && $user->department_id) {
-            return $objective->department_id === $user->department_id && $objective->level !== 'person';
+            return $objective->department_id === $user->department_id;
         }
 
         return false;
@@ -285,22 +289,25 @@ class MyKeyResultController extends Controller
             return true;
         }
 
-        // Chủ sở hữu có quyền quản lý
+        // Chủ sở hữu có quyền quản lý (nếu là owner)
         if ($objective->user_id === $user->user_id) {
             return true;
         }
 
-        // Member chỉ được quản lý objectives của chính họ
-        if ($user->role && $user->role->role_name === 'member') {
-            return false;
-        }
-
-        // Manager chỉ được quản lý objectives trong phòng ban của họ
+        // Manager được quản lý objectives trong phòng ban của họ
         if ($user->role && $user->role->role_name === 'manager') {
             if ($objective->department_id && 
                 $objective->department_id === $user->department_id) {
                 return true;
             }
+            return false;
+        }
+
+        // Member CHỈ được quản lý objectives mà họ sở hữu
+        // KHÔNG được quản lý objectives của người khác, kể cả được assign hay cùng phòng ban
+        if ($user->role && $user->role->role_name === 'member') {
+            // Member đã được kiểm tra ở trên (line 290-292)
+            // Nếu không phải owner thì không có quyền
             return false;
         }
 

@@ -12,6 +12,8 @@ export default function ObjectiveList({
     setEditingKR,
     setCreatingObjective,
     links,
+    openCheckInModal,
+    openCheckInHistory,
     currentUser,
 }) {
     const formatPercent = (value) => {
@@ -36,6 +38,23 @@ export default function ObjectiveList({
         if (currentUser.role?.role_name === 'manager') {
             return objective.department_id && 
                    objective.department_id === currentUser.department_id;
+        }
+        
+        return false;
+    };
+
+    // Kiểm tra quyền check-in (nhân viên phòng ban có quyền check-in key result của phòng ban mình)
+    const canCheckIn = (keyResult, objective) => {
+        if (!currentUser) return false;
+        
+        // Admin có quyền check-in tất cả
+        if (currentUser.role?.role_name === 'admin') return true;
+        
+        // Nhân viên chỉ được check-in key result của phòng ban mình
+        if (objective.department_id && 
+            currentUser.department_id &&
+            objective.department_id === currentUser.department_id) {
+            return true;
         }
         
         return false;
@@ -82,8 +101,11 @@ export default function ObjectiveList({
                             <th className="px-3 py-2 border-r border-slate-200 w-[8%] text-center">
                                 Tiến độ (%)
                             </th>
-                            <th className="px-3 py-2 w-[12%] text-center">
+                            <th className="px-3 py-2 border-r border-slate-200 w-[12%] text-center">
                                 Liên kết
+                            </th>
+                            <th className="px-3 py-2 w-[10%] text-center">
+                                Hành động
                             </th>
                         </tr>
                     </thead>
@@ -91,7 +113,7 @@ export default function ObjectiveList({
                         {loading && (
                             <tr>
                                 <td
-                                    colSpan={9}
+                                    colSpan={10}
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
                                     Đang tải...
@@ -106,7 +128,7 @@ export default function ObjectiveList({
                                             index > 0 ? "mt-4" : ""
                                         }`}
                                     >
-                                        <td colSpan={9} className="px-4 py-3">
+                                        <td colSpan={10} className="px-4 py-3">
                                             <div className="flex items-center justify-between">
                                                 <div className="inline-flex items-center gap-3">
                                                     <button
@@ -207,8 +229,9 @@ export default function ObjectiveList({
                                                         </span>
                                                         <span className="text-[10px] text-slate-500">
                                                             {obj.assignments
-                                                                ?.map((a) => a.user?.email || "-")
-                                                                .join(", ") || "-"}
+                                                                ?.map((a) => a.user?.email || "")
+                                                                .filter(email => email)
+                                                                .join(", ") || ""}
                                                         </span>
                                                     </div>
                                                 </td>
@@ -255,7 +278,7 @@ export default function ObjectiveList({
                                                         kr.progress_percent
                                                     )}
                                                 </td>
-                                                <td className="px-3 py-3 text-center">
+                                                <td className="px-3 py-3 border-r border-slate-200 text-center">
                                                     {links
                                                         .filter(
                                                             (l) =>
@@ -291,7 +314,27 @@ export default function ObjectiveList({
                                                                 : "";
                                                         })
                                                         .filter((t) => t)
-                                                        .join(", ") || "-"}
+                                                        .join(", ") || ""}
+                                                </td>
+                                                <td className="px-3 py-3 text-center">
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        {canCheckIn(kr, obj) && (
+                                                            <button
+                                                                onClick={() => openCheckInModal(kr)}
+                                                                className="rounded-md bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700"
+                                                                title="Cập nhật tiến độ"
+                                                            >
+                                                                Check-in
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={() => openCheckInHistory(kr)}
+                                                            className="rounded-md bg-slate-600 px-3 py-1 text-xs font-semibold text-white hover:bg-slate-700"
+                                                            title="Xem lịch sử check-in"
+                                                        >
+                                                            Lịch sử
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}

@@ -22,15 +22,20 @@ class MyOKRSeeder extends Seeder
             'description' => 'Chu kỳ Q4 2025'
         ]);
 
-        // Tạo user mẫu nếu chưa có
-        $user = User::firstOrCreate(
-            ['email' => 'test@example.com'],
-            [
-                'sub' => 'test-user-123',
-                'full_name' => 'Test User',
-                'password_hash' => null,
-            ]
-        );
+        // Lấy user hiện tại (khanhnguyen)
+        $user = User::where('email', 'khanh.nguyen@software.codegym.vn')->first();
+        
+        if (!$user) {
+            // Fallback: lấy user đầu tiên có department_id
+            $user = User::whereNotNull('department_id')->first();
+            
+            if (!$user) {
+                echo "Error: No user found with department_id!\n";
+                return;
+            }
+        }
+        
+        echo "Creating objectives for user: {$user->email} (ID: {$user->user_id})\n";
 
         // Tạo objectives mẫu
         $objectives = [
@@ -162,6 +167,7 @@ class MyOKRSeeder extends Seeder
                 'progress_percent' => $objData['progress_percent'],
                 'user_id' => $user->user_id,
                 'cycle_id' => $cycle->cycle_id,
+                'department_id' => $user->department_id, // Thêm department_id
             ]);
 
             foreach ($objData['key_results'] as $krData) {

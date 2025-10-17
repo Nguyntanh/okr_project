@@ -39,7 +39,7 @@ export default function ObjectivesPage() {
                 throw new Error("CSRF token not found");
             }
 
-            const [resObj, resDept, resCycles, resLinks, resUser] = await Promise.all([
+            const [resObj, resDept, resCycles, resUser] = await Promise.all([
                 fetch(`/my-objectives?page=${pageNum}`, {
                     headers: {
                         Accept: "application/json",
@@ -50,12 +50,6 @@ export default function ObjectivesPage() {
                     headers: { Accept: "application/json" },
                 }),
                 fetch("/cycles", { headers: { Accept: "application/json" } }),
-                fetch("/my-links", {
-                    headers: {
-                        Accept: "application/json",
-                        "X-CSRF-TOKEN": token,
-                    },
-                }),
                 fetch("/api/profile", {
                     headers: {
                         Accept: "application/json",
@@ -70,17 +64,9 @@ export default function ObjectivesPage() {
                     resObj.status,
                     resObj.statusText
                 );
-                setToast({
-                    type: "error",
-                    message: `Lỗi tải objectives: ${resObj.statusText}`,
-                });
             }
             const objData = await resObj.json().catch((err) => {
                 console.error("Error parsing objectives:", err);
-                setToast({
-                    type: "error",
-                    message: "Lỗi phân tích dữ liệu objectives",
-                });
                 return { success: false, data: { data: [], last_page: 1 } };
             });
             
@@ -121,60 +107,30 @@ export default function ObjectivesPage() {
                 // Không xóa cache và không clear items khi có lỗi
             }
 
-            if (!resDept.ok) {
-                console.error(
-                    "Departments API error:",
-                    resDept.status,
-                    resDept.statusText
-                );
-                setToast({
-                    type: "error",
-                    message: `Lỗi tải departments: ${resDept.statusText}`,
-                });
-            }
             const deptData = await resDept.json().catch((err) => {
                 console.error("Error parsing departments:", err);
                 return { data: [] };
             });
-            setDepartments(deptData.data || []);
-
-            if (!resCycles.ok) {
-                console.error(
-                    "Cycles API error:",
-                    resCycles.status,
-                    resCycles.statusText
-                );
-                setToast({
-                    type: "error",
-                    message: `Lỗi tải cycles: ${resCycles.statusText}`,
-                });
+            if (resDept.ok) {
+                setDepartments(deptData.data || []);
+            } else {
+                console.error("Departments API error:", resDept.status, resDept.statusText);
+                setDepartments([]);
             }
+
             const cyclesData = await resCycles.json().catch((err) => {
                 console.error("Error parsing cycles:", err);
                 return { data: [] };
             });
-            setCyclesList(cyclesData.data || []);
-
-            if (!resLinks.ok) {
-                console.error(
-                    "Links API error:",
-                    resLinks.status,
-                    resLinks.statusText
-                );
-                setToast({
-                    type: "error",
-                    message: `Lỗi tải links: ${resLinks.statusText}`,
-                });
+            if (resCycles.ok) {
+                setCyclesList(cyclesData.data || []);
+            } else {
+                console.error("Cycles API error:", resCycles.status, resCycles.statusText);
+                setCyclesList([]);
             }
-            const linksData = await resLinks.json().catch((err) => {
-                console.error("Error parsing links:", err);
-                setToast({
-                    type: "error",
-                    message: "Lỗi phân tích dữ liệu liên kết",
-                });
-                return { data: [] };
-            });
-            setLinks(linksData.data || []);
+
+            // Set links to empty array (endpoint not implemented yet)
+            setLinks([]);
 
             // Parse user data (optional, không ảnh hưởng objectives)
             if (resUser && resUser.ok) {
@@ -190,25 +146,6 @@ export default function ObjectivesPage() {
                 }
             } else {
                 console.warn('⚠️ Failed to fetch user profile, continuing without it');
-            }
-
-            if (
-                !Array.isArray(objData.data.data) ||
-                objData.data.data.length === 0
-            ) {
-                setToast({
-                    type: "warning",
-                    message: "Không có objectives nào",
-                });
-            }
-            if (deptData.data?.length === 0) {
-                setToast({
-                    type: "warning",
-                    message: "Không có phòng ban nào",
-                });
-            }
-            if (cyclesData.data?.length === 0) {
-                setToast({ type: "warning", message: "Không có chu kỳ nào" });
             }
         } catch (err) {
             console.error("Load error:", err);

@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\KeyResult;
 use App\Models\Objective;
+use App\Models\OkrAssignment;
 use Illuminate\Http\Request;
 use App\Models\Cycle;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
 
 class KeyResultController extends Controller
@@ -32,6 +34,18 @@ class KeyResultController extends Controller
 
     public function store(Request $request, $objectiveId)
     {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+        }
+
+        $objective = Objective::findOrFail($objectiveId);
+
+        // Kiểm tra quyền
+        if (!$this->canManageKeyResult($user, $objective)) {
+            return response()->json(['success' => false, 'message' => 'Bạn không có quyền tạo Key Result cho Objective này.'], 403);
+        }
+
         $validated = $request->validate([
             'kr_title' => 'required|string|max:255',
             'target_value' => 'required|numeric|min:0',
@@ -69,7 +83,19 @@ class KeyResultController extends Controller
 
     public function destroy($objectiveId, $krId)
     {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+        }
+
+        $objective = Objective::findOrFail($objectiveId);
         $kr = KeyResult::findOrFail($krId);
+
+        // Kiểm tra quyền
+        if (!$this->canManageKeyResult($user, $objective)) {
+            return response()->json(['success' => false, 'message' => 'Bạn không có quyền xóa Key Result này.'], 403);
+        }
+
         $kr->delete();
 
         return response()->json(['success' => true, 'message' => 'Key Result đã được xóa']);
@@ -80,7 +106,18 @@ class KeyResultController extends Controller
      */
     public function update(Request $request, $objectiveId, $krId)
     {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+        }
+
+        $objective = Objective::findOrFail($objectiveId);
         $kr = KeyResult::where('kr_id', $krId)->where('objective_id', $objectiveId)->firstOrFail();
+
+        // Kiểm tra quyền
+        if (!$this->canManageKeyResult($user, $objective)) {
+            return response()->json(['success' => false, 'message' => 'Bạn không có quyền cập nhật Key Result này.'], 403);
+        }
 
         $validated = $request->validate([
             'kr_title' => 'nullable|string|max:255',
@@ -114,5 +151,45 @@ class KeyResultController extends Controller
         // return latest with relations
         $kr->load('objective');
         return response()->json(['success' => true, 'data' => $kr]);
+    }
+
+    /**
+     * Kiểm tra quyền quản lý Key Result
+     */
+    private function canManageKeyResult($user, $objective): bool
+    {
+        // Load role nếu chưa có
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
+        }
+
+        // Admin có quyền quản lý tất cả
+        if ($user->role && $user->role->role_name === 'admin') {
+            return true;
+        }
+
+        // Chủ sở hữu có quyền quản lý (nếu là owner)
+        if ($objective->user_id === $user->user_id) {
+            return true;
+        }
+
+        // Manager được quản lý objectives trong phòng ban của họ
+        if ($user->role && $user->role->role_name === 'manager') {
+            if ($objective->department_id && 
+                $objective->department_id === $user->department_id) {
+                return true;
+            }
+            return false;
+        }
+
+        // Member CHỈ được quản lý objectives mà họ sở hữu
+        // KHÔNG được quản lý objectives của người khác, kể cả được assign hay cùng phòng ban
+        if ($user->role && $user->role->role_name === 'member') {
+            // Member đã được kiểm tra ở trên (line 172-174)
+            // Nếu không phải owner thì không có quyền
+            return false;
+        }
+
+        return false;
     }
 }
