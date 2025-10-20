@@ -48,21 +48,48 @@ export default function ProfileSettings({ user, activeTab }){
         form.append('old_password', oldPwd);
         form.append('new_password', newPwd);
         form.append('new_password_confirmation', confirmPwd);
-        const res = await fetch('/change-password', { method: 'POST', body: form, headers: { 'Accept': 'application/json' } });
-        if (res.ok) {
+        
+        try {
+            const res = await fetch('/change-password', { 
+                method: 'POST', 
+                body: form, 
+                headers: { 
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                } 
+            });
+            
             const data = await res.json().catch(()=>({}));
-            showToast('success', (data && data.message) || 'Đổi mật khẩu thành công!');
-            // Đảm bảo đăng xuất hoàn toàn trước khi redirect
-            setTimeout(()=> { 
-                // Xóa tất cả session storage và local storage
-                sessionStorage.clear();
-                localStorage.clear();
-                // Redirect về landing page
-                window.location.href = '/landingpage';
-            }, 1500);
-        } else {
-            const err = await res.json().catch(()=>({ message: 'Đổi mật khẩu thất bại' }));
-            showToast('error', err.message || 'Đổi mật khẩu thất bại');
+            
+            if (res.ok && data.success) {
+                showToast('success', data.message || 'Đổi mật khẩu thành công!');
+                // Đảm bảo đăng xuất hoàn toàn trước khi redirect
+                setTimeout(()=> { 
+                    // Xóa tất cả session storage và local storage
+                    sessionStorage.clear();
+                    localStorage.clear();
+                    // Redirect về landing page
+                    window.location.href = data.redirect || '/landingpage';
+                }, 1500);
+            } else {
+                // Xử lý validation errors
+                if (data.errors) {
+                    let errorMessages = [];
+                    Object.keys(data.errors).forEach(field => {
+                        if (Array.isArray(data.errors[field])) {
+                            errorMessages.push(...data.errors[field]);
+                        } else {
+                            errorMessages.push(data.errors[field]);
+                        }
+                    });
+                    showToast('error', errorMessages.join('. '));
+                } else {
+                    showToast('error', data.message || 'Đổi mật khẩu thất bại');
+                }
+            }
+        } catch (error) {
+            console.error('Error changing password:', error);
+            showToast('error', 'Có lỗi xảy ra khi đổi mật khẩu');
         }
     };
 
