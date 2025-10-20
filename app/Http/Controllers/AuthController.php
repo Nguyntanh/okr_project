@@ -40,6 +40,27 @@ class AuthController extends Controller
     // Xử lý đổi mật khẩu
     public function changePassword(Request $request)
     {
+        // Kiểm tra nếu người dùng đăng nhập bằng OAuth (Google, Facebook, etc.)
+        $user = Auth::user();
+        if ($user && $user->google_id) {
+            Log::info('OAuth user attempted to change password', [
+                'user_id' => $user->user_id,
+                'email' => $user->email,
+                'google_id' => $user->google_id
+            ]);
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Bạn đang đăng nhập bằng Google. Để đổi mật khẩu, vui lòng truy cập tài khoản Google của bạn.',
+                    'oauth_user' => true,
+                    'provider' => 'Google'
+                ], 400);
+            }
+            
+            return back()->withErrors(['error' => 'Bạn đang đăng nhập bằng Google. Để đổi mật khẩu, vui lòng truy cập tài khoản Google của bạn.'])->withInput();
+        }
+
         // Validate input với rules mạnh mẽ hơn
         $validator = Validator::make($request->all(), [
             'old_password' => [
@@ -154,7 +175,9 @@ class AuthController extends Controller
                 if ($request->expectsJson()) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'Có lỗi xảy ra khi xác thực. Vui lòng thử lại sau.'
+                        'message' => 'Có lỗi xảy ra khi xác thực. Vui lòng thử lại sau.',
+                        'error_code' => $errorCode,
+                        'error_details' => $e->getAwsErrorMessage()
                     ], 500);
                 }
                 return back()->withErrors(['error' => 'Có lỗi xảy ra khi xác thực. Vui lòng thử lại sau.'])->withInput();
@@ -275,6 +298,9 @@ class AuthController extends Controller
                     'error_code' => $errorCode,
                     'error_message' => $errorMessage
                 ]);
+                
+                // Cung cấp thông tin chi tiết hơn cho unhandled errors
+                $translatedMessage = "Có lỗi xảy ra khi xác thực. Vui lòng thử lại sau. (Lỗi: {$errorCode})";
             }
 
             if ($request->expectsJson()) {

@@ -94,7 +94,12 @@ export default function ProfileSettings({ user, activeTab }){
                         showToast('error', `Có ${allErrors.length} lỗi cần sửa:\n${errorList}`);
                     }
                 } else {
-                    showToast('error', data.message || 'Đổi mật khẩu thất bại');
+                    // Kiểm tra nếu là OAuth user
+                    if (data.oauth_user) {
+                        showToast('error', data.message || 'Bạn đang đăng nhập bằng Google. Để đổi mật khẩu, vui lòng truy cập tài khoản Google của bạn.');
+                    } else {
+                        showToast('error', data.message || 'Đổi mật khẩu thất bại');
+                    }
                 }
             }
         } catch (error) {
@@ -165,6 +170,21 @@ export default function ProfileSettings({ user, activeTab }){
                         <p className="text-white/80">Bảo vệ tài khoản của bạn với mật khẩu mạnh</p>
                     </div>
                     <div className="p-6">
+                        {/* Thông báo cho OAuth users */}
+                        {user?.google_id && (
+                            <div className="mb-6 rounded-xl bg-blue-50 border border-blue-200 p-4">
+                                <div className="flex items-start">
+                                    <svg className="h-5 w-5 text-blue-400 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                    </svg>
+                                    <div className="text-sm text-blue-700">
+                                        <p className="font-medium mb-1">Thông tin quan trọng:</p>
+                                        <p>Bạn đang đăng nhập bằng Google. Để đổi mật khẩu, vui lòng truy cập <a href="https://myaccount.google.com/security" target="_blank" rel="noopener noreferrer" className="underline font-medium">tài khoản Google</a> của bạn.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        
                         <form onSubmit={submitPassword} className="grid gap-6">
                             <div>
                                 <label className="mb-1 block text-sm font-medium text-slate-700">Mật khẩu hiện tại</label>
@@ -172,7 +192,8 @@ export default function ProfileSettings({ user, activeTab }){
                                     type={showPasswords ? "text" : "password"} 
                                     value={oldPwd} 
                                     onChange={(e)=>setOldPwd(e.target.value)} 
-                                    className="w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none" 
+                                    className={`w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none ${user?.google_id ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                    disabled={!!user?.google_id}
                                     required 
                                 />
                             </div>
@@ -183,7 +204,8 @@ export default function ProfileSettings({ user, activeTab }){
                                         type={showPasswords ? "text" : "password"} 
                                         value={newPwd} 
                                         onChange={(e)=>setNewPwd(e.target.value)} 
-                                        className="w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none" 
+                                        className={`w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none ${user?.google_id ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                        disabled={!!user?.google_id}
                                         required 
                                     />
                                 </div>
@@ -193,7 +215,8 @@ export default function ProfileSettings({ user, activeTab }){
                                         type={showPasswords ? "text" : "password"} 
                                         value={confirmPwd} 
                                         onChange={(e)=>setConfirmPwd(e.target.value)} 
-                                        className="w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none" 
+                                        className={`w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none ${user?.google_id ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                        disabled={!!user?.google_id}
                                         required 
                                     />
                                 </div>
@@ -206,9 +229,10 @@ export default function ProfileSettings({ user, activeTab }){
                                     id="showPasswords" 
                                     checked={showPasswords}
                                     onChange={(e) => setShowPasswords(e.target.checked)}
-                                    className="h-4 w-4 rounded border-slate-300 text-fuchsia-600 focus:ring-fuchsia-500"
+                                    className={`h-4 w-4 rounded border-slate-300 text-fuchsia-600 focus:ring-fuchsia-500 ${user?.google_id ? 'cursor-not-allowed opacity-50' : ''}`}
+                                    disabled={!!user?.google_id}
                                 />
-                                <label htmlFor="showPasswords" className="text-sm font-medium text-slate-700 cursor-pointer">
+                                <label htmlFor="showPasswords" className={`text-sm font-medium text-slate-700 ${user?.google_id ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
                                     Hiển thị mật khẩu
                                 </label>
                             </div>
@@ -218,7 +242,13 @@ export default function ProfileSettings({ user, activeTab }){
                                     <li>Ít nhất 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.</li>
                                     <li>Không nên dùng mật khẩu đã sử dụng trước đó.</li>
                                 </ul>
-                                <button type="submit" className="rounded-2xl bg-gradient-to-r from-fuchsia-600 to-purple-600 px-7 py-3 text-sm font-semibold text-white shadow hover:opacity-95">Cập nhật</button>
+                                <button 
+                                    type="submit" 
+                                    className={`rounded-2xl bg-gradient-to-r from-fuchsia-600 to-purple-600 px-7 py-3 text-sm font-semibold text-white shadow hover:opacity-95 ${user?.google_id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    disabled={!!user?.google_id}
+                                >
+                                    {user?.google_id ? 'Không khả dụng cho tài khoản Google' : 'Cập nhật'}
+                                </button>
                             </div>
                         </form>
                     </div>
