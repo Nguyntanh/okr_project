@@ -1,4 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
+import Dropdown, { DropdownItem, DropdownHeader, DropdownContent } from "../components/Dropdown";
+import { navigateTo } from "../utils/navigation";
 
 function SidebarItem({ icon, label, href, collapsed }) {
     return (
@@ -158,22 +160,10 @@ function DashboardTopbar({
     onOpenProfile,
     onOpenPassword,
 }) {
-    const [open, setOpen] = useState(false);
-    const toggle = () => setOpen((o) => !o);
-    const triggerRef = useRef(null);
-    const [triggerWidth, setTriggerWidth] = useState(0);
-    useEffect(() => {
-        const measure = () => {
-            if (triggerRef.current)
-                setTriggerWidth(triggerRef.current.offsetWidth);
-        };
-        measure();
-        window.addEventListener("resize", measure);
-        return () => window.removeEventListener("resize", measure);
-    }, []);
     const displayName = user?.name || "User";
     const email = user?.email || "user@example.com";
     const avatar = user?.avatar || "/images/default.png";
+    
     return (
         <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
             <div className="flex items-center gap-4">
@@ -197,100 +187,79 @@ function DashboardTopbar({
                 />
             </div>
             <div className="flex items-center gap-3">
-                <div className="relative">
-                    <button
-                        ref={triggerRef}
-                        onClick={toggle}
-                        className="flex items-center gap-3 rounded-full border border-slate-200 bg-white pl-3 pr-4 py-2 hover:bg-slate-50"
-                        aria-haspopup="menu"
-                    >
-                        <img
-                            src={avatar}
-                            alt="avatar"
-                            className="h-10 w-10 rounded-full object-cover"
-                        />
-                        <span className="hidden md:block text-base font-semibold text-slate-700">
-                            {displayName}
-                        </span>
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-5 w-5 text-slate-500"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                        >
-                            <path
-                                fillRule="evenodd"
-                                d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z"
-                                clipRule="evenodd"
+                <Dropdown
+                    position="right"
+                    zIndex={10000}
+                    className="min-w-[360px]"
+                    trigger={
+                        <button className="flex items-center gap-3 rounded-full border border-slate-200 bg-white pl-3 pr-4 py-2 hover:bg-slate-50">
+                            <img
+                                src={avatar}
+                                alt="avatar"
+                                className="h-10 w-10 rounded-full object-cover"
                             />
-                        </svg>
-                    </button>
-                    {open && (
-                        <div
-                            className="absolute right-0 mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
-                            style={{ minWidth: Math.max(triggerWidth, 360) }}
-                        >
-                            <div className="border-b border-slate-200 p-5">
-                                <div className="font-semibold text-slate-900">
-                                    {displayName}
-                                </div>
-                                <div className="text-sm text-slate-500">
-                                    {email}
-                                </div>
-                            </div>
-                            <div className="p-2">
-                                <button
-                                    onClick={() => {
-                                        setOpen(false);
-                                        onOpenProfile();
-                                    }}
-                                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50"
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        className="h-5 w-5"
-                                        viewBox="0 0 24 24"
-                                        fill="currentColor"
-                                    >
-                                        <path d="M12 12a5 5 0 100-10 5 5 0 000 10zm-7 9a7 7 0 1114 0H5z" />
-                                    </svg>
-                                    Hồ sơ cá nhân
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setOpen(false);
-                                        onOpenPassword();
-                                    }}
-                                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50"
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        className="h-5 w-5"
-                                        viewBox="0 0 24 24"
-                                        fill="currentColor"
-                                    >
-                                        <path d="M12 8a4 4 0 100 8 4 4 0 000-8zm8 4a8 8 0 11-16 0 8 8 0 0116 0z" />
-                                    </svg>
-                                    Đổi mật khẩu
-                                </button>
-                                <button
-                                    onClick={onLogout}
-                                    className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        className="h-5 w-5"
-                                        viewBox="0 0 24 24"
-                                        fill="currentColor"
-                                    >
-                                        <path d="M16 13v-2H7V8l-5 4 5 4v-3h9zM20 3H10a2 2 0 00-2 2v4h2V5h10v14H10v-4H8v4a2 2 0 002 2h10a2 2 0 002-2V5a2 2 0 00-2-2z" />
-                                    </svg>
-                                    Đăng xuất
-                                </button>
-                            </div>
+                            <span className="hidden md:block text-base font-semibold text-slate-700">
+                                {displayName}
+                            </span>
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5 text-slate-500"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                            >
+                                <path
+                                    fillRule="evenodd"
+                                    d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z"
+                                    clipRule="evenodd"
+                                />
+                            </svg>
+                        </button>
+                    }
+                >
+                    <DropdownHeader>
+                        <div className="font-semibold text-slate-900">
+                            {displayName}
                         </div>
-                    )}
-                </div>
+                        <div className="text-sm text-slate-500">
+                            {email}
+                        </div>
+                    </DropdownHeader>
+                    <DropdownContent>
+                        <DropdownItem onClick={onOpenProfile}>
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M12 12a5 5 0 100-10 5 5 0 000 10zm-7 9a7 7 0 1114 0H5z" />
+                            </svg>
+                            Hồ sơ cá nhân
+                        </DropdownItem>
+                        <DropdownItem onClick={onOpenPassword}>
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M12 8a4 4 0 100 8 4 4 0 000-8zm8 4a8 8 0 11-16 0 8 8 0 0116 0z" />
+                            </svg>
+                            Đổi mật khẩu
+                        </DropdownItem>
+                        <DropdownItem onClick={onLogout} variant="danger">
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M16 13v-2H7V8l-5 4 5 4v-3h9zM20 3H10a2 2 0 00-2 2v4h2V5h10v14H10v-4H8v4a2 2 0 002 2h10a2 2 0 002-2V5a2 2 0 00-2-2z" />
+                            </svg>
+                            Đăng xuất
+                        </DropdownItem>
+                    </DropdownContent>
+                </Dropdown>
             </div>
         </div>
     );
@@ -321,12 +290,10 @@ export default function DashboardLayout({ children, user }) {
                     onLogout={logout}
                     onToggleSidebar={() => setSidebarOpen((o) => !o)}
                     onOpenProfile={() => {
-                        window.history.pushState({}, "", "/profile");
-                        window.dispatchEvent(new Event("popstate"));
+                        navigateTo("/profile");
                     }}
                     onOpenPassword={() => {
-                        window.history.pushState({}, "", "/change-password");
-                        window.dispatchEvent(new Event("popstate"));
+                        navigateTo("/change-password");
                     }}
                 />
                 <div className="p-6">{children}</div>

@@ -189,7 +189,7 @@ export function Select({ value, onChange, options, placeholder, className = '', 
             {isOpen && (
                 <div
                     ref={dropdownRef}
-                    className="absolute z-[9999] mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg ring-1 ring-black ring-opacity-5"
+                    className="absolute z-[10000] mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg ring-1 ring-black ring-opacity-5"
                     role="listbox"
                     style={{ minWidth: `${getMinWidth()}px` }}
                 >
