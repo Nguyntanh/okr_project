@@ -14,10 +14,10 @@ export function useAuth() {
             isAdmin: user?.is_admin === true,
             isDeptManager:
                 user?.role?.role_name?.toLowerCase() === "manager" &&
-                user?.role?.level === "unit",
+                user?.role?.level?.toLowerCase() === "unit",
             isTeamManager:
                 user?.role?.role_name?.toLowerCase() === "manager" &&
-                user?.role?.level === "team",
+                user?.role?.level?.toLowerCase() === "team",
             isMember: user?.role?.role_name?.toLowerCase() === "member",
             // Helper methods
             canManageCycles: user?.is_admin === true,
@@ -25,7 +25,7 @@ export function useAuth() {
             canManageDepartments:
                 user?.is_admin === true ||
                 (user?.role?.role_name?.toLowerCase() === "manager" &&
-                    user?.role?.level === "unit"),
+                    user?.role?.level?.toLowerCase() === "unit"),
             canCreateCompanyOKR: user?.is_admin === true,
             canCreatePersonalOKR: true, // Mọi user đều có thể tạo OKR cá nhân
         };

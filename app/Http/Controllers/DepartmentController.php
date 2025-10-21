@@ -7,6 +7,7 @@ use App\Models\Department;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
+use Illuminate\Support\Facades\Auth;
 
 class DepartmentController extends Controller
 {
@@ -47,6 +48,7 @@ class DepartmentController extends Controller
      */
     public function store(Request $request): JsonResponse|RedirectResponse
     {
+
         $validated = $request->validate([
             'd_name' => 'required|string|max:255',
             'd_description' => 'nullable|string|max:255',
