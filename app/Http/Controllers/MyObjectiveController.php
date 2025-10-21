@@ -103,7 +103,7 @@ class MyObjectiveController extends Controller
             'assignments.*.email' => 'required|email|exists:users,email',
         ]);
 
-    $allowedLevels = $this->getAllowedLevels($user->role->role_name, $user->role->level);
+        $allowedLevels = $this->getAllowedLevels($user->role->role_name, $user->role->level);
         if (!in_array($validated['level'], $allowedLevels)) {
             return $request->expectsJson()
                 ? response()->json(['success' => false, 'message' => 'Bạn không có quyền tạo Objective ở cấp độ này.'], 403)
@@ -383,7 +383,7 @@ class MyObjectiveController extends Controller
     private function getAllowedLevels(string $roleName, string $roleLevel): array
     {
         return match (true) {
-            $roleName === 'admin' => ['company', 'unit', 'team', 'person'],
+            $roleName === 'admin' => ['company'],
             $roleName === 'manager' && $roleLevel === 'unit' => ['unit', 'person'],
             $roleName === 'manager' && $roleLevel === 'team' => ['team', 'person'],
             $roleName === 'member' && $roleLevel === 'unit' => ['person'],
