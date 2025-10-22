@@ -86,21 +86,23 @@ function DashboardSidebar({ open, user }) {
                         </svg>
                     }
                 /> */}
-                <SidebarItem
-                    collapsed={collapsed}
-                    href="/cycles"
-                    label="Chu kỳ"
-                    icon={
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-6 w-6"
-                            viewBox="0 0 24 24"
-                            fill="currentColor"
-                        >
-                            <path d="M12 6V2l6 6-6 6V10C7.03 10 3 14.03 3 19c0 1.05.17 2.06.49 3.01C2.02 20.54 1 17.89 1 15c0-5.52 4.48-10 10-10z" />
-                        </svg>
-                    }
-                />
+                {isAdmin && (
+                    <SidebarItem
+                        collapsed={collapsed}
+                        href="/cycles"
+                        label="Chu kỳ"
+                        icon={
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-6 w-6"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M12 6V2l6 6-6 6V10C7.03 10 3 14.03 3 19c0 1.05.17 2.06.49 3.01C2.02 20.54 1 17.89 1 15c0-5.52 4.48-10 10-10z" />
+                            </svg>
+                        }
+                    />
+                )}
                 <SidebarItem
                     collapsed={collapsed}
                     href="/my-objectives"
@@ -163,7 +165,7 @@ function DashboardTopbar({
     const displayName = user?.name || "User";
     const email = user?.email || "user@example.com";
     const avatar = user?.avatar || "/images/default.png";
-    
+
     return (
         <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
             <div className="flex items-center gap-4">

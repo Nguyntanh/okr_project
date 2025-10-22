@@ -1,271 +1,29 @@
 import React, { useEffect, useState } from "react";
-import { Toast, Modal } from "../components/ui";
-import { useAuth } from "../hooks/useAuth";
-import { AdminOnly } from "../components/AdminOnly";
-
-function DepartmentFormModal({
-    open,
-    onClose,
-    mode = "create",
-    initialData = null,
-    onSaved,
-    onDelete = null,
-    isAdmin = true,
-    onReload,
-}) {
-    const [name, setName] = useState(initialData?.d_name || "");
-    const [desc, setDesc] = useState(initialData?.d_description || "");
-    const [type, setType] = useState(initialData?.type || "phòng ban");
-    const [parentDepartmentId, setParentDepartmentId] = useState(
-        initialData?.parent_department_id || ""
-    );
-    const [departments, setDepartments] = useState([]);
-    const [saving, setSaving] = useState(false);
-    const [toast, setToast] = useState({ type: "success", message: "" });
-
-    // Lấy danh sách phòng ban để chọn parent_department_id
-    useEffect(() => {
-        if (open) {
-            (async () => {
-                try {
-                    const res = await fetch("/departments?type=phòng ban", {
-                        headers: { Accept: "application/json" },
-                    });
-                    const data = await res.json();
-                    if (data.success === false)
-                        throw new Error(
-                            data.message || "Tải danh sách phòng ban thất bại"
-                        );
-                    setDepartments(data.data || []);
-                } catch (e) {
-                    setToast({
-                        type: "error",
-                        message:
-                            e.message || "Tải danh sách phòng ban thất bại",
-                    });
-                }
-            })();
-        }
-        setName(initialData?.d_name || "");
-        setDesc(initialData?.d_description || "");
-        setType(initialData?.type || "phòng ban");
-        setParentDepartmentId(initialData?.parent_department_id || "");
-    }, [initialData, open]);
-
-    const submit = async (e) => {
-        e.preventDefault();
-        if (saving) return;
-        setSaving(true);
-        try {
-            const token = document
-                .querySelector('meta[name="csrf-token"]')
-                .getAttribute("content");
-            const isEdit = mode === "edit" && initialData?.department_id;
-            const url = isEdit
-                ? `/departments/${initialData.department_id}`
-                : "/departments";
-            const method = isEdit ? "PUT" : "POST";
-            const body = {
-                d_name: name,
-                d_description: desc,
-                type,
-                parent_department_id:
-                    type === "đội nhóm" ? parentDepartmentId : null,
-            };
-            const res = await fetch(url, {
-                method,
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRF-TOKEN": token,
-                    Accept: "application/json",
-                },
-                body: JSON.stringify(body),
-            });
-            const data = await res.json();
-            if (!res.ok || data.success === false)
-                throw new Error(
-                    data.message ||
-                        (isEdit ? "Cập nhật thất bại" : "Tạo thất bại")
-                );
-            setToast({
-                type: "success",
-                message:
-                    data.message ||
-                    (isEdit ? "Cập nhật thành công!" : "Tạo thành công!"),
-            });
-            onSaved && onSaved(data.data);
-            if (!isEdit) {
-                onReload && onReload(); // Reload sau khi tạo mới
-            }
-            onClose();
-        } catch (e) {
-            setToast({
-                type: "error",
-                message: e.message || "Thao tác thất bại",
-            });
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    if (!open) return null;
-
-    return (
-        <Modal
-            open={open}
-            onClose={onClose}
-            title={
-                mode === "edit"
-                    ? "Sửa phòng ban/đội nhóm"
-                    : "Tạo phòng ban/đội nhóm"
-            }
-        >
-            <Toast
-                type={toast.type}
-                message={toast.message}
-                onClose={() => setToast({ type: "success", message: "" })}
-            />
-            <form onSubmit={submit} className="space-y-4">
-                <div>
-                    <label className="mb-1 block text-sm font-semibold text-slate-700">
-                        Tên
-                    </label>
-                    <input
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        className={`w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 ${
-                            !isAdmin ? "bg-gray-100 cursor-not-allowed" : ""
-                        }`}
-                        disabled={!isAdmin}
-                        required
-                    />
-                </div>
-                <div>
-                    <label className="mb-1 block text-sm font-semibold text-slate-700">
-                        Loại
-                    </label>
-                    <select
-                        value={type}
-                        onChange={(e) => setType(e.target.value)}
-                        className={`w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 ${
-                            !isAdmin ? "bg-gray-100 cursor-not-allowed" : ""
-                        }`}
-                        disabled={!isAdmin}
-                        required
-                    >
-                        <option value="phòng ban">Phòng ban</option>
-                        <option value="đội nhóm">Đội nhóm</option>
-                    </select>
-                </div>
-                {type === "đội nhóm" && (
-                    <div>
-                        <label className="mb-1 block text-sm font-semibold text-slate-700">
-                            Phòng ban cha
-                        </label>
-                        <select
-                            value={parentDepartmentId}
-                            onChange={(e) =>
-                                setParentDepartmentId(e.target.value)
-                            }
-                            className={`w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 ${
-                                !isAdmin ? "bg-gray-100 cursor-not-allowed" : ""
-                            }`}
-                            disabled={!isAdmin}
-                            required
-                        >
-                            <option value="">Chọn phòng ban cha</option>
-                            {departments.map((dep) => (
-                                <option
-                                    key={dep.department_id}
-                                    value={dep.department_id}
-                                >
-                                    {dep.d_name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                )}
-                <div>
-                    <label className="mb-1 block text-sm font-semibold text-slate-700">
-                        Mô tả
-                    </label>
-                    <textarea
-                        value={desc}
-                        onChange={(e) => setDesc(e.target.value)}
-                        className={`h-24 w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 ${
-                            !isAdmin ? "bg-gray-100 cursor-not-allowed" : ""
-                        }`}
-                        disabled={!isAdmin}
-                    />
-                </div>
-                <div className="flex justify-between gap-3 pt-2">
-                    <div className="flex gap-3">
-                        {mode === "edit" && onDelete && isAdmin && (
-                            <button
-                                type="button"
-                                onClick={onDelete}
-                                className="rounded-2xl bg-red-600 px-5 py-2 text-sm font-semibold text-white hover:bg-red-700"
-                            >
-                                Xóa
-                            </button>
-                        )}
-                    </div>
-                    <div className="flex gap-3">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="rounded-2xl border border-slate-300 px-5 py-2 text-sm"
-                        >
-                            Hủy
-                        </button>
-                        {isAdmin && (
-                            <button
-                                disabled={saving}
-                                type="submit"
-                                className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-2 text-sm font-semibold text-white shadow disabled:opacity-60"
-                            >
-                                {mode === "edit" ? "Lưu thay đổi" : "Lưu"}
-                            </button>
-                        )}
-                    </div>
-                </div>
-            </form>
-        </Modal>
-    );
-}
+import { Toast } from "../components/ui";
 
 export default function DepartmentsPanel() {
     const [departments, setDepartments] = useState([]);
     const [teams, setTeams] = useState([]);
     const [expanded, setExpanded] = useState({});
     const [loading, setLoading] = useState(true);
-    const [openCreate, setOpenCreate] = useState(false);
-    const [openEdit, setOpenEdit] = useState(false);
-    const [editing, setEditing] = useState(null);
     const [toast, setToast] = useState({ type: "success", message: "" });
     const showToast = (type, message) => setToast({ type, message });
 
-    const { canManageDepartments } = useAuth();
-
     const fetchDepartments = async () => {
         try {
+            setLoading(true);
             const res = await fetch("/departments", {
                 headers: { Accept: "application/json" },
             });
             const data = await res.json();
-            if (data.success === false)
-                throw new Error(
-                    data.message || "Tải danh sách phòng ban/đội nhóm thất bại"
-                );
-            const departments = data.data.filter((d) => d.type === "phòng ban");
-            const teams = data.data.filter((d) => d.type === "đội nhóm");
-            setDepartments(departments);
-            setTeams(teams);
+            if (!res.ok || data.success === false)
+                throw new Error(data.message || "Tải dữ liệu thất bại");
+
+            const deps = data.data || [];
+            setDepartments(deps.filter(d => d.type === "phòng ban"));
+            setTeams(deps.filter(d => d.type === "đội nhóm"));
         } catch (e) {
-            showToast(
-                "error",
-                e.message || "Tải danh sách phòng ban/đội nhóm thất bại"
-            );
+            showToast("error", e.message || "Tải dữ liệu thất bại");
         } finally {
             setLoading(false);
         }
@@ -282,73 +40,6 @@ export default function DepartmentsPanel() {
         }));
     };
 
-    const openEditModal = async (id) => {
-        try {
-            const res = await fetch(`/departments/${id}`, {
-                headers: { Accept: "application/json" },
-            });
-            const data = await res.json();
-            if (!res.ok || data.success === false)
-                throw new Error(data.message || "Tải dữ liệu thất bại");
-            setEditing(data.data);
-            setOpenEdit(true);
-        } catch (e) {
-            showToast(
-                "error",
-                e.message || "Không tải được dữ liệu phòng ban/đội nhóm"
-            );
-        }
-    };
-
-    const remove = async (id) => {
-        const ok = window.confirm(
-            "Bạn có chắc chắn muốn xóa phòng ban/đội nhóm này?"
-        );
-        if (!ok) return;
-        try {
-            const token = document
-                .querySelector('meta[name="csrf-token"]')
-                .getAttribute("content");
-            const res = await fetch(`/departments/${id}`, {
-                method: "DELETE",
-                headers: { "X-CSRF-TOKEN": token, Accept: "application/json" },
-            });
-            const data = await res.json().catch(() => ({ success: res.ok }));
-            if (!res.ok || data.success === false)
-                throw new Error(data.message || "Xóa thất bại");
-            setDepartments((prev) =>
-                prev.filter((d) => d.department_id !== id)
-            );
-            setTeams((prev) => prev.filter((t) => t.department_id !== id));
-            setOpenEdit(false);
-            setEditing(null);
-            showToast("success", "Xóa phòng ban/đội nhóm thành công");
-        } catch (e) {
-            showToast("error", e.message || "Xóa phòng ban/đội nhóm thất bại");
-        }
-    };
-
-    const handleSaved = (dep) => {
-        if (dep.type === "phòng ban") {
-            setDepartments((prev) =>
-                editing
-                    ? prev.map((x) =>
-                          x.department_id === dep.department_id ? dep : x
-                      )
-                    : [...prev, dep]
-            );
-        } else {
-            setTeams((prev) =>
-                editing
-                    ? prev.map((x) =>
-                          x.department_id === dep.department_id ? dep : x
-                      )
-                    : [...prev, dep]
-            );
-        }
-        showToast("success", `Tạo/cập nhật ${dep.type} thành công`);
-    };
-
     return (
         <div className="px-4 py-6">
             <Toast
@@ -360,14 +51,6 @@ export default function DepartmentsPanel() {
                 <h2 className="text-2xl font-extrabold text-slate-900">
                     Phòng ban & Đội nhóm
                 </h2>
-                <AdminOnly permission="canManageDepartments">
-                    <button
-                        onClick={() => setOpenCreate(true)}
-                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700"
-                    >
-                        Tạo mới
-                    </button>
-                </AdminOnly>
             </div>
             <div className="mx-auto w-full max-w-5xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <table className="min-w-full table-fixed divide-y divide-slate-200 text-xs md:text-sm">
@@ -402,7 +85,7 @@ export default function DepartmentsPanel() {
                                     colSpan={4}
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
-                                    Chưa có phòng ban
+                                    Không có dữ liệu
                                 </td>
                             </tr>
                         )}
@@ -453,25 +136,9 @@ export default function DepartmentsPanel() {
                                             )}
                                         </td>
                                         <td className="px-3 py-3 border-r border-slate-200">
-                                            <AdminOnly
-                                                permission="canManageDepartments"
-                                                fallback={
-                                                    <span className="font-semibold text-green-700">
-                                                        {d.d_name}
-                                                    </span>
-                                                }
-                                            >
-                                                <button
-                                                    onClick={() =>
-                                                        openEditModal(
-                                                            d.department_id
-                                                        )
-                                                    }
-                                                    className="inline-flex items-center rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90"
-                                                >
-                                                    {d.d_name}
-                                                </button>
-                                            </AdminOnly>
+                                            <span className="font-semibold text-green-700">
+                                                {d.d_name}
+                                            </span>
                                         </td>
                                         <td className="px-3 py-3 border-r border-slate-200 text-center">
                                             {d.type}
@@ -494,25 +161,9 @@ export default function DepartmentsPanel() {
                                                 >
                                                     <td className="px-8 py-3"></td>
                                                     <td className="px-3 py-3 border-r border-slate-200">
-                                                        <AdminOnly
-                                                            permission="canManageDepartments"
-                                                            fallback={
-                                                                <span className="text-indigo-600">
-                                                                    {t.d_name}
-                                                                </span>
-                                                            }
-                                                        >
-                                                            <button
-                                                                onClick={() =>
-                                                                    openEditModal(
-                                                                        t.department_id
-                                                                    )
-                                                                }
-                                                                className="text-indigo-600 hover:text-indigo-900 font-medium"
-                                                            >
-                                                                {t.d_name}
-                                                            </button>
-                                                        </AdminOnly>
+                                                        <span className="text-indigo-600">
+                                                            {t.d_name}
+                                                        </span>
                                                     </td>
                                                     <td className="px-3 py-3 border-r border-slate-200 text-center">
                                                         {t.type}
@@ -527,26 +178,6 @@ export default function DepartmentsPanel() {
                     </tbody>
                 </table>
             </div>
-            <DepartmentFormModal
-                open={openCreate}
-                onClose={() => setOpenCreate(false)}
-                mode="create"
-                onSaved={handleSaved}
-                onReload={fetchDepartments}
-                isAdmin={canManageDepartments}
-            />
-            <DepartmentFormModal
-                open={openEdit}
-                onClose={() => {
-                    setOpenEdit(false);
-                    setEditing(null);
-                }}
-                mode="edit"
-                initialData={editing}
-                onSaved={handleSaved}
-                onDelete={editing ? () => remove(editing.department_id) : null}
-                isAdmin={canManageDepartments}
-            />
         </div>
     );
 }

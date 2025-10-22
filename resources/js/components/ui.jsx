@@ -7,10 +7,10 @@ export function Toast({ type='success', message, onClose, timeout=2500 }) {
         const t = setTimeout(() => onClose && onClose(), timeout);
         return () => clearTimeout(t);
     }, [message]);
-    
+
     // Split message by newlines and render each line
     const messageLines = message.split('\n');
-    
+
     return (
         <div className="fixed right-4 top-4 z-50">
             <div className={`rounded-xl bg-gradient-to-r ${color} px-4 py-3 text-white shadow-lg max-w-md`}>
@@ -118,7 +118,7 @@ export function Select({ value, onChange, options, placeholder, className = '', 
                 if (!isOpen) {
                     setIsOpen(true);
                 } else {
-                    setHighlightedIndex(prev => 
+                    setHighlightedIndex(prev =>
                         prev < options.length - 1 ? prev + 1 : 0
                     );
                 }
@@ -128,7 +128,7 @@ export function Select({ value, onChange, options, placeholder, className = '', 
                 if (!isOpen) {
                     setIsOpen(true);
                 } else {
-                    setHighlightedIndex(prev => 
+                    setHighlightedIndex(prev =>
                         prev > 0 ? prev - 1 : options.length - 1
                     );
                 }
@@ -157,8 +157,8 @@ export function Select({ value, onChange, options, placeholder, className = '', 
                 className={`
                     relative w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-left text-sm
                     shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                    ${disabled 
-                        ? 'cursor-not-allowed bg-slate-50 text-slate-400' 
+                    ${disabled
+                        ? 'cursor-not-allowed bg-slate-50 text-slate-400'
                         : 'cursor-pointer hover:border-slate-400'
                     }
                     ${isOpen ? 'border-blue-500 ring-2 ring-blue-500' : ''}
@@ -169,7 +169,7 @@ export function Select({ value, onChange, options, placeholder, className = '', 
                 <span className={`block truncate ${!selectedOption ? 'text-slate-500' : 'text-slate-900'}`} title={displayValue}>
                     {displayValue}
                 </span>
-                
+
                 {/* Arrow Icon */}
                 <span className={`
                     absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none
@@ -186,7 +186,7 @@ export function Select({ value, onChange, options, placeholder, className = '', 
             {isOpen && (
                 <div
                     ref={dropdownRef}
-                    className="absolute z-[10000] mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg ring-1 ring-black ring-opacity-5"
+                    className="absolute z-[10000] mt-1 w-full min-w-[120px] rounded-lg border border-slate-200 bg-white shadow-lg ring-1 ring-black ring-opacity-5"
                     role="listbox"
                 >
                     <div className="max-h-60 overflow-auto rounded-lg">
@@ -196,14 +196,14 @@ export function Select({ value, onChange, options, placeholder, className = '', 
                                 type="button"
                                 onClick={() => handleOptionClick(option.value)}
                                 className={`
-                                    relative w-full cursor-pointer select-none px-3 py-2 text-left text-sm 
+                                    relative w-full cursor-pointer select-none px-3 py-2 text-left text-sm
                                     transition-colors duration-150 ease-out
-                                    ${index === highlightedIndex 
-                                        ? 'bg-blue-50 text-blue-900' 
+                                    ${index === highlightedIndex
+                                        ? 'bg-blue-50 text-blue-900'
                                         : 'text-slate-900 hover:bg-slate-50'
                                     }
-                                    ${option.value === value 
-                                        ? 'bg-blue-100 text-blue-900 font-medium' 
+                                    ${option.value === value
+                                        ? 'bg-blue-100 text-blue-900 font-medium'
                                         : ''
                                     }
                                 `}
@@ -212,8 +212,8 @@ export function Select({ value, onChange, options, placeholder, className = '', 
                                 onMouseEnter={() => setHighlightedIndex(index)}
                                 onMouseLeave={() => setHighlightedIndex(-1)}
                             >
-                                <span className="block truncate" title={option.label}>{option.label}</span>
-                                
+                                <span className="block whitespace-nowrap" title={option.label}>{option.label}</span>
+
                                 {/* Check Icon for Selected Option */}
                                 {option.value === value && (
                                     <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-blue-600">
