@@ -16,7 +16,7 @@ use App\Http\Controllers\OkrAssignmentController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\File;
 use App\Http\Controllers\LinkController;
-use App\Http\Controllers\OkrAssignmentController;
+
 
 Route::get('/', function () {
     return view('app');
