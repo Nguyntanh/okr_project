@@ -200,7 +200,8 @@ export function Select({ value, onChange, options, placeholder, className = '', 
                                 type="button"
                                 onClick={() => handleOptionClick(option.value)}
                                 className={`
-                                    relative w-full cursor-pointer select-none px-3 py-2 text-left text-sm transition-colors duration-150
+                                    relative w-full cursor-pointer select-none px-3 py-2 text-left text-sm 
+                                    transition-colors duration-150 ease-out
                                     ${index === highlightedIndex 
                                         ? 'bg-blue-50 text-blue-900' 
                                         : 'text-slate-900 hover:bg-slate-50'
@@ -212,6 +213,8 @@ export function Select({ value, onChange, options, placeholder, className = '', 
                                 `}
                                 role="option"
                                 aria-selected={option.value === value}
+                                onMouseEnter={() => setHighlightedIndex(index)}
+                                onMouseLeave={() => setHighlightedIndex(-1)}
                             >
                                 <span className="block whitespace-nowrap">{option.label}</span>
                                 
