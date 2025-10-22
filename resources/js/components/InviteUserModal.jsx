@@ -5,8 +5,8 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
     const [formData, setFormData] = useState({
         email: '',
         full_name: '',
-        role_name: 'member',
-        level: 'unit',
+        role_name: '',
+        level: '',
         department_id: ''
     });
     const [loading, setLoading] = useState(false);
@@ -21,8 +21,8 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
         e.preventDefault();
         
         // Validation
-        if (!formData.email || !formData.full_name) {
-            showToast('error', 'Vui lòng điền đầy đủ thông tin bắt buộc');
+        if (!formData.email || !formData.full_name || !formData.role_name || !formData.level || !formData.department_id) {
+            showToast('error', 'Vui lòng điền đầy đủ tất cả thông tin bắt buộc');
             return;
         }
 
@@ -66,8 +66,8 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
         setFormData({
             email: '',
             full_name: '',
-            role_name: 'member',
-            level: 'unit',
+            role_name: '',
+            level: '',
             department_id: ''
         });
         onClose();
@@ -107,25 +107,22 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
     const getDepartmentOptions = () => {
         const filteredDepts = getFilteredDepartments();
         
-        return [
-            { value: '', label: 'Không chọn' },
-            ...filteredDepts.map(d => {
-                let label = d.d_name;
-                
-                // Nếu là nhóm, thêm tên phòng ban vào đằng sau
-                if (formData.level === 'team' && d.parent_department_id) {
-                    const parentDept = departments.find(pd => pd.department_id === d.parent_department_id);
-                    if (parentDept) {
-                        label = `${d.d_name} (${parentDept.d_name})`;
-                    }
+        return filteredDepts.map(d => {
+            let label = d.d_name;
+            
+            // Nếu là nhóm, thêm tên phòng ban vào đằng sau
+            if (formData.level === 'team' && d.parent_department_id) {
+                const parentDept = departments.find(pd => pd.department_id === d.parent_department_id);
+                if (parentDept) {
+                    label = `${d.d_name} (${parentDept.d_name})`;
                 }
-                
-                return {
-                    value: String(d.department_id),
-                    label: label
-                };
-            })
-        ];
+            }
+            
+            return {
+                value: String(d.department_id),
+                label: label
+            };
+        });
     };
 
     return (
@@ -172,11 +169,12 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
                         <Select
                             value={formData.role_name}
                             onChange={(value) => handleInputChange('role_name', value)}
-                            placeholder="Chọn vai trò"
+                            placeholder="-- Chọn vai trò --"
                             options={[
                                 { value: 'member', label: 'Thành viên' },
                                 { value: 'manager', label: 'Quản lý' }
                             ]}
+                            className="w-full"
                         />
                     </div>
 
@@ -188,24 +186,26 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
                         <Select
                             value={formData.level}
                             onChange={(value) => handleInputChange('level', value)}
-                            placeholder="Chọn cấp độ"
+                            placeholder="-- Chọn cấp độ --"
                             options={[
                                 { value: 'unit', label: 'Đơn vị' },
                                 { value: 'team', label: 'Nhóm' }
                             ]}
+                            className="w-full"
                         />
                     </div>
 
-                    {/* Phòng ban */}
+                    {/* Phòng ban/Đội nhóm */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                            {formData.level === 'unit' ? 'Phòng ban' : 'Nhóm'}
+                            Phòng ban/Đội nhóm <span className="text-red-500">*</span>
                         </label>
                         <Select
                             value={formData.department_id}
                             onChange={(value) => handleInputChange('department_id', value)}
-                            placeholder={`Chọn ${formData.level === 'unit' ? 'phòng ban' : 'nhóm'} (tùy chọn)`}
+                            placeholder={formData.level ? `-- Chọn ${formData.level === 'unit' ? 'phòng ban' : 'nhóm'} --` : "-- Chọn phòng ban/đội nhóm --"}
                             options={getDepartmentOptions()}
+                            className="w-full"
                         />
                     </div>
 
@@ -226,16 +226,8 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
                         </div>
                     </div>
 
-                    {/* Buttons */}
-                    <div className="flex gap-3 justify-end pt-4">
-                        <button
-                            type="button"
-                            onClick={handleClose}
-                            className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                            disabled={loading}
-                        >
-                            Hủy
-                        </button>
+                    {/* Submit Button */}
+                    <div className="flex justify-end pt-4">
                         <button
                             type="submit"
                             disabled={loading}

@@ -78,12 +78,9 @@ export function Select({ value, onChange, options, placeholder, className = '', 
     const selectedOption = options.find(option => option.value === value);
     const displayValue = selectedOption ? selectedOption.label : placeholder;
 
-    // Tính toán width tối thiểu dựa trên nội dung
+    // Chiều rộng bằng với container (input fields)
     const getMinWidth = () => {
-        const allTexts = [placeholder, ...options.map(opt => opt.label)];
-        const maxLength = Math.max(...allTexts.map(text => text.length));
-        // Ước tính width: ~8px per character + padding
-        return Math.max(120, maxLength * 8 + 60);
+        return '100%'; // Sử dụng full width của container
     };
 
     // Xử lý click outside
@@ -150,7 +147,7 @@ export function Select({ value, onChange, options, placeholder, className = '', 
     };
 
     return (
-        <div ref={selectRef} className={`relative ${className}`} style={{ minWidth: `${getMinWidth()}px` }}>
+        <div ref={selectRef} className={`relative w-full ${className}`}>
             {/* Select Button */}
             <button
                 type="button"
@@ -169,7 +166,7 @@ export function Select({ value, onChange, options, placeholder, className = '', 
                 aria-haspopup="listbox"
                 aria-expanded={isOpen}
             >
-                <span className={`block truncate ${!selectedOption ? 'text-slate-500' : 'text-slate-900'}`}>
+                <span className={`block truncate ${!selectedOption ? 'text-slate-500' : 'text-slate-900'}`} title={displayValue}>
                     {displayValue}
                 </span>
                 
@@ -191,7 +188,6 @@ export function Select({ value, onChange, options, placeholder, className = '', 
                     ref={dropdownRef}
                     className="absolute z-[10000] mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg ring-1 ring-black ring-opacity-5"
                     role="listbox"
-                    style={{ minWidth: `${getMinWidth()}px` }}
                 >
                     <div className="max-h-60 overflow-auto rounded-lg">
                         {options.map((option, index) => (
@@ -216,7 +212,7 @@ export function Select({ value, onChange, options, placeholder, className = '', 
                                 onMouseEnter={() => setHighlightedIndex(index)}
                                 onMouseLeave={() => setHighlightedIndex(-1)}
                             >
-                                <span className="block whitespace-nowrap">{option.label}</span>
+                                <span className="block truncate" title={option.label}>{option.label}</span>
                                 
                                 {/* Check Icon for Selected Option */}
                                 {option.value === value && (
