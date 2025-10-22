@@ -223,171 +223,133 @@ export default function UserTableRow({
                 </div>
             </td>
             <td className="px-3 py-2 text-slate-700">{user.email}</td>
-            <td className="px-3 py-2 relative">
-                {isAdmin ? (
-                    <Badge color={getLevelColor(user.role?.level)}>
-                        {getLevelDisplayName(user.role?.level)}
+            <td className={editingLevel[user.user_id] ? "px-3 py-2 relative z-50" : "px-3 py-2 relative"}>
+                <div ref={levelRef}>
+                    {editingLevel[user.user_id] ? (
+                        <Select
+                            value={user.role?.level || ""}
+                            onChange={(val) => {
+                                onChangeLevel(val);
+                                setEditingLevel((prev) => ({
+                                    ...prev,
+                                    [user.user_id]: false,
+                                }));
+                            }}
+                            placeholder="Chọn cấp độ"
+                            options={[
+                                { value: "unit", label: "Phòng ban" },
+                                { value: "team", label: "Nhóm" },
+                            ]}
+                        />
+                    ) : (
+                        <button
+                            onClick={() =>
+                                setEditingLevel((prev) => ({
+                                    ...prev,
+                                    [user.user_id]: true,
+                                }))
+                            }
+                            className="focus:outline-none"
+                        >
+                            <Badge color={getLevelColor(user.role?.level)}>
+                                {getLevelDisplayName(user.role?.level)}
+                            </Badge>
+                        </button>
+                    )}
+                </div>
+            </td>
+            <td className={editingRole[user.user_id] ? "px-3 py-2 relative z-50" : "px-3 py-2 relative"}>
+                <div ref={roleRef}>
+                    {editingRole[user.user_id] ? (
+                        <Select
+                            value={String(user.role?.role_id || "")}
+                            onChange={(val) => {
+                                onChangeRole(val);
+                                setEditingRole((prev) => ({
+                                    ...prev,
+                                    [user.user_id]: false,
+                                }));
+                            }}
+                            placeholder="Chọn vai trò"
+                            options={(() => {
+                                const availableRoles = roles.filter(
+                                    (role) => role.role_name !== "admin"
+                                );
+                                const uniqueRoles = availableRoles.reduce(
+                                    (acc, role) => {
+                                        const roleName = getRoleDisplayName(
+                                            role.role_name
+                                        );
+                                        if (
+                                            !acc.find(
+                                                (item) =>
+                                                    item.label === roleName
+                                            )
+                                        ) {
+                                            acc.push({
+                                                value: String(role.role_id),
+                                                label: roleName,
+                                            });
+                                        }
+                                        return acc;
+                                    },
+                                    []
+                                );
+                                return uniqueRoles;
+                            })()}
+                        />
+                    ) : (
+                        <button
+                            onClick={() => {
+                                if (isAdmin) {
+                                    // Admin không thể thay đổi vai trò của mình
+                                    return;
+                                }
+                                setEditingRole((prev) => ({
+                                    ...prev,
+                                    [user.user_id]: true,
+                                }));
+                            }}
+                            className={`focus:outline-none ${isAdmin ? 'cursor-not-allowed' : ''}`}
+                        >
+                            {isAdmin ? (
+                                <Badge color="indigo">ADMIN</Badge>
+                            ) : (user.role?.role_name || "").toLowerCase() ===
+                            "member" ? (
+                                <Badge color="amber">Thành viên</Badge>
+                            ) : (
+                                <Badge color="blue">Quản lý</Badge>
+                            )}
+                        </button>
+                    )}
+                </div>
+            </td>
+            <td className="px-3 py-2">
+                {(user.department?.d_name || "").trim() ? (
+                    <Badge color="blue">
+                        {user.department?.d_name}
                     </Badge>
                 ) : (
-                    <div ref={levelRef}>
-                        {editingLevel[user.user_id] ? (
-                            <Select
-                                value={user.role?.level || ""}
-                                onChange={(val) => {
-                                    onChangeLevel(val);
-                                    setEditingLevel((prev) => ({
-                                        ...prev,
-                                        [user.user_id]: false,
-                                    }));
-                                }}
-                                placeholder="Chọn cấp độ"
-                                options={[
-                                    { value: "unit", label: "Phòng ban" },
-                                    { value: "team", label: "Nhóm" },
-                                ]}
-                            />
-                        ) : (
-                            <button
-                                onClick={() =>
-                                    setEditingLevel((prev) => ({
-                                        ...prev,
-                                        [user.user_id]: true,
-                                    }))
-                                }
-                                className="focus:outline-none"
-                            >
-                                <Badge color={getLevelColor(user.role?.level)}>
-                                    {getLevelDisplayName(user.role?.level)}
-                                </Badge>
-                            </button>
-                        )}
-                    </div>
-                )}
-            </td>
-            <td className="px-3 py-2 relative">
-                {isAdmin ? (
-                    <Badge color="indigo">ADMIN</Badge>
-                ) : (
-                    <div ref={roleRef}>
-                        {editingRole[user.user_id] ? (
-                            <Select
-                                value={String(user.role?.role_id || "")}
-                                onChange={(val) => {
-                                    onChangeRole(val);
-                                    setEditingRole((prev) => ({
-                                        ...prev,
-                                        [user.user_id]: false,
-                                    }));
-                                }}
-                                placeholder="Chọn vai trò"
-                                options={(() => {
-                                    const availableRoles = roles.filter(
-                                        (role) => role.role_name !== "admin"
-                                    );
-                                    const uniqueRoles = availableRoles.reduce(
-                                        (acc, role) => {
-                                            const roleName = getRoleDisplayName(
-                                                role.role_name
-                                            );
-                                            if (
-                                                !acc.find(
-                                                    (item) =>
-                                                        item.label === roleName
-                                                )
-                                            ) {
-                                                acc.push({
-                                                    value: String(role.role_id),
-                                                    label: roleName,
-                                                });
-                                            }
-                                            return acc;
-                                        },
-                                        []
-                                    );
-                                    return uniqueRoles;
-                                })()}
-                            />
-                        ) : (
-                            <button
-                                onClick={() =>
-                                    setEditingRole((prev) => ({
-                                        ...prev,
-                                        [user.user_id]: true,
-                                    }))
-                                }
-                                className="focus:outline-none"
-                            >
-                                {(user.role?.role_name || "").toLowerCase() ===
-                                "member" ? (
-                                    <Badge color="amber">Thành viên</Badge>
-                                ) : (
-                                    <Badge color="blue">Quản lý</Badge>
-                                )}
-                            </button>
-                        )}
-                    </div>
-                )}
-            </td>
-            <td className="px-3 py-2 relative">
-                {isAdmin ? (
-                    <Badge color="indigo">ADMIN</Badge>
-                ) : (
-                    <div ref={deptRef}>
-                        {editingDept[user.user_id] ? (
-                            <Select
-                                value={String(user.department_id || "")}
-                                onChange={(val) => {
-                                    onChangeDept(val);
-                                    setEditingDept((prev) => ({
-                                        ...prev,
-                                        [user.user_id]: false,
-                                    }));
-                                }}
-                                placeholder={
-                                    (user.role?.level || "").toLowerCase() ===
-                                    "unit"
-                                        ? "Chọn phòng ban"
-                                        : "Chọn đội nhóm"
-                                }
-                                options={getDeptOrTeamOptions()}
-                            />
-                        ) : (
-                            <button
-                                onClick={() =>
-                                    setEditingDept((prev) => ({
-                                        ...prev,
-                                        [user.user_id]: true,
-                                    }))
-                                }
-                                className="focus:outline-none"
-                            >
-                                {(user.department?.d_name || "").trim() ? (
-                                    <Badge color="blue">
-                                        {user.department?.d_name}
-                                    </Badge>
-                                ) : (
-                                    <Badge color="slate">Chưa gán</Badge>
-                                )}
-                            </button>
-                        )}
-                    </div>
+                    <Badge color="slate">Chưa gán</Badge>
                 )}
             </td>
             <td className="px-3 py-2">
-                {isAdmin ? (
-                    <Badge color="emerald">KÍCH HOẠT</Badge>
-                ) : (
-                    <button
-                        onClick={toggleStatus}
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                            user.status === "active"
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "bg-rose-100 text-rose-700"
-                        }`}
-                    >
-                        {user.status === "active" ? "KÍCH HOẠT" : "VÔ HIỆU"}
-                    </button>
-                )}
+                <button
+                    onClick={() => {
+                        if (isAdmin) {
+                            // Admin không thể thay đổi trạng thái của mình
+                            return;
+                        }
+                        toggleStatus();
+                    }}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                        user.status === "active"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-rose-100 text-rose-700"
+                    } ${isAdmin ? 'cursor-not-allowed opacity-75' : ''}`}
+                >
+                    {user.status === "active" ? "KÍCH HOẠT" : "VÔ HIỆU"}
+                </button>
             </td>
         </tr>
     );

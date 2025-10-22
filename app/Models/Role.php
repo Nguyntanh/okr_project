@@ -17,6 +17,7 @@ class Role extends Model
         'role_name',
         'description',
         'level',
+        'allowed_levels',
     ];
 
     /**
@@ -68,3 +69,4 @@ class Role extends Model
         return true; // Ai cũng có quyền tạo OKR cá nhân
     }
 }
+
