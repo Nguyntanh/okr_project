@@ -712,7 +712,7 @@ export default function DepartmentsPanel() {
                                                     onClick={() =>
                                                         openAssignModal(d)
                                                     }
-                                                    className="text-blue-600 hover:text-blue-900 font-medium"
+                                                    className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-700"
                                                 >
                                                     Gán người dùng
                                                 </button>
