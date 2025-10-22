@@ -19,9 +19,9 @@ function DepartmentFormModal({
     const [type, setType] = useState(
         mode === "edit"
             ? initialData?.type
-            : canManageTeams && !canManageRooms
-            ? "đội nhóm"
-            : "phòng ban"
+            : canManageRooms
+            ? "phòng ban"
+            : "đội nhóm"
     );
     const [parentDepartmentId, setParentDepartmentId] = useState(
         initialData?.parent_department_id || ""
@@ -60,7 +60,17 @@ function DepartmentFormModal({
                 }
             })();
         }
-    }, [open, type]);
+        setName(initialData?.d_name || "");
+        setDesc(initialData?.d_description || "");
+        setType(
+            mode === "edit"
+                ? initialData?.type
+                : canManageRooms
+                ? "phòng ban"
+                : "đội nhóm"
+        );
+        setParentDepartmentId(initialData?.parent_department_id || "");
+    }, [initialData, open, canManageRooms, type]);
 
     const submit = async (e) => {
         e.preventDefault();
@@ -156,23 +166,9 @@ function DepartmentFormModal({
                     <label className="mb-1 block text-sm font-semibold text-slate-700">
                         Loại
                     </label>
-                    <select
-                        value={type}
-                        onChange={(e) => setType(e.target.value)}
-                        className={`w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 ${
-                            !currentPermission
-                                ? "bg-gray-100 cursor-not-allowed"
-                                : ""
-                        }`}
-                        disabled={!currentPermission}
-                    >
-                        {canManageRooms && (
-                            <option value="phòng ban">Phòng ban</option>
-                        )}
-                        {canManageTeams && (
-                            <option value="đội nhóm">Đội nhóm</option>
-                        )}
-                    </select>
+                    <div className="w-full rounded-2xl border border-slate-300 px-4 py-2 bg-gray-100">
+                        {type}
+                    </div>
                 </div>
                 {type === "đội nhóm" && (
                     <div>
