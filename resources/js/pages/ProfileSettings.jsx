@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Toast } from '../components/ui';
+import { UserAvatar } from '../components/UserAvatar';
 
 export default function ProfileSettings({ user, activeTab }){
     const [toast, setToast] = useState({ type: 'success', message: '' });
@@ -29,7 +30,7 @@ export default function ProfileSettings({ user, activeTab }){
                 } else {
                     window.location.href = '/dashboard';
                 }
-            }, 1500);
+            }, 800);
         } else {
             const err = await res.json().catch(()=>({ message: 'Cập nhật thất bại' }));
             showToast('error', err.message || 'Cập nhật thất bại');
@@ -108,8 +109,6 @@ export default function ProfileSettings({ user, activeTab }){
         }
     };
 
-    const avatar = user?.avatar || '/images/default.png';
-    const email = user?.email || '';
 
     return (
         <div className="mx-auto w-full max-w-4xl">
@@ -124,15 +123,11 @@ export default function ProfileSettings({ user, activeTab }){
                         <div className="grid gap-6 md:grid-cols-3">
                             <div className="md:col-span-1">
                                 <div className="flex flex-col items-center rounded-2xl border border-slate-200 p-6">
-                                    <img src={avatar} className="h-24 w-24 rounded-full object-cover ring-4 ring-blue-100" alt="avatar" />
-                                    <div className="mt-3 text-center">
-                                        <div className="text-base font-semibold text-slate-900">{user?.name || 'Chưa cập nhật'}</div>
-                                        <div className="text-sm text-slate-500">{email}</div>
-                                    </div>
+                                    <UserAvatar user={user} size="md" showInfo={true} />
                                 </div>
                             </div>
-                            <div className="md:col-span-2">
-                                <form onSubmit={submitProfile} className="space-y-5">
+                            <div className="md:col-span-2 flex items-start">
+                                <form onSubmit={submitProfile} className="space-y-5 w-full pt-6">
                                     <div>
                                         <label className="mb-1 block text-sm font-medium text-slate-700">Họ và tên</label>
                                         <div className="relative">

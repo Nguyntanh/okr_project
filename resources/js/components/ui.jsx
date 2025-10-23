@@ -7,10 +7,10 @@ export function Toast({ type='success', message, onClose, timeout=2500 }) {
         const t = setTimeout(() => onClose && onClose(), timeout);
         return () => clearTimeout(t);
     }, [message]);
-    
+
     // Split message by newlines and render each line
     const messageLines = message.split('\n');
-    
+
     return (
         <div className="fixed right-4 top-4 z-50">
             <div className={`rounded-xl bg-gradient-to-r ${color} px-4 py-3 text-white shadow-lg max-w-md`}>
@@ -78,12 +78,9 @@ export function Select({ value, onChange, options, placeholder, className = '', 
     const selectedOption = options.find(option => option.value === value);
     const displayValue = selectedOption ? selectedOption.label : placeholder;
 
-    // Tính toán width tối thiểu dựa trên nội dung
+    // Chiều rộng bằng với container (input fields)
     const getMinWidth = () => {
-        const allTexts = [placeholder, ...options.map(opt => opt.label)];
-        const maxLength = Math.max(...allTexts.map(text => text.length));
-        // Ước tính width: ~8px per character + padding
-        return Math.max(120, maxLength * 8 + 60);
+        return '100%'; // Sử dụng full width của container
     };
 
     // Xử lý click outside
@@ -121,7 +118,7 @@ export function Select({ value, onChange, options, placeholder, className = '', 
                 if (!isOpen) {
                     setIsOpen(true);
                 } else {
-                    setHighlightedIndex(prev => 
+                    setHighlightedIndex(prev =>
                         prev < options.length - 1 ? prev + 1 : 0
                     );
                 }
@@ -131,7 +128,7 @@ export function Select({ value, onChange, options, placeholder, className = '', 
                 if (!isOpen) {
                     setIsOpen(true);
                 } else {
-                    setHighlightedIndex(prev => 
+                    setHighlightedIndex(prev =>
                         prev > 0 ? prev - 1 : options.length - 1
                     );
                 }
@@ -150,7 +147,7 @@ export function Select({ value, onChange, options, placeholder, className = '', 
     };
 
     return (
-        <div ref={selectRef} className={`relative ${className}`} style={{ minWidth: `${getMinWidth()}px` }}>
+        <div ref={selectRef} className={`relative w-full ${className}`}>
             {/* Select Button */}
             <button
                 type="button"
@@ -160,8 +157,8 @@ export function Select({ value, onChange, options, placeholder, className = '', 
                 className={`
                     relative w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-left text-sm
                     shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                    ${disabled 
-                        ? 'cursor-not-allowed bg-slate-50 text-slate-400' 
+                    ${disabled
+                        ? 'cursor-not-allowed bg-slate-50 text-slate-400'
                         : 'cursor-pointer hover:border-slate-400'
                     }
                     ${isOpen ? 'border-blue-500 ring-2 ring-blue-500' : ''}
@@ -169,10 +166,10 @@ export function Select({ value, onChange, options, placeholder, className = '', 
                 aria-haspopup="listbox"
                 aria-expanded={isOpen}
             >
-                <span className={`block truncate ${!selectedOption ? 'text-slate-500' : 'text-slate-900'}`}>
+                <span className={`block truncate ${!selectedOption ? 'text-slate-500' : 'text-slate-900'}`} title={displayValue}>
                     {displayValue}
                 </span>
-                
+
                 {/* Arrow Icon */}
                 <span className={`
                     absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none
@@ -189,9 +186,8 @@ export function Select({ value, onChange, options, placeholder, className = '', 
             {isOpen && (
                 <div
                     ref={dropdownRef}
-                    className="absolute z-[9999] mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg ring-1 ring-black ring-opacity-5"
+                    className="absolute z-[10000] mt-1 w-full min-w-[120px] rounded-lg border border-slate-200 bg-white shadow-lg ring-1 ring-black ring-opacity-5"
                     role="listbox"
-                    style={{ minWidth: `${getMinWidth()}px` }}
                 >
                     <div className="max-h-60 overflow-auto rounded-lg">
                         {options.map((option, index) => (
@@ -200,21 +196,24 @@ export function Select({ value, onChange, options, placeholder, className = '', 
                                 type="button"
                                 onClick={() => handleOptionClick(option.value)}
                                 className={`
-                                    relative w-full cursor-pointer select-none px-3 py-2 text-left text-sm transition-colors duration-150
-                                    ${index === highlightedIndex 
-                                        ? 'bg-blue-50 text-blue-900' 
+                                    relative w-full cursor-pointer select-none px-3 py-2 text-left text-sm
+                                    transition-colors duration-150 ease-out
+                                    ${index === highlightedIndex
+                                        ? 'bg-blue-50 text-blue-900'
                                         : 'text-slate-900 hover:bg-slate-50'
                                     }
-                                    ${option.value === value 
-                                        ? 'bg-blue-100 text-blue-900 font-medium' 
+                                    ${option.value === value
+                                        ? 'bg-blue-100 text-blue-900 font-medium'
                                         : ''
                                     }
                                 `}
                                 role="option"
                                 aria-selected={option.value === value}
+                                onMouseEnter={() => setHighlightedIndex(index)}
+                                onMouseLeave={() => setHighlightedIndex(-1)}
                             >
-                                <span className="block whitespace-nowrap">{option.label}</span>
-                                
+                                <span className="block whitespace-nowrap" title={option.label}>{option.label}</span>
+
                                 {/* Check Icon for Selected Option */}
                                 {option.value === value && (
                                     <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-blue-600">
