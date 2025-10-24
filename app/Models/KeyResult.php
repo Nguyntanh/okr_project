@@ -11,7 +11,7 @@ class KeyResult extends Model
 {
     use HasFactory;
 
-    public $timestamps = false;
+    public $timestamps = true;
     protected $primaryKey = 'kr_id';
     /**
      * The attributes that are mass assignable.

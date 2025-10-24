@@ -113,7 +113,17 @@ class MyObjectiveController extends Controller
             'assignments.*.email' => 'required|email|exists:users,email',
         ]);
 
-        $allowedLevels = $this->getAllowedLevels($user->role->role_name);
+        // Đảm bảo user có role, nếu không có thì gán role mặc định
+        if (!$user->role) {
+            $defaultRole = \App\Models\Role::where('role_name', 'member')->first();
+            if ($defaultRole) {
+                $user->role_id = $defaultRole->role_id;
+                $user->save();
+            }
+        }
+
+        $roleName = $user->role ? $user->role->role_name : 'member';
+        $allowedLevels = $this->getAllowedLevels($roleName);
         if (!in_array($validated['level'], $allowedLevels)) {
             return $request->expectsJson()
                 ? response()->json(['success' => false, 'message' => 'Bạn không có quyền tạo Objective ở cấp độ này.'], 403)
@@ -129,36 +139,42 @@ class MyObjectiveController extends Controller
 
         $isAdmin = $user->role && strtolower($user->role->role_name) === 'admin';
         
-        // Admin CHỈ được tạo OKR cấp công ty (company)
-        if ($isAdmin && $validated['level'] !== 'company') {
-            return $request->expectsJson()
-                ? response()->json(['success' => false, 'message' => 'Admin chỉ được tạo OKR cấp công ty.'], 403)
-                : redirect()->back()->withErrors(['error' => 'Admin chỉ được tạo OKR cấp công ty.']);
-        }
-        
-        // Manager và Member: kiểm tra quyền
-        if (!$isAdmin) {
-            // Manager chỉ tạo unit (phòng ban) hoặc person (cá nhân)
-            if ($user->isManager() && !in_array($validated['level'], ['unit', 'person'])) {
+        // Cho phép tất cả user tạo Objective cá nhân (person)
+        if ($validated['level'] === 'person') {
+            // Tất cả user đều có thể tạo Objective cá nhân
+            // Không cần kiểm tra thêm
+        } else {
+            // Kiểm tra quyền cho các level khác
+            if ($isAdmin && $validated['level'] !== 'company') {
                 return $request->expectsJson()
-                    ? response()->json(['success' => false, 'message' => 'Manager chỉ được tạo OKR cấp phòng ban hoặc cá nhân.'], 403)
-                    : redirect()->back()->withErrors(['error' => 'Manager chỉ được tạo OKR cấp phòng ban hoặc cá nhân.']);
+                    ? response()->json(['success' => false, 'message' => 'Admin chỉ được tạo OKR cấp công ty.'], 403)
+                    : redirect()->back()->withErrors(['error' => 'Admin chỉ được tạo OKR cấp công ty.']);
             }
-
-            // Member chỉ tạo person (cá nhân)
-            if ($user->isMember() && $validated['level'] !== 'person') {
-                return $request->expectsJson()
-                    ? response()->json(['success' => false, 'message' => 'Member chỉ được tạo OKR cấp cá nhân.'], 403)
-                    : redirect()->back()->withErrors(['error' => 'Member chỉ được tạo OKR cấp cá nhân.']);
-            }
-
-            // Kiểm tra quyền truy cập department cho level unit
-            if ($validated['level'] === 'unit' && !empty($validated['department_id'])) {
-                // Manager/Member chỉ được tạo cho phòng ban của mình
-                if (!$user->department_id || (int)$validated['department_id'] !== (int)$user->department_id) {
+            
+            // Manager và Member: kiểm tra quyền
+            if (!$isAdmin) {
+                // Manager chỉ tạo unit (phòng ban) hoặc person (cá nhân)
+                if ($user->isManager() && !in_array($validated['level'], ['unit', 'person'])) {
                     return $request->expectsJson()
-                        ? response()->json(['success' => false, 'message' => 'Bạn chỉ được tạo Objective cho phòng ban của mình.'], 403)
-                        : redirect()->back()->withErrors(['error' => 'Bạn chỉ được tạo Objective cho phòng ban của mình.']);
+                        ? response()->json(['success' => false, 'message' => 'Manager chỉ được tạo OKR cấp phòng ban hoặc cá nhân.'], 403)
+                        : redirect()->back()->withErrors(['error' => 'Manager chỉ được tạo OKR cấp phòng ban hoặc cá nhân.']);
+                }
+
+                // Member chỉ tạo person (cá nhân)
+                if ($user->isMember() && $validated['level'] !== 'person') {
+                    return $request->expectsJson()
+                        ? response()->json(['success' => false, 'message' => 'Member chỉ được tạo OKR cấp cá nhân.'], 403)
+                        : redirect()->back()->withErrors(['error' => 'Member chỉ được tạo OKR cấp cá nhân.']);
+                }
+
+                // Kiểm tra quyền truy cập department cho level unit
+                if ($validated['level'] === 'unit' && !empty($validated['department_id'])) {
+                    // Manager/Member chỉ được tạo cho phòng ban của mình
+                    if (!$user->department_id || (int)$validated['department_id'] !== (int)$user->department_id) {
+                        return $request->expectsJson()
+                            ? response()->json(['success' => false, 'message' => 'Bạn chỉ được tạo Objective cho phòng ban của mình.'], 403)
+                            : redirect()->back()->withErrors(['error' => 'Bạn chỉ được tạo Objective cho phòng ban của mình.']);
+                    }
                 }
             }
         }
@@ -189,7 +205,7 @@ class MyObjectiveController extends Controller
                             'status' => $krData['status'],
                             'progress_percent' => $progress,
                             'objective_id' => $objective->objective_id,
-                            'cycle_id' => $objective->cycle_id,
+                            'cycle_id' => $objective->cycle_id ?? null, // Đảm bảo cycle_id có thể null
                             'department_id' => $objective->department_id ?? null,
                             'user_id' => $user->user_id, // Lưu người tạo KR
                         ]);
