@@ -19,6 +19,8 @@ export default function CheckInModal({
     const [error, setError] = useState('');
 
     useEffect(() => {
+        console.log('🔄 useEffect triggered:', { keyResult, open });
+        
         if (keyResult && open) {
             // Tính phần trăm chính xác từ current_value / target_value
             const currentValue = parseFloat(keyResult.current_value) || 0;
@@ -27,28 +29,39 @@ export default function CheckInModal({
             
             console.log('🔍 Tính toán tiến độ:', {
                 keyResultRaw: keyResult,
+                keyResultCurrentValue: keyResult.current_value,
+                keyResultTargetValue: keyResult.target_value,
                 currentValue,
                 targetValue,
                 calculatedPercent,
-                calculatedPercentFixed: calculatedPercent.toFixed(2),
-                isFinite: Number.isFinite(calculatedPercent)
+                calculatedPercentFixed: calculatedPercent.toFixed(6),
+                isFinite: Number.isFinite(calculatedPercent),
+                typeofCurrentValue: typeof currentValue,
+                typeofTargetValue: typeof targetValue,
+                typeofCalculatedPercent: typeof calculatedPercent
             });
             
-            setFormData({
+            const newFormData = {
                 check_in_type: keyResult.unit === '%' ? 'percentage' : 'quantity',
                 progress_value: currentValue,
                 progress_percent: calculatedPercent, // Không làm tròn
                 notes: '',
                 is_completed: keyResult.status === 'completed'
-            });
+            };
+            
+            console.log('📝 Setting new formData:', newFormData);
+            
+            setFormData(newFormData);
             setError('');
         }
     }, [keyResult, open]);
 
     const handleInputChange = (field, value) => {
-        console.log('🔧 handleInputChange called:', { field, value, keyResult });
+        console.log('🔧 handleInputChange called:', { field, value, keyResult, currentFormData: formData });
         
         setFormData(prev => {
+            console.log('🔄 Previous formData:', prev);
+            
             const newData = { ...prev, [field]: value };
             
             // Auto-calculate: Tự động tính toán progress_percent khi nhập giá trị hiện tại
@@ -92,6 +105,7 @@ export default function CheckInModal({
                 newData.is_completed = percent >= 100;
             }
             
+            console.log('📝 New formData:', newData);
             return newData;
         });
     };
@@ -158,12 +172,29 @@ export default function CheckInModal({
         }
     };
 
+export default function CheckInModal({ 
+    open, 
+    onClose, 
+    keyResult, 
+    objectiveId, 
+    onSuccess 
+}) {
+    console.log('🔧 CheckInModal: Props received:', { open, keyResult, objectiveId });
+    console.log('🔧 CheckInModal: keyResult details:', {
+        kr_id: keyResult?.kr_id,
+        current_value: keyResult?.current_value,
+        target_value: keyResult?.target_value,
+        progress_percent: keyResult?.progress_percent,
+        unit: keyResult?.unit,
+        status: keyResult?.status
+    });
+
     if (!keyResult) {
-        console.error('CheckInModal: keyResult is null or undefined');
+        console.error('🔧 CheckInModal: keyResult is null or undefined');
         return null;
     }
 
-    console.log('CheckInModal rendering with:', { keyResult, objectiveId, open });
+    console.log('🔧 CheckInModal: Rendering with keyResult:', keyResult);
 
     return (
         <Modal open={open} onClose={onClose} title="Cập nhật tiến độ Key Result">
@@ -253,11 +284,13 @@ export default function CheckInModal({
                                 }}
                                 className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
                                 style={{
-                                    background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${formData.progress_percent}%, #e2e8f0 ${formData.progress_percent}%, #e2e8f0 100%)`
+                                    background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${Math.min(100, Math.max(0, formData.progress_percent))}%, #e2e8f0 ${Math.min(100, Math.max(0, formData.progress_percent))}%, #e2e8f0 100%)`,
+                                    WebkitAppearance: 'none',
+                                    appearance: 'none'
                                 }}
                             />
                             <span className="text-sm font-medium text-slate-600 w-32">
-                                {formData.progress_percent}%
+                                {Number(formData.progress_percent).toFixed(6)}%
                             </span>
                         </div>
                         
@@ -288,31 +321,40 @@ export default function CheckInModal({
                         </div>
                         <div className="font-medium mt-2">Công thức:</div>
                         <div>
-                            ({formData.progress_value} ÷ {keyResult.target_value}) × 100 = {formData.progress_percent}%
+                            ({formData.progress_value} ÷ {keyResult.target_value}) × 100 = {Number(formData.progress_percent).toFixed(6)}%
                         </div>
                         <div className="mt-1 text-blue-600">
-                            Giá trị hiện tại: {formData.progress_value} | Phần trăm: {formData.progress_percent}%
+                            Giá trị hiện tại: {formData.progress_value} | Phần trăm: {Number(formData.progress_percent).toFixed(6)}%
                         </div>
                         <div className="mt-1 text-red-600 text-xs">
-                            DEBUG: Raw={formData.progress_percent} | Type: {typeof formData.progress_percent}
+                            DEBUG: Raw={Number(formData.progress_percent).toFixed(6)} | Type: {typeof formData.progress_percent}
                         </div>
                         <div className="mt-2 p-2 bg-yellow-100 rounded text-yellow-800 text-xs">
                             ⚠️ Nếu vẫn thấy số nguyên (10%), hãy refresh browser (Ctrl+F5) để clear cache
                         </div>
                         <div className="mt-2 p-2 bg-green-100 rounded text-green-800 text-xs">
-                            ✅ Database đã lưu: 60.16% | Hiển thị: {formData.progress_percent}% | Slider step: 0.01%
+                            ✅ Database đã lưu: 60.16% | Hiển thị: {Number(formData.progress_percent).toFixed(6)}% | Slider step: 0.01%
                         </div>
                         <div className="mt-2 p-2 bg-purple-100 rounded text-purple-800 text-xs">
                             🔄 KeyResult Data: current_value={keyResult?.current_value}, target_value={keyResult?.target_value}
                         </div>
                         <div className="mt-2 p-2 bg-orange-100 rounded text-orange-800 text-xs">
-                            🧮 Auto-calc Test: Nhập {formData.progress_value} → Tính {(formData.progress_value / keyResult?.target_value * 100)}% | Target: {keyResult?.target_value}
+                            🧮 Auto-calc Test: Nhập {formData.progress_value} → Tính {Number((formData.progress_value / keyResult?.target_value * 100)).toFixed(6)}% | Target: {keyResult?.target_value}
                         </div>
                         <div className="mt-2 p-2 bg-cyan-100 rounded text-cyan-800 text-xs">
-                            📊 Công thức: (Giá trị hiện tại ÷ Mục tiêu) × 100 = ({formData.progress_value} ÷ {keyResult?.target_value}) × 100 = {(formData.progress_value / keyResult?.target_value * 100)}%
+                            📊 Công thức: (Giá trị hiện tại ÷ Mục tiêu) × 100 = ({formData.progress_value} ÷ {keyResult?.target_value}) × 100 = {Number((formData.progress_value / keyResult?.target_value * 100)).toFixed(6)}%
                         </div>
                         <div className="mt-2 p-2 bg-pink-100 rounded text-pink-800 text-xs">
-                            🎚️ Slider Debug: min=0, max=100, step=0.01, value={formData.progress_percent} | Range: 0% - 100%
+                            🎚️ Slider Debug: min=0, max=100, step=0.01, value={Number(formData.progress_percent).toFixed(6)} | Range: 0% - 100%
+                        </div>
+                        <div className="mt-2 p-2 bg-indigo-100 rounded text-indigo-800 text-xs">
+                            🔍 Slider Step Test: Kéo slider để kiểm tra step thực tế | Current: {Number(formData.progress_percent).toFixed(6)}%
+                        </div>
+                        <div className="mt-2 p-2 bg-rose-100 rounded text-rose-800 text-xs">
+                            🔄 State Lifecycle: formData.progress_percent = {Number(formData.progress_percent).toFixed(6)} | Type: {typeof formData.progress_percent} | KeyResult: {keyResult?.current_value}/{keyResult?.target_value}
+                        </div>
+                        <div className="mt-2 p-2 bg-violet-100 rounded text-violet-800 text-xs">
+                            🔧 KeyResult Object: ID={keyResult?.kr_id} | Current={keyResult?.current_value} | Target={keyResult?.target_value} | Percent={keyResult?.progress_percent} | Unit={keyResult?.unit}
                         </div>
                         <div className="mt-2 flex gap-2">
                             <button
@@ -427,6 +469,48 @@ export default function CheckInModal({
                                 className="px-3 py-1 bg-purple-500 text-white text-xs rounded hover:bg-purple-600"
                             >
                                 🧪 Test 100
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    // Test slider step với giá trị nhỏ
+                                    const testPercent = 0.01;
+                                    const targetValue = parseFloat(keyResult?.target_value) || 123;
+                                    const calculatedValue = (testPercent / 100) * targetValue;
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        progress_value: calculatedValue,
+                                        progress_percent: testPercent
+                                    }));
+                                    console.log('🧪 Test slider step 0.01%:', { testPercent, calculatedValue });
+                                }}
+                                className="px-3 py-1 bg-teal-500 text-white text-xs rounded hover:bg-teal-600"
+                            >
+                                🧪 Test 0.01%
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    // Force update state với giá trị cụ thể
+                                    const testPercent = 25.5;
+                                    const targetValue = parseFloat(keyResult?.target_value) || 123;
+                                    const calculatedValue = (testPercent / 100) * targetValue;
+                                    
+                                    console.log('🔄 Force update state:', { testPercent, calculatedValue, targetValue });
+                                    
+                                    setFormData(prev => {
+                                        const newData = {
+                                            ...prev,
+                                            progress_value: calculatedValue,
+                                            progress_percent: testPercent
+                                        };
+                                        console.log('📝 Force update newData:', newData);
+                                        return newData;
+                                    });
+                                }}
+                                className="px-3 py-1 bg-rose-500 text-white text-xs rounded hover:bg-rose-600"
+                            >
+                                🔄 Force 25.5%
                             </button>
                         </div>
                     </div>
