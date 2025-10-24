@@ -296,14 +296,26 @@ class CheckInController extends Controller
         } 
 
         // Người sở hữu Key Result có thể check-in
+        if ($keyResult->user_id == $user->user_id) {
+            return true;
+        }
+
+        // Người sở hữu Objective có thể check-in cho tất cả KeyResult của Objective đó
         if ($keyResult->objective && $keyResult->objective->user_id == $user->user_id) {
             return true;
         }
 
-        // Manager/Member chỉ có thể check-in trong phòng ban của mình (trừ cá nhân)
+        // Cùng phòng ban có thể check-in cho nhau
         if ($user->department_id && $keyResult->objective && $keyResult->objective->department_id) {
-            if ($keyResult->objective->department_id == $user->department_id && 
-                $keyResult->objective->level !== 'person') {
+            // Kiểm tra cùng phòng ban
+            if ($keyResult->objective->department_id == $user->department_id) {
+                return true;
+            }
+        }
+
+        // Kiểm tra KeyResult có department_id và cùng phòng ban với user
+        if ($user->department_id && $keyResult->department_id) {
+            if ($keyResult->department_id == $user->department_id) {
                 return true;
             }
         }
