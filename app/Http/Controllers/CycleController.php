@@ -8,14 +8,12 @@ use Illuminate\Http\Request;
 
 class CycleController extends Controller
 {
-    //
     public function index(Request $request) {
         $cycles = Cycle::orderByDesc('start_date')->get();
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'data' => $cycles]);
         }
         return view('app');
-        // return response()->json(['data' => Cycle::all()]);
     }
 
     public function create() {

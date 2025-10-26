@@ -34,7 +34,7 @@ class AuthController extends Controller
 
     public function showChangePasswordForm()
     {
-        return view('auth.change-password');
+        return view('app');
     }
 
     // Xử lý đổi mật khẩu
@@ -123,6 +123,14 @@ class AuthController extends Controller
                 'user_id' => Auth::id(),
                 'session_keys' => array_keys(Session::all())
             ]);
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Bạn cần đăng nhập để đổi mật khẩu.'
+                ], 401);
+            }
+            
             return redirect()->route('login')->with('error', 'Bạn cần đăng nhập để đổi mật khẩu.');
         }
 
@@ -290,6 +298,13 @@ class AuthController extends Controller
             ) {
                 $translatedMessage = 'Mật khẩu hiện tại không đúng.'; // Dịch và thông báo cụ thể
             } elseif ($errorCode === 'InvalidAccessTokenException') {
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.',
+                        'redirect' => '/login'
+                    ], 401);
+                }
                 return redirect()->route('login')->with('error', 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.');
             } elseif ($errorCode === 'LimitExceededException') {
                 $translatedMessage = 'Quá nhiều lần thử. Vui lòng thử lại sau.';

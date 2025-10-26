@@ -11,10 +11,12 @@ use App\Http\Controllers\MyObjectiveController;
 use App\Http\Controllers\MyKeyResultController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\CheckInController;
+use App\Http\Controllers\OkrAssignmentController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\File;
 use App\Http\Controllers\LinkController;
-use App\Http\Controllers\OkrAssignmentController;
+
 
 Route::get('/', function () {
     return view('app');
@@ -180,6 +182,9 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/getAllowedLevelsApi', [MyObjectiveController::class, 'getAllowedLevelsApi'])
             ->middleware('auth')
             ->name('my-objectives.getAllowedLevelsApi');
+        Route::get('/user-levels', [MyObjectiveController::class, 'getUserLevels'])
+            ->middleware('auth')
+            ->name('my-objectives.user-levels');
     });
 
     Route::prefix('my-key-results')->group(function () {
@@ -197,6 +202,20 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::delete('/destroy/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'destroy'])->middleware('auth')->name('my-key-results.destroy');
     });
 
+    // Check-in Routes
+    Route::prefix('check-in')->middleware('auth')->group(function () {
+        Route::get('/{objectiveId}/{krId}', [CheckInController::class, 'create'])->name('check-in.create');
+        Route::post('/{objectiveId}/{krId}', [CheckInController::class, 'store'])->name('check-in.store');
+        Route::get('/{objectiveId}/{krId}/history', [CheckInController::class, 'history'])->name('check-in.history');
+        Route::delete('/{objectiveId}/{krId}/{checkInId}', [CheckInController::class, 'destroy'])->name('check-in.destroy');
+    });
+
+    // API Check-in Routes (for JSON responses)
+    Route::prefix('api/check-in')->middleware('auth')->group(function () {
+        Route::get('/{objectiveId}/{krId}/history', [CheckInController::class, 'getHistory'])->name('api.check-in.history');
+    });
+
+    // OKR Assignments
     Route::prefix('my-links')->group(function () {
         Route::get('/', [LinkController::class, 'index'])->middleware('auth')->name('my-links.index');
         Route::get('/available-targets', [LinkController::class, 'getAvailableTargets'])->middleware('auth')->name('my-links.available-targets');

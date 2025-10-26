@@ -152,28 +152,53 @@ export default function UserTableRow({
     // Lấy danh sách phòng ban hoặc đội nhóm dựa trên cấp độ
     const getDeptOrTeamOptions = () => {
         const userLevel = (user.role?.level || "").toLowerCase();
+        console.log('=== getDeptOrTeamOptions ===');
+        console.log('User:', user.full_name, 'Level:', userLevel);
+        console.log('Total departments:', departments.length);
+        console.log('Departments:', departments);
+        
         if (userLevel === "unit") {
+            const filtered = departments.filter((d) => {
+                const type = (d.type || "").toLowerCase().trim();
+                const isMatch = type === "phòng ban" || type === "phong ban" || d.parent_department_id === null;
+                console.log(`Dept: ${d.d_name}, Type: "${d.type}", parent_id: ${d.parent_department_id}, Match: ${isMatch}`);
+                return isMatch;
+            });
+            console.log('Filtered for unit:', filtered);
             return [
                 { value: "", label: "Chọn phòng ban" },
-                ...departments
-                    .filter((d) => d.type === "phòng ban")
-                    .map((d) => ({
-                        value: String(d.department_id),
-                        label: d.d_name,
-                    })),
+                ...filtered.map((d) => ({
+                    value: String(d.department_id),
+                    label: d.d_name,
+                })),
             ];
         } else if (userLevel === "team") {
+            const filtered = departments.filter((d) => {
+                const type = (d.type || "").toLowerCase().trim();
+                const isMatch = type === "đội nhóm" || type === "doi nhom" || d.parent_department_id !== null;
+                console.log(`Dept: ${d.d_name}, Type: "${d.type}", parent_id: ${d.parent_department_id}, Match: ${isMatch}`);
+                return isMatch;
+            });
+            console.log('Filtered for team:', filtered);
             return [
                 { value: "", label: "Chọn đội nhóm" },
-                ...departments
-                    .filter((d) => d.type === "đội nhóm")
-                    .map((d) => ({
-                        value: String(d.department_id),
-                        label: d.d_name,
-                    })),
+                ...filtered.map((d) => ({
+                    value: String(d.department_id),
+                    label: d.d_name,
+                })),
             ];
         }
-        return [{ value: "", label: "Chọn phòng ban/đội nhóm" }];
+        // Nếu không có level hoặc level không xác định, hiển thị tất cả
+        console.log('No specific level, showing all departments');
+        const options = [
+            { value: "", label: "Chọn phòng ban/đội nhóm" },
+            ...departments.map((d) => ({
+                value: String(d.department_id),
+                label: d.d_name + (d.type ? ` (${d.type})` : ''),
+            })),
+        ];
+        console.log('Options:', options);
+        return options;
     };
 
     return (

@@ -18,73 +18,34 @@ class ProfileController extends Controller
             ], 401);
         }
         
-        // Load thêm thông tin role và department
-        $user->load(['role', 'department']);
-        
-        // Nếu user có department và department có parent_department_id, load parent department
-        if ($user->department && $user->department->parent_department_id) {
-            // Load parent department bằng cách query trực tiếp
-            $parentDepartment = \App\Models\Department::find($user->department->parent_department_id);
-            if ($parentDepartment) {
-                $user->department->setRelation('parentDepartment', $parentDepartment);
-            }
+        // Load relationships nếu chưa có
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
         }
-        
-        // Debug: Log để kiểm tra data
-        \Log::info('User department data: ' . json_encode([
-            'department_id' => $user->department_id,
-            'department' => $user->department ? [
-                'department_id' => $user->department->department_id,
-                'd_name' => $user->department->d_name,
-                'type' => $user->department->type,
-                'parent_department_id' => $user->department->parent_department_id,
-                'parentDepartment' => $user->department->parentDepartment ? [
-                    'department_id' => $user->department->parentDepartment->department_id,
-                    'd_name' => $user->department->parentDepartment->d_name,
-                    'type' => $user->department->parentDepartment->type,
-                ] : null
-            ] : null
-        ], JSON_PRETTY_PRINT));
-        
-        // Chuẩn bị department data với parentDepartment
-        $departmentData = null;
-        if ($user->department) {
-            $departmentData = [
-                'department_id' => $user->department->department_id,
-                'd_name' => $user->department->d_name,
-                'd_description' => $user->department->d_description,
-                'type' => $user->department->type,
-                'parent_department_id' => $user->department->parent_department_id,
-                'created_at' => $user->department->created_at,
-                'updated_at' => $user->department->updated_at,
-            ];
-            
-            // Thêm parentDepartment nếu có
-            if ($user->department->parentDepartment) {
-                $departmentData['parentDepartment'] = [
-                    'department_id' => $user->department->parentDepartment->department_id,
-                    'd_name' => $user->department->parentDepartment->d_name,
-                    'd_description' => $user->department->parentDepartment->d_description,
-                    'type' => $user->department->parentDepartment->type,
-                    'parent_department_id' => $user->department->parentDepartment->parent_department_id,
-                    'created_at' => $user->department->parentDepartment->created_at,
-                    'updated_at' => $user->department->parentDepartment->updated_at,
-                ];
-            }
+        if (!$user->relationLoaded('department')) {
+            $user->load('department');
         }
         
         return response()->json([
             'success' => true,
             'user' => [
-                'id' => $user->id,
                 'user_id' => $user->user_id,
+                'id' => $user->user_id, // Alias for compatibility
                 'name' => $user->full_name,
+                'full_name' => $user->full_name,
                 'email' => $user->email,
                 'avatar' => $user->avatar_url,
                 'status' => $user->status,
-                'role' => $user->role,
-                'department' => $departmentData,
                 'department_id' => $user->department_id,
+                'role_id' => $user->role_id,
+                'role' => $user->role ? [
+                    'role_id' => $user->role->role_id,
+                    'role_name' => $user->role->role_name
+                ] : null,
+                'department' => $user->department ? [
+                    'department_id' => $user->department->department_id,
+                    'd_name' => $user->department->d_name
+                ] : null,
             ]
         ]);
     }
@@ -119,11 +80,13 @@ class ProfileController extends Controller
             'success' => true,
             'message' => 'Cập nhật hồ sơ thành công!',
             'user' => [
-                'id' => $user->id,
+                'id' => $user->user_id,
                 'name' => $user->full_name,
                 'email' => $user->email,
                 'avatar' => $user->avatar_url,
                 'status' => $user->status,
+                'role' => $user->role ? $user->role->role_name : null,
+                'department' => $user->department ? $user->department->d_name : null,
             ],
             'redirect' => '/dashboard'
         ]);

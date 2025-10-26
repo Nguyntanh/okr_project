@@ -24,7 +24,7 @@ export default function KeyResultModal({
                 ...kr,
                 cycle_id: kr.cycle_id,
                 progress_percent: Number.isFinite(computed)
-                    ? Number(computed.toFixed(2))
+                    ? computed
                     : 0,
             };
             const res = await fetch(
@@ -47,8 +47,8 @@ export default function KeyResultModal({
                 throw new Error(json.message || "Cập nhật thất bại");
             const serverKR = json.data || {};
             const enriched = { ...kr, ...serverKR };
-            setItems((prev) =>
-                prev.map((o) =>
+            setItems((prev) => {
+                const merged = prev.map((o) =>
                     o.objective_id === kr.objective_id
                         ? {
                               ...o,
@@ -57,8 +57,10 @@ export default function KeyResultModal({
                               ),
                           }
                         : o
-                )
-            );
+                );
+                try { localStorage.setItem('my_objectives', JSON.stringify(merged)); } catch {}
+                return merged;
+            });
             setEditingKR(null);
             setToast({
                 type: "success",
@@ -99,8 +101,8 @@ export default function KeyResultModal({
             const json = await res.json().catch(() => ({ success: res.ok }));
             if (!res.ok || json.success === false)
                 throw new Error(json.message || "Xóa Key Result thất bại");
-            setItems((prev) =>
-                prev.map((o) =>
+            setItems((prev) => {
+                const merged = prev.map((o) =>
                     o.objective_id === kr.objective_id
                         ? {
                               ...o,
@@ -109,8 +111,10 @@ export default function KeyResultModal({
                               ),
                           }
                         : o
-                )
-            );
+                );
+                try { localStorage.setItem('my_objectives', JSON.stringify(merged)); } catch {}
+                return merged;
+            });
             setEditingKR(null);
             setToast({ type: "success", message: "Đã xóa Key Result thành công" });
         } catch (err) {
@@ -189,6 +193,7 @@ export default function KeyResultModal({
                                 <option value="number">Số lượng</option>
                                 <option value="percent">Phần trăm</option>
                                 <option value="completion">Hoàn thành</option>
+                                <option value="bai">Bài</option>
                             </select>
                         </div>
                     </div>
@@ -203,6 +208,7 @@ export default function KeyResultModal({
                                 defaultValue={editingKR.target_value}
                                 name="target_value"
                                 type="number"
+                                step="0.01"
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                                 required
                             />
@@ -215,6 +221,7 @@ export default function KeyResultModal({
                                 defaultValue={editingKR.current_value}
                                 name="current_value"
                                 type="number"
+                                step="0.01"
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                             />
                         </div>
@@ -262,7 +269,7 @@ export default function KeyResultModal({
                                 ),
                                 unit: e.target.unit.value || "",
                                 status: e.target.status.value || "",
-                                cycle_id: creatingFor.cycle_id,
+                                cycle_id: e.target.cycle_id.value || creatingFor.cycle_id,
                             };
                             const res = await fetch(`/my-key-results/store`, {
                                 method: "POST",
@@ -280,8 +287,8 @@ export default function KeyResultModal({
                             if (!res.ok || json.success === false)
                                 throw new Error(json.message || "Tạo thất bại");
                             const newKR = json.data;
-                            setItems((prev) =>
-                                prev.map((o) =>
+                            setItems((prev) => {
+                                const merged = prev.map((o) =>
                                     o.objective_id === creatingFor.objective_id
                                         ? {
                                               ...o,
@@ -291,8 +298,10 @@ export default function KeyResultModal({
                                               ],
                                           }
                                         : o
-                                )
-                            );
+                                );
+                                try { localStorage.setItem('my_objectives', JSON.stringify(merged)); } catch {}
+                                return merged;
+                            });
                             setCreatingFor(null);
                             setToast({
                                 type: "success",
@@ -317,8 +326,27 @@ export default function KeyResultModal({
                             required
                         />
                     </div>
-                    {/* Trạng thái và đơn vị - 1 hàng */}
+                    
+                    {/* Chu kỳ và Trạng thái - 1 hàng */}
                     <div className="grid gap-3 md:grid-cols-2">
+                        <div>
+                            <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                Chu kỳ
+                            </label>
+                            <select
+                                name="cycle_id"
+                                defaultValue={creatingFor?.cycle_id || ""}
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                required
+                            >
+                                <option value="">-- chọn chu kỳ --</option>
+                                {cyclesList.map((cycle) => (
+                                    <option key={cycle.cycle_id} value={cycle.cycle_id}>
+                                        {cycle.cycle_name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-600">
                                 Trạng thái
@@ -333,21 +361,24 @@ export default function KeyResultModal({
                                 <option value="completed">Hoàn thành</option>
                             </select>
                         </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Đơn vị
-                            </label>
-                            <select
-                                name="unit"
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                required
-                            >
-                                <option value="">-- chọn đơn vị --</option>
-                                <option value="number">Số lượng</option>
-                                <option value="percent">Phần trăm</option>
-                                <option value="completion">Hoàn thành</option>
-                            </select>
-                        </div>
+                    </div>
+                    
+                    {/* Đơn vị */}
+                    <div>
+                        <label className="mb-1 block text-xs font-semibold text-slate-600">
+                            Đơn vị
+                        </label>
+                        <select
+                            name="unit"
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                            required
+                        >
+                            <option value="">-- chọn đơn vị --</option>
+                            <option value="number">Số lượng</option>
+                            <option value="percent">Phần trăm</option>
+                            <option value="completion">Hoàn thành</option>
+                            <option value="bai">Bài</option>
+                        </select>
                     </div>
                     
                     {/* Mục tiêu và Thực tế - 1 hàng */}
@@ -359,6 +390,7 @@ export default function KeyResultModal({
                             <input
                                 name="target_value"
                                 type="number"
+                                step="0.01"
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                                 required
                             />
@@ -370,6 +402,7 @@ export default function KeyResultModal({
                             <input
                                 name="current_value"
                                 type="number"
+                                step="0.01"
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                             />
                         </div>
