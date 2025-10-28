@@ -25,13 +25,12 @@ export default function Dashboard() {
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [cycleFilter, setCycleFilter] = useState("");
+    const [departmentFilter, setDepartmentFilter] = useState("");
     const [myOKRFilter, setMyOKRFilter] = useState(false);
     const [checkInModal, setCheckInModal] = useState({ open: false, keyResult: null, type: 'keyResult' });
     const [checkInHistory, setCheckInHistory] = useState({ open: false, keyResult: null, type: 'keyResult' });
     const [currentUser, setCurrentUser] = useState(null);
     const [pieChartData, setPieChartData] = useState([]);
-    const [sortBy, setSortBy] = useState('title');
-    const [sortOrder, setSortOrder] = useState('asc');
     const [error, setError] = useState(null);
     const [showFilters, setShowFilters] = useState(false);
 
@@ -176,6 +175,11 @@ export default function Dashboard() {
     }, [myOKRFilter]);
 
     useEffect(() => {
+        // Khi Department filter thay đổi, chỉ reset về trang 1 (lọc client-side)
+        setPage(1);
+    }, [departmentFilter]);
+
+    useEffect(() => {
         // Load static data một lần khi component mount
         loadStaticData();
         
@@ -200,91 +204,54 @@ export default function Dashboard() {
         loadCurrentUser();
     }, []);
 
-    const sortedItems = useMemo(
+    const filteredItems = useMemo(
         () => {
-            let filteredItems = Array.isArray(items) ? items : [];
-            
+            let result = Array.isArray(items) ? items : [];
+
             // Apply filters
             if (cycleFilter) {
-                filteredItems = filteredItems.filter(item => 
+                result = result.filter(item => 
                     String(item.cycle_id) === String(cycleFilter)
                 );
             }
-            
+
+            if (departmentFilter) {
+                result = result.filter(item => 
+                    String(item.department_id) === String(departmentFilter)
+                );
+            }
+
             if (myOKRFilter && currentUser) {
-                filteredItems = filteredItems.filter(item => 
+                result = result.filter(item => 
                     String(item.user_id) === String(currentUser.user_id || currentUser.id)
                 );
             }
-            
-            // Apply sorting
-            filteredItems.sort((a, b) => {
-                let aValue, bValue;
-                
-                switch (sortBy) {
-                    case 'title':
-                        aValue = (a.obj_title || '').toLowerCase();
-                        bValue = (b.obj_title || '').toLowerCase();
-                        break;
-                    case 'department':
-                        aValue = (departments.find(d => String(d.department_id) === String(a.department_id))?.d_name || '').toLowerCase();
-                        bValue = (departments.find(d => String(d.department_id) === String(b.department_id))?.d_name || '').toLowerCase();
-                        break;
-                    case 'cycle':
-                        aValue = (cyclesList.find(c => String(c.cycle_id) === String(a.cycle_id))?.cycle_name || '').toLowerCase();
-                        bValue = (cyclesList.find(c => String(c.cycle_id) === String(b.cycle_id))?.cycle_name || '').toLowerCase();
-                        break;
-                    case 'progress':
-                        aValue = a.key_results?.length > 0 ? 
-                            (a.key_results.reduce((sum, kr) => sum + (parseFloat(kr.progress_percent) || 0), 0) / a.key_results.length) : 0;
-                        bValue = b.key_results?.length > 0 ? 
-                            (b.key_results.reduce((sum, kr) => sum + (parseFloat(kr.progress_percent) || 0), 0) / b.key_results.length) : 0;
-                        break;
-                    default:
-                        aValue = (a.obj_title || '').toLowerCase();
-                        bValue = (b.obj_title || '').toLowerCase();
-                }
-                
-                // Handle numeric vs string comparison
-                if (sortBy === 'progress') {
-                    if (sortOrder === 'asc') {
-                        return aValue - bValue;
-                    } else {
-                        return bValue - aValue;
-                    }
-                } else {
-                    if (sortOrder === 'asc') {
-                        return aValue.localeCompare(bValue);
-                    } else {
-                        return bValue.localeCompare(aValue);
-                    }
-                }
-            });
-            
-            return filteredItems;
+
+            // No sorting as requested; keep server order
+            return result;
         },
-        [items, cycleFilter, myOKRFilter, sortBy, sortOrder, departments, cyclesList, currentUser]
+        [items, cycleFilter, departmentFilter, myOKRFilter, currentUser]
     );
 
     // Tính toán dữ liệu cho pie chart
     useEffect(() => {
-        if (sortedItems.length > 0) {
-            const total = sortedItems.length;
+        if (filteredItems.length > 0) {
+            const total = filteredItems.length;
             
             // Tính toán các trạng thái dựa trên progress của Key Results
-            const completed = sortedItems.filter(item => {
+            const completed = filteredItems.filter(item => {
                 if (!item.key_results || item.key_results.length === 0) return false;
                 return item.key_results.every(kr => parseFloat(kr.progress_percent || 0) >= 100);
             }).length;
             
-            const inProgress = sortedItems.filter(item => {
+            const inProgress = filteredItems.filter(item => {
                 if (!item.key_results || item.key_results.length === 0) return false;
                 const hasProgress = item.key_results.some(kr => parseFloat(kr.progress_percent || 0) > 0);
                 const notCompleted = item.key_results.some(kr => parseFloat(kr.progress_percent || 0) < 100);
                 return hasProgress && notCompleted;
             }).length;
             
-            const draft = sortedItems.filter(item => {
+            const draft = filteredItems.filter(item => {
                 if (!item.key_results || item.key_results.length === 0) return true;
                 return item.key_results.every(kr => parseFloat(kr.progress_percent || 0) === 0);
             }).length;
@@ -300,7 +267,7 @@ export default function Dashboard() {
         } else {
             setPieChartData([]);
         }
-    }, [sortedItems]);
+    }, [filteredItems]);
 
     const openCheckInModal = (keyResult) => {
         console.log('🔧 Dashboard: Opening check-in modal for Key Result:', keyResult);
@@ -381,7 +348,7 @@ export default function Dashboard() {
                 {showFilters && (
                     <div className="relative mb-6">
                         <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">Chu kỳ</label>
                                     <select
@@ -397,30 +364,19 @@ export default function Dashboard() {
                                         ))}
                                     </select>
                                 </div>
-                                
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Sắp xếp theo</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Phòng ban</label>
                                     <select
-                                        value={sortBy}
-                                        onChange={(e) => setSortBy(e.target.value)}
+                                        value={departmentFilter}
+                                        onChange={(e) => setDepartmentFilter(e.target.value)}
                                         className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                                     >
-                                        <option value="title">Tiêu đề</option>
-                                        <option value="department">Phòng ban</option>
-                                        <option value="cycle">Chu kỳ</option>
-                                        <option value="progress">Tiến độ</option>
-                                    </select>
-                                </div>
-                                
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Thứ tự</label>
-                                    <select
-                                        value={sortOrder}
-                                        onChange={(e) => setSortOrder(e.target.value)}
-                                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                                    >
-                                        <option value="asc">Tăng dần</option>
-                                        <option value="desc">Giảm dần</option>
+                                        <option value="">-- Tất cả phòng ban --</option>
+                                        {departments.map((dept) => (
+                                            <option key={dept.department_id} value={dept.department_id}>
+                                                {dept.d_name || dept.department_name}
+                                            </option>
+                                        ))}
                                     </select>
                                 </div>
                                 
@@ -428,9 +384,8 @@ export default function Dashboard() {
                                     <button
                                         onClick={() => {
                                             setCycleFilter('');
+                                            setDepartmentFilter('');
                                             setMyOKRFilter(false);
-                                            setSortBy('title');
-                                            setSortOrder('asc');
                                         }}
                                         className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition-colors"
                                     >
@@ -458,7 +413,7 @@ export default function Dashboard() {
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                     <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                        <div className="text-2xl font-bold text-gray-900">{sortedItems.length}</div>
+                        <div className="text-2xl font-bold text-gray-900">{filteredItems.length}</div>
                         <div className="text-sm text-gray-600">Tổng OKR</div>
                     </div>
                     <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
@@ -523,7 +478,7 @@ export default function Dashboard() {
 
                 {/* OKR Table */}
                 <OKRTable 
-                items={sortedItems}
+                items={filteredItems}
                 departments={departments}
                 cyclesList={cyclesList}
                 loading={loading}

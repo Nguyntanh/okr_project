@@ -85,6 +85,7 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
 
     //Routes cho Department
     Route::resource('departments', DepartmentController::class);
+    Route::post('/departments/{department}/assign-users', [DepartmentController::class, 'storeAssignUsers'])->name('departments.assign.users.store');
 
     // Routes cho Profile - trả về React app
     Route::get('/profile', function () {
@@ -102,7 +103,6 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
 
             // Routes cho User Management (chỉ Admin)
             Route::middleware(['auth', 'admin'])->group(function () {
-                Route::get('/users', [UserController::class, 'index'])->name('users.index');
                 Route::get('/users/{id}/detail', [UserController::class, 'show'])->name('users.show');
                 Route::get('/roles', [UserController::class, 'getAllRoles'])->name('roles.all');
                 Route::get('/roles-by-level', [UserController::class, 'getRolesByLevel'])->name('roles.by.level');
@@ -114,6 +114,12 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
                 Route::post('/admin/invite-user', [AdminController::class, 'inviteUser'])->name('admin.invite-user');
                 Route::get('/admin/invitations', [AdminController::class, 'getInvitations'])->name('admin.invitations');
             });
+                // Route::get('/users', [UserController::class, 'index'])->name('users.index');
+            Route::get('/users', [UserController::class, 'index'])
+                ->name('users.index')
+                ->middleware(\App\Http\Middleware\RestrictToAdminOrUnitManager::class);
+
+    // Route::get('/users2', [UserController::class, 'index2']);
 
     // Objectives Routes
     Route::resource('objectives', ObjectiveController::class);

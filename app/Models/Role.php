@@ -17,7 +17,6 @@ class Role extends Model
         'role_name',
         'description',
         'level',
-        'allowed_levels',
     ];
 
     /**
@@ -37,11 +36,19 @@ class Role extends Model
     }
 
     /**
-     * Kiểm tra xem role có phải Manager không
+     * Kiểm tra xem role có phải Unit Manager không
      */
-    public function isManager()
+    public function isDeptManager()
     {
-        return strtolower($this->role_name) === 'manager';
+        return (strtolower($this->role_name) === 'manager' && strtolower($this->level) === 'unit');
+    }
+
+    /**
+     * Kiểm tra xem role có phải Team Manager không
+     */
+    public function isTeamManager()
+    {
+        return (strtolower($this->role_name) === 'manager' && strtolower($this->level) === 'team');
     }
 
     /**
@@ -69,4 +76,3 @@ class Role extends Model
         return true; // Ai cũng có quyền tạo OKR cá nhân
     }
 }
-
