@@ -25,7 +25,7 @@ export default function ObjectiveList({
     hideFilters = false,
 }) {
     const [toast, setToast] = useState(null); // ← THÊM STATE TOAST
-    
+
     // Kiểm tra xem user hiện tại có phải owner của objective không
     const isObjectiveOwner = (objective) => {
         if (!currentUser || !objective) return false;
@@ -142,36 +142,36 @@ export default function ObjectiveList({
                     {title}
                 </h2>
                 {!hideFilters && (
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={() => setMyOKRFilter(!myOKRFilter)}
-                            className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
-                                myOKRFilter
-                                    ? "bg-green-600 text-white hover:bg-green-700"
-                                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                            }`}
-                        >
-                            {myOKRFilter ? "My OKR" : "Tất cả OKR"}
-                        </button>
-                        <select
-                            value={cycleFilter}
-                            onChange={(e) => setCycleFilter(e.target.value)}
-                            className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                        >
-                            <option value="">-- Tất cả chu kỳ --</option>
-                            {cyclesList.map((cycle) => (
-                                <option key={cycle.cycle_id} value={cycle.cycle_id}>
-                                    {cycle.cycle_name}
-                                </option>
-                            ))}
-                        </select>
-                        <button
-                            onClick={() => setCreatingObjective(true)}
-                            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-                        >
-                            Thêm Objective
-                        </button>
-                    </div>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setMyOKRFilter(!myOKRFilter)}
+                        className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
+                            myOKRFilter
+                                ? "bg-green-600 text-white hover:bg-green-700"
+                                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        }`}
+                    >
+                        {myOKRFilter ? "My OKR" : "Tất cả OKR"}
+                    </button>
+                    <select
+                        value={cycleFilter}
+                        onChange={(e) => setCycleFilter(e.target.value)}
+                        className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    >
+                        <option value="">-- Tất cả chu kỳ --</option>
+                        {cyclesList.map((cycle) => (
+                            <option key={cycle.cycle_id} value={cycle.cycle_id}>
+                                {cycle.cycle_name}
+                            </option>
+                        ))}
+                    </select>
+                    <button
+                        onClick={() => setCreatingObjective(true)}
+                        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                    >
+                        Thêm Objective
+                    </button>
+                </div>
                 )}
             </div>
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -262,20 +262,20 @@ export default function ObjectiveList({
                                                     </svg>
                                                 </button>
                                                 {canEditObjective(obj) ? (
-                                                    <button
-                                                        onClick={() => {
-                                                            setEditingObjective({
-                                                                ...obj,
-                                                                level:
-                                                                    obj.level ||
+                                                <button
+                                                    onClick={() => {
+                                                        setEditingObjective({
+                                                            ...obj,
+                                                            level:
+                                                                obj.level ||
                                                                     "team",
-                                                            });
-                                                        }}
-                                                        className="inline-flex items-center rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90"
-                                                        title="Sửa Objective"
-                                                    >
-                                                        {obj.obj_title}
-                                                    </button>
+                                                        });
+                                                    }}
+                                                    className="inline-flex items-center rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90"
+                                                    title="Sửa Objective"
+                                                >
+                                                    {obj.obj_title}
+                                                </button>
                                                 ) : (
                                                     <span className="inline-flex items-center rounded-md bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">
                                                         {obj.obj_title}
@@ -293,15 +293,15 @@ export default function ObjectiveList({
                                         <td className="px-3 py-3 text-center">
                                             {/* Chỉ hiển thị nút Thêm KR nếu user có quyền */}
                                             {canAddKR(obj) && (
-                                                <button
-                                                    onClick={() =>
-                                                        setCreatingFor(obj)
-                                                    }
-                                                    className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-700"
-                                                    title="Thêm Key Result"
-                                                >
-                                                    Thêm KR
-                                                </button>
+                                            <button
+                                                onClick={() =>
+                                                    setCreatingFor(obj)
+                                                }
+                                                className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-700"
+                                                title="Thêm Key Result"
+                                            >
+                                                Thêm KR
+                                            </button>
                                             )}
                                         </td>
                                     </tr>
@@ -310,15 +310,15 @@ export default function ObjectiveList({
                                             <tr key={kr.kr_id}>
                                                 <td className="px-8 py-3 border-r border-slate-200">
                                                     {canEditKR(obj) ? (
-                                                        <button
-                                                            onClick={() =>
-                                                                setEditingKR(kr)
-                                                            }
-                                                            className="text-indigo-600 hover:text-indigo-900 font-medium"
-                                                            title="Sửa Key Result"
-                                                        >
-                                                            {kr.kr_title || ""}
-                                                        </button>
+                                                    <button
+                                                        onClick={() =>
+                                                            setEditingKR(kr)
+                                                        }
+                                                        className="text-indigo-600 hover:text-indigo-900 font-medium"
+                                                        title="Sửa Key Result"
+                                                    >
+                                                        {kr.kr_title || ""}
+                                                    </button>
                                                     ) : (
                                                         <span className="text-gray-700 font-medium">
                                                             {kr.kr_title || ""}

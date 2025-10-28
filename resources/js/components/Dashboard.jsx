@@ -503,8 +503,22 @@ export default function Dashboard() {
                 )}
 
                 {/* Pie Chart Section */}
+                {console.log('🔍 Dashboard Debug:', { 
+                    pieChartDataLength: pieChartData.length, 
+                    pieChartData, 
+                    error, 
+                    sortedItemsLength: sortedItems.length 
+                })}
                 {pieChartData.length > 0 && !error && (
                     <PieChart data={pieChartData} />
+                )}
+                {pieChartData.length === 0 && !error && (
+                    <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+                        <div className="text-center text-gray-500">
+                            <p>Không có dữ liệu để hiển thị pie chart</p>
+                            <p className="text-sm">Số objectives: {sortedItems.length}</p>
+                        </div>
+                    </div>
                 )}
 
                 {/* OKR Table */}
