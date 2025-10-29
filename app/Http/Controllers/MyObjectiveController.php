@@ -31,7 +31,7 @@ class MyObjectiveController extends Controller
         $isAdmin = $user->role && strtolower($user->role->role_name) === 'admin';
         $isDashboard = $request->has('dashboard') && $request->dashboard == '1';
         
-        $objectives = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role'])
+        $objectives = Objective::with(['keyResults.checkIns', 'department', 'cycle', 'assignments.user', 'assignments.role'])
             ->where(function ($query) use ($user, $request, $isAdmin, $isDashboard) {
                 // Nếu có filter My OKR, chỉ hiển thị OKR của user hiện tại
                 if ($request->has('my_okr') && $request->my_okr == '1') {

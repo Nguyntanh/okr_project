@@ -59,20 +59,37 @@ export default function OKRTable({
                     </div>
                 ) : (
                     items.map((item, index) => {
-                        // Tính tiến độ trung bình của các Key Results từ công thức hiện tại/mục tiêu
+                        // Tính tiến độ trung bình của các Key Results từ progress_percent hoặc công thức
                         const avgProgress = item.key_results?.length > 0 
                             ? (item.key_results.reduce((sum, kr) => {
-                                const currentValue = parseFloat(kr.current_value) || 0;
-                                const targetValue = parseFloat(kr.target_value) || 0;
-                                const percentage = targetValue > 0 ? (currentValue / targetValue) * 100 : 0;
+                                // Ưu tiên dùng progress_percent nếu có
+                                let percentage = 0;
+                                if (kr.progress_percent !== null && kr.progress_percent !== undefined) {
+                                    percentage = parseFloat(kr.progress_percent);
+                                } else {
+                                    // Nếu không có progress_percent, tính từ current_value/target_value
+                                    const currentValue = parseFloat(kr.current_value) || 0;
+                                    const targetValue = parseFloat(kr.target_value) || 0;
+                                    percentage = targetValue > 0 ? (currentValue / targetValue) * 100 : 0;
+                                }
                                 return sum + percentage;
                             }, 0) / item.key_results.length)
                             : 0;
                         
-                        // Đếm số Key Results đã check-in
-                        const checkinCount = item.key_results?.length > 0 
-                            ? item.key_results.filter(kr => kr.checkins?.length > 0).length
-                            : 0;
+                        // Đếm số Key Results đã đạt 100% (chỉ tính KR đạt 100% mới hiện vào checkin)
+                        const checkinCount = item.key_results?.filter(kr => {
+                            // Tính progress của KR
+                            let progress = 0;
+                            if (kr.progress_percent !== null && kr.progress_percent !== undefined) {
+                                progress = parseFloat(kr.progress_percent);
+                            } else {
+                                const currentValue = parseFloat(kr.current_value) || 0;
+                                const targetValue = parseFloat(kr.target_value) || 0;
+                                progress = targetValue > 0 ? (currentValue / targetValue) * 100 : 0;
+                            }
+                            // Chỉ tính KR đạt 100%
+                            return progress >= 100;
+                        }).length || 0;
                         
                         const isExpanded = expandedObjectives[item.objective_id];
                         
@@ -144,10 +161,15 @@ export default function OKRTable({
                                         <div className="ml-8 space-y-3">
                                             <h4 className="text-sm font-semibold text-gray-700 mb-3">Key Results:</h4>
                                             {item.key_results.map((kr, krIndex) => {
-                                                // Tính phần trăm chính xác từ công thức hiện tại/mục tiêu
-                                                const currentValue = parseFloat(kr.current_value) || 0;
-                                                const targetValue = parseFloat(kr.target_value) || 0;
-                                                const calculatedPercentage = targetValue > 0 ? (currentValue / targetValue) * 100 : 0;
+                                                // Tính phần trăm: ưu tiên progress_percent, nếu không có thì tính từ current_value/target_value
+                                                let calculatedPercentage = 0;
+                                                if (kr.progress_percent !== null && kr.progress_percent !== undefined) {
+                                                    calculatedPercentage = parseFloat(kr.progress_percent);
+                                                } else {
+                                                    const currentValue = parseFloat(kr.current_value) || 0;
+                                                    const targetValue = parseFloat(kr.target_value) || 0;
+                                                    calculatedPercentage = targetValue > 0 ? (currentValue / targetValue) * 100 : 0;
+                                                }
                                                 
                                                 return (
                                                 <div key={kr.kr_id} className="bg-white rounded-lg p-3 border border-gray-200">
