@@ -231,11 +231,11 @@ class MyObjectiveController extends Controller
             // Không cần kiểm tra thêm
         } else {
             // Kiểm tra quyền cho các level khác
-            if ($isAdmin && $validated['level'] !== 'company') {
-                return $request->expectsJson()
-                    ? response()->json(['success' => false, 'message' => 'Admin chỉ được tạo OKR cấp công ty.'], 403)
-                    : redirect()->back()->withErrors(['error' => 'Admin chỉ được tạo OKR cấp công ty.']);
-            }
+            // if ($isAdmin && $validated['level'] !== 'company') {
+            //     return $request->expectsJson()
+            //         ? response()->json(['success' => false, 'message' => 'Admin chỉ được tạo OKR cấp công ty.'], 403)
+            //         : redirect()->back()->withErrors(['error' => 'Admin chỉ được tạo OKR cấp công ty.']);
+            // }
             
             // Manager và Member: kiểm tra quyền
             if (!$isAdmin) {
@@ -374,11 +374,11 @@ class MyObjectiveController extends Controller
         }
 
         // Admin CHỈ được cập nhật OKR cấp công ty (company)
-        if ($isAdmin && $validated['level'] !== 'company') {
-            return $request->expectsJson()
-                ? response()->json(['success' => false, 'message' => 'Admin chỉ được cập nhật OKR cấp công ty.'], 403)
-                : redirect()->back()->withErrors(['error' => 'Admin chỉ được cập nhật OKR cấp công ty.']);
-        }
+        // if ($isAdmin && $validated['level'] !== 'company') {
+        //     return $request->expectsJson()
+        //         ? response()->json(['success' => false, 'message' => 'Admin chỉ được cập nhật OKR cấp công ty.'], 403)
+        //         : redirect()->back()->withErrors(['error' => 'Admin chỉ được cập nhật OKR cấp công ty.']);
+        // }
         
         // Manager và Member: kiểm tra quyền
         if (!$isAdmin) {
@@ -471,9 +471,9 @@ class MyObjectiveController extends Controller
         }
         
         // Admin CHỈ được xóa OKR cấp công ty (company)
-        if ($isAdmin && $objective->level !== 'company') {
-            return response()->json(['success' => false, 'message' => 'Admin chỉ được xóa OKR cấp công ty.'], 403);
-        }
+        // if ($isAdmin && $objective->level !== 'company') {
+        //     return response()->json(['success' => false, 'message' => 'Admin chỉ được xóa OKR cấp công ty.'], 403);
+        // }
         
         // Manager chỉ được xóa OKR cấp unit hoặc person
         if ($user->isManager() && !in_array($objective->level, ['unit', 'person'])) {

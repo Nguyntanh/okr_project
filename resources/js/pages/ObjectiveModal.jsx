@@ -259,21 +259,14 @@ export default function ObjectiveModal({
 
     const handleCreateObjective = async (e) => {
         if (e && typeof e.preventDefault === "function") e.preventDefault();
-        // if (createForm.key_results.length < 1) {
-        //     setToast({
-        //         type: "error",
-        //         message: "Phải có ít nhất một Key Result",
-        //     });
-        //     return;
-        // }
+        // CHỈ validate department_id cho level unit hoặc team
         if (
-            createForm.level !== "company" &&
-            createForm.level !== "" &&
+            ["unit", "team"].includes(createForm.level) &&
             !createForm.department_id
         ) {
             setToast({
                 type: "error",
-                message: "Phải chọn phòng ban cho level không phải company",
+                message: "Phải chọn phòng ban cho level unit hoặc team",
             });
             return;
         }
@@ -539,69 +532,60 @@ export default function ObjectiveModal({
                                 ))}
                             </select>
                         </div>
-                        {createForm.level !== "company" &&
-                            createForm.level !== "" && (
-                                <div>
-                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                        Phòng ban
-                                    </label>
-                                    <select
-                                        value={createForm.department_id || ""}
-                                        onChange={(e) => {
-                                            const selectedDeptId =
-                                                e.target.value;
-                                            if (
-                                                selectedDeptId !==
+                        {/* === HIỂN THỊ PHÒNG BAN CHỈ KHI CẦN === */}
+                        {["unit", "team"].includes(createForm.level) && (
+                            <div>
+                                <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                    Phòng ban
+                                </label>
+                                <select
+                                    value={createForm.department_id || ""}
+                                    onChange={(e) => {
+                                        const selectedDeptId = e.target.value;
+                                        if (
+                                            selectedDeptId !==
+                                            String(currentUser?.department_id)
+                                        ) {
+                                            setToast({
+                                                type: "error",
+                                                message:
+                                                    "Bạn không thuộc phòng ban này. Vui lòng chọn phòng ban của bạn.",
+                                            });
+                                            return;
+                                        }
+                                        handleCreateFormChange(
+                                            "department_id",
+                                            selectedDeptId
+                                        );
+                                    }}
+                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                >
+                                    <option value="">
+                                        -- chọn phòng ban --
+                                    </option>
+                                    {departments.map((dept) => (
+                                        <option
+                                            key={dept.department_id}
+                                            value={String(dept.department_id)}
+                                            className={
+                                                String(dept.department_id) ===
                                                 String(
                                                     currentUser?.department_id
                                                 )
-                                            ) {
-                                                setToast({
-                                                    type: "error",
-                                                    message:
-                                                        "Bạn không thuộc phòng ban này. Vui lòng chọn phòng ban của bạn.",
-                                                });
-                                                return;
+                                                    ? "font-semibold text-blue-600"
+                                                    : ""
                                             }
-                                            handleCreateFormChange(
-                                                "department_id",
-                                                selectedDeptId
-                                            );
-                                        }}
-                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                    >
-                                        <option value="">
-                                            -- chọn phòng ban --
+                                        >
+                                            {dept.d_name}
+                                            {String(dept.department_id) ===
+                                            String(currentUser?.department_id)
+                                                ? " (Phòng ban của bạn)"
+                                                : ""}
                                         </option>
-                                        {departments.map((dept) => (
-                                            <option
-                                                key={dept.department_id}
-                                                value={String(
-                                                    dept.department_id
-                                                )}
-                                                className={
-                                                    String(
-                                                        dept.department_id
-                                                    ) ===
-                                                    String(
-                                                        currentUser?.department_id
-                                                    )
-                                                        ? "font-semibold text-blue-600"
-                                                        : ""
-                                                }
-                                            >
-                                                {dept.d_name}
-                                                {String(dept.department_id) ===
-                                                String(
-                                                    currentUser?.department_id
-                                                )
-                                                    ? " (Phòng ban của bạn)"
-                                                    : ""}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                            )}
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                     </div>
                     {creatingObjective && (
                         <div className="mt-4">
