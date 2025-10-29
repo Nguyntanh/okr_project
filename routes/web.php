@@ -82,6 +82,7 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     Route::delete('/cycles/{cycle}',[CycleController::class,'destroy'])->middleware('auth','admin')->name('cycles.destroy');
     Route::get('/cycles/create',[CycleController::class,'create'])->middleware('auth','admin')->name('cycles.create');
     Route::post('/cycles/create',[CycleController::class,'store'])->middleware('auth','admin')->name('cycles.store.create');
+    Route::post('/cycles/{cycle}/close',[CycleController::class,'close'])->middleware('auth','admin')->name('cycles.close');
 
     //Routes cho Department
     Route::resource('departments', DepartmentController::class);
@@ -214,6 +215,17 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     Route::prefix('api/check-in')->middleware('auth')->group(function () {
         Route::get('/{objectiveId}/{krId}/history', [CheckInController::class, 'getHistory'])->name('api.check-in.history');
     });
+
+    // Reports API (Admin only)
+    Route::prefix('api/reports')->middleware(['auth', \App\Http\Middleware\AdminOnly::class])->group(function () {
+        Route::get('/company-overview', [\App\Http\Controllers\ReportController::class, 'companyOverview'])
+            ->name('api.reports.company-overview');
+    });
+
+    // Frontend page route for Reports (SPA)
+    Route::get('/reports/company-overview', function() { return view('app'); })
+        ->middleware(['auth', \App\Http\Middleware\AdminOnly::class])
+        ->name('reports.company-overview');
 
     // OKR Assignments
     Route::prefix('my-links')->group(function () {
