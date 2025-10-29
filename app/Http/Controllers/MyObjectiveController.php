@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
+use Carbon\Carbon;
 
 class MyObjectiveController extends Controller
 {
@@ -27,51 +28,128 @@ class MyObjectiveController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
         }
 
-        // Kiểm tra role an toàn
         $isAdmin = $user->role && strtolower($user->role->role_name) === 'admin';
         $isDashboard = $request->has('dashboard') && $request->dashboard == '1';
-        
-        $objectives = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role'])
-            ->where(function ($query) use ($user, $request, $isAdmin, $isDashboard) {
-                // Nếu có filter My OKR, chỉ hiển thị OKR của user hiện tại
-                if ($request->has('my_okr') && $request->my_okr == '1') {
-                    $query->where('user_id', $user->user_id);
-                    return;
+
+
+        $currentCycleId = null;
+        $currentCycleName = null;
+
+        if (!$request->filled('cycle_id')) {
+        $now = Carbon::now('Asia/Ho_Chi_Minh');
+        $year = $now->year;
+        $quarter = ceil($now->month / 3);
+        $cycleNameDisplay = "Quý {$quarter} năm {$year}";
+
+        // Tìm chu kỳ theo khoảng thời gian (an toàn hơn khi cycle_name có nhiều định dạng)
+        $currentCycle = Cycle::where('start_date', '<=', $now)
+            ->where('end_date', '>=', $now)
+            ->first();
+
+        // Nếu không tìm được theo ngày, thử các tên chu kỳ thông dụng (Q1 2025, Q1 - 2025, Quý 1 năm 2025)
+        if (!$currentCycle) {
+            $possibleNames = [
+                $cycleNameDisplay,
+                "Q{$quarter} {$year}",
+                "Q{$quarter} - {$year}",
+            ];
+            $currentCycle = Cycle::whereIn('cycle_name', $possibleNames)->first();
+        }
+
+        if ($currentCycle) {
+            $currentCycleId = $currentCycle->cycle_id;
+            $currentCycleName = $currentCycle->cycle_name;
+            $request->merge(['cycle_id' => $currentCycleId]);
+        } else {
+            // nếu vẫn không tìm được, để currentCycleName hiển thị mặc định
+            $currentCycleName = $cycleNameDisplay;
+        }
+        } else {
+            // Nếu có cycle_id trong request, vẫn tính current để trả về
+            $now = Carbon::now('Asia/Ho_Chi_Minh');
+            $year = $now->year;
+            $quarter = ceil($now->month / 3);
+            $cycleNameDisplay = "Quý {$quarter} năm {$year}";
+
+            $currentCycle = Cycle::where('start_date', '<=', $now)
+                ->where('end_date', '>=', $now)
+                ->first();
+
+            if (!$currentCycle) {
+                $possibleNames = [
+                    $cycleNameDisplay,
+                    "Q{$quarter} {$year}",
+                    "Q{$quarter} - {$year}",
+                ];
+                $currentCycle = Cycle::whereIn('cycle_name', $possibleNames)->first();
+            }
+
+            if ($currentCycle) {
+                $currentCycleId = $currentCycle->cycle_id;
+                $currentCycleName = $currentCycle->cycle_name;
+            } else {
+                $currentCycleName = $cycleNameDisplay;
+            }
+        }
+        // === XÂY DỰNG QUERY ===
+        $query = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role']);
+
+        // Lọc archived
+        if ($request->has('archived') && $request->archived == '1') {
+            $query->whereNotNull('archived_at');
+        } else {
+            $query->whereNull('archived_at');
+        }
+
+        // Filter quyền
+        $query->where(function ($q) use ($user, $request, $isAdmin, $isDashboard) {
+            if ($request->has('my_okr') && $request->my_okr == '1') {
+                $q->where('user_id', $user->user_id);
+                return;
+            }
+
+            if ($isDashboard) {
+                if ($isAdmin) return;
+                if ($user->department_id) {
+                    $q->where('department_id', $user->department_id);
+                } else {
+                    $q->where('user_id', $user->user_id);
                 }
-                
-                // Nếu là Dashboard: Chỉ hiển thị OKR cùng phòng ban
-                if ($isDashboard) {
-                    if ($isAdmin) {
-                        // Admin thấy tất cả ngay cả ở Dashboard
-                        return;
-                    }
-                    
-                    // Member/Manager: chỉ thấy OKR của phòng ban mình ở Dashboard
-                    if ($user->department_id) {
-                        $query->where('department_id', $user->department_id);
-                    } else {
-                        // Nếu không có department, chỉ thấy objectives của chính mình
-                        $query->where('user_id', $user->user_id);
-                    }
-                    return;
+                return;
+            }
+
+            if ($isAdmin) return;
+
+            $roleName = $user->role?->role_name;
+            if ($roleName && strtolower($roleName) === 'manager') return;
+
+            $q->where(function ($sub) use ($user) {
+                $sub->where('user_id', $user->user_id);
+                if ($user->department_id) {
+                    $sub->orWhere('department_id', $user->department_id);
                 }
-                
-                // Nếu là My Objective (không có dashboard param): Hiển thị TẤT CẢ OKR
-                // Admin và Member/Manager đều thấy tất cả OKR của mọi phòng ban
             });
+        });
 
-        // Thêm filter theo cycle_id nếu có
-        if ($request->has('cycle_id') && $request->cycle_id) {
-            $objectives->where('cycle_id', $request->cycle_id);
+        // === FILTER THEO CHU KỲ (ưu tiên từ request hoặc tự động) ===
+        if ($request->filled('cycle_id')) {
+            $query->where('cycle_id', $request->cycle_id);
         }
 
-        $objectives = $objectives->paginate(10);
+        $objectives = $query->paginate(10);
 
+        // === TRẢ KẾT QUẢ ===
         if ($request->expectsJson()) {
-            return response()->json(['success' => true, 'data' => $objectives]);
+            return response()->json([
+                'success' => true,
+                'data' => $objectives,
+                'current_cycle_id' => $currentCycleId,
+                'current_cycle_name' => $currentCycle?->cycle_name
+            ]);
         }
 
-        return view('app');
+        $cycles = Cycle::all();
+        return view('app', compact('objectives', 'cycles', 'currentCycleId'));
     }
 
     /**
