@@ -172,6 +172,16 @@ export default function CyclesPanel() {
     const [toast, setToast] = useState({ type: "success", message: "" });
     const [openCreateObjective, setOpenCreateObjective] = useState(false);
     const [openCreateKRForObjId, setOpenCreateKRForObjId] = useState(null);
+    // Xác nhận hành động qua modal thay vì window.confirm
+    const [confirm, setConfirm] = useState({
+        open: false,
+        title: "",
+        message: "",
+        confirmText: "Xác nhận",
+        cancelText: "Hủy",
+        onConfirm: null,
+    });
+    const [confirmLoading, setConfirmLoading] = useState(false);
     
     // Sử dụng custom hook để lấy thông tin authentication
     const { isAdmin } = useAuth();
@@ -216,29 +226,68 @@ export default function CyclesPanel() {
     const isClosed = (c) => !isActive(c);
     const formatRange = (c) => `${formatDMY(c.start_date)} - ${formatDMY(c.end_date)}`;
 
-    async function closeCycle(cy) {
+    // Helpers: mở/đóng modal xác nhận
+    const openConfirm = (cfg = {}) => {
+        setConfirm({
+            open: true,
+            title: cfg.title || "Xác nhận",
+            message: cfg.message || "",
+            confirmText: cfg.confirmText || "Xác nhận",
+            cancelText: cfg.cancelText || "Hủy",
+            onConfirm: cfg.onConfirm || null,
+        });
+    };
+    const closeConfirm = () => setConfirm((p) => ({ ...p, open: false }));
+
+    // API helpers
+    const postCloseCycle = async (id) => {
+        const token = document
+            .querySelector('meta[name="csrf-token"]')
+            .getAttribute('content');
+        const res = await fetch(`/cycles/${id}/close`, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': token, Accept: 'application/json' },
+        });
+        const json = await res.json().catch(() => ({ success: res.ok }));
+        if (!res.ok || json.success === false)
+            throw new Error(json.message || 'Đóng chu kỳ thất bại');
+        return json;
+    };
+    const deleteCycleById = async (id) => {
+        const token = document
+            .querySelector('meta[name="csrf-token"]')
+            .getAttribute('content');
+        const res = await fetch(`/cycles/${id}`, {
+            method: 'DELETE',
+            headers: { 'X-CSRF-TOKEN': token, Accept: 'application/json' },
+        });
+        const json = await res.json().catch(() => ({ success: res.ok }));
+        if (!res.ok || json.success === false)
+            throw new Error(json.message || 'Xóa chu kỳ thất bại');
+        return json;
+    };
+
+    // Mở modal xác nhận cho nút "Đóng chu kỳ" ở danh sách
+    function closeCycle(cy) {
         const id = cy?.cycle_id || cy?.id;
-        const ok = window.confirm(
-            "Đóng chu kỳ sẽ khóa tất cả OKR và kết quả. Bạn không thể chỉnh sửa hay check-in nữa. Bạn chắc chắn?"
-        );
-        if (!ok) return;
-        try {
-            const token = document
-                .querySelector('meta[name="csrf-token"]')
-                .getAttribute('content');
-            const res = await fetch(`/cycles/${id}/close`, {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': token, Accept: 'application/json' },
-            });
-            const json = await res.json().catch(() => ({ success: res.ok }));
-            if (!res.ok || json.success === false)
-                throw new Error(json.message || 'Đóng chu kỳ thất bại');
-            const cyNew = json.data || {};
-            setCycles((prev) => prev.map((c) => String(c.cycle_id || c.id) === String(id) ? { ...c, ...cyNew } : c));
-            setToast({ type: 'success', message: json.message || 'Đã đóng chu kỳ' });
-        } catch (e) {
-            setToast({ type: 'error', message: e.message || 'Đóng chu kỳ thất bại' });
-        }
+        openConfirm({
+            title: 'Đóng chu kỳ',
+            message:
+                'Đóng chu kỳ sẽ khóa tất cả OKR và kết quả. Bạn không thể chỉnh sửa hay check-in nữa. Bạn chắc chắn?',
+            confirmText: 'Đóng chu kỳ',
+            onConfirm: async () => {
+                const json = await postCloseCycle(id);
+                const cyNew = json.data || {};
+                setCycles((prev) =>
+                    prev.map((c) =>
+                        String(c.cycle_id || c.id) === String(id)
+                            ? { ...c, ...cyNew }
+                            : c
+                    )
+                );
+                setToast({ type: 'success', message: json.message || 'Đã đóng chu kỳ' });
+            },
+        });
     }
 
     useEffect(() => {
@@ -307,7 +356,49 @@ export default function CyclesPanel() {
                 message={toast.message}
                 onClose={() => setToast({ type: "success", message: "" })}
             />
-            <div className="mx-auto mb-3 flex w-full max-w-4xl items-center justify-between">
+            {/* Global Confirm Modal */}
+            {confirm.open && (
+                <Modal
+                    open={true}
+                    onClose={confirmLoading ? () => {} : () => closeConfirm()}
+                    title={confirm.title || "Xác nhận"}
+                >
+                    <div className="space-y-4">
+                        {confirm.message && (
+                            <p className="text-sm text-slate-600">{confirm.message}</p>
+                        )}
+                        <div className="flex justify-end gap-2">
+                            <button
+                                type="button"
+                                disabled={confirmLoading}
+                                onClick={() => closeConfirm()}
+                                className="rounded-md border border-slate-300 px-4 py-2 text-xs"
+                            >
+                                {confirm.cancelText || "Hủy"}
+                            </button>
+                            <button
+                                type="button"
+                                disabled={confirmLoading}
+                                onClick={async () => {
+                                    try {
+                                        setConfirmLoading(true);
+                                        if (typeof confirm.onConfirm === 'function') {
+                                            await confirm.onConfirm();
+                                        }
+                                    } finally {
+                                        setConfirmLoading(false);
+                                        closeConfirm();
+                                    }
+                                }}
+                                className="rounded-md bg-rose-600 px-5 py-2 text-xs font-semibold text-white hover:bg-rose-700"
+                            >
+                                {confirm.confirmText || "Xác nhận"}
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+            <div className="mx-auto mb-3 flex w-full items-center justify-between">
                 <h2 className="text-2xl font-extrabold text-slate-900">
                     {isDetail ? "Chi tiết chu kỳ" : "Danh sách chu kỳ"}
                 </h2>
@@ -315,40 +406,31 @@ export default function CyclesPanel() {
                     <div className="flex items-center gap-2">
                         <AdminOnly permission="canManageCycles">
                             <>
-                                <button
-                                    onClick={() => setEditOpen(true)}
-                                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-                                >
-                                    Sửa
-                                </button>
+                                {detail?.cycle?.status === 'active' && (
+                                    <button
+                                        onClick={() => setEditOpen(true)}
+                                        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                                    >
+                                        Sửa
+                                    </button>
+                                )}
                                 {detail?.cycle && detail.cycle?.status === 'active' && isEnded(detail.cycle?.end_date) && (
                                     <button
-                                        onClick={async () => {
-                                            const ok = window.confirm(
-                                                "Đóng chu kỳ sẽ khóa tất cả OKR và kết quả. Bạn không thể chỉnh sửa hay check-in nữa. Bạn chắc chắn?"
-                                            );
-                                            if (!ok) return;
-                                            try {
-                                                const token = document
-                                                    .querySelector('meta[name="csrf-token"]')
-                                                    .getAttribute('content');
-                                                const id = detail?.cycle?.cycle_id || detail?.cycle_id;
-                                                const res = await fetch(`/cycles/${id}/close`, {
-                                                    method: 'POST',
-                                                    headers: {
-                                                        'X-CSRF-TOKEN': token,
-                                                        Accept: 'application/json',
-                                                    },
-                                                });
-                                                const json = await res.json().catch(() => ({ success: res.ok }));
-                                                if (!res.ok || json.success === false) throw new Error(json.message || 'Đóng chu kỳ thất bại');
-                                                const cy = json.data || {};
-                                                setDetail((prev) => ({ ...(prev || {}), cycle: { ...(prev?.cycle || prev), ...cy } }));
-                                                setCycles((prev) => prev.map((c) => String(c.cycle_id || c.id) === String(id) ? { ...c, ...cy } : c));
-                                                setToast({ type: 'success', message: json.message || 'Đã đóng chu kỳ' });
-                                            } catch (e) {
-                                                setToast({ type: 'error', message: e.message || 'Đóng chu kỳ thất bại' });
-                                            }
+                                        onClick={() => {
+                                            const id = detail?.cycle?.cycle_id || detail?.cycle_id;
+                                            openConfirm({
+                                                title: 'Đóng chu kỳ',
+                                                message:
+                                                    'Đóng chu kỳ sẽ khóa tất cả OKR và kết quả. Bạn không thể chỉnh sửa hay check-in nữa. Bạn chắc chắn?',
+                                                confirmText: 'Đóng chu kỳ',
+                                                onConfirm: async () => {
+                                                    const json = await postCloseCycle(id);
+                                                    const cy = json.data || {};
+                                                    setDetail((prev) => ({ ...(prev || {}), cycle: { ...(prev?.cycle || prev), ...cy } }));
+                                                    setCycles((prev) => prev.map((c) => String(c.cycle_id || c.id) === String(id) ? { ...c, ...cy } : c));
+                                                    setToast({ type: 'success', message: json.message || 'Đã đóng chu kỳ' });
+                                                },
+                                            });
                                         }}
                                         className="rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-100"
                                     >
@@ -356,54 +438,21 @@ export default function CyclesPanel() {
                                     </button>
                                 )}
                                 <button
-                                    onClick={async () => {
-                                        const ok = window.confirm(
-                                            "Xóa chu kỳ này? Hành động không thể hoàn tác."
-                                        );
-                                        if (!ok) return;
-                                        try {
-                                            const token = document
-                                                .querySelector(
-                                                    'meta[name="csrf-token"]'
-                                                )
-                                                .getAttribute("content");
-                                            const id =
-                                                detail?.cycle?.cycle_id ||
-                                                detail?.cycle_id;
-                                            const res = await fetch(`/cycles/${id}`, {
-                                                method: "DELETE",
-                                                headers: {
-                                                    "X-CSRF-TOKEN": token,
-                                                    Accept: "application/json",
-                                                },
-                                            });
-                                            const json = await res
-                                                .json()
-                                                .catch(() => ({ success: res.ok }));
-                                            if (!res.ok || json.success === false)
-                                                throw new Error(
-                                                    json.message ||
-                                                        "Xóa chu kỳ thất bại"
+                                    onClick={() => {
+                                        const id = detail?.cycle?.cycle_id || detail?.cycle_id;
+                                        openConfirm({
+                                            title: 'Xóa chu kỳ',
+                                            message: 'Xóa chu kỳ này? Hành động không thể hoàn tác.',
+                                            confirmText: 'Xóa',
+                                            onConfirm: async () => {
+                                                const json = await deleteCycleById(id);
+                                                setCycles((prev) =>
+                                                    prev.filter((c) => String(c.cycle_id || c.id) !== String(id))
                                                 );
-                                            setCycles((prev) =>
-                                                prev.filter(
-                                                    (c) =>
-                                                        String(c.cycle_id || c.id) !==
-                                                        String(id)
-                                                )
-                                            );
-                                            setToast({
-                                                type: "success",
-                                                message: "Đã xóa chu kỳ",
-                                            });
-                                            goBack();
-                                        } catch (e) {
-                                            setToast({
-                                                type: "error",
-                                                message:
-                                                    e.message || "Xóa chu kỳ thất bại",
-                                            });
-                                        }
+                                                setToast({ type: 'success', message: json.message || 'Đã xóa chu kỳ' });
+                                                goBack();
+                                            },
+                                        });
                                     }}
                                     className="rounded-md border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
                                 >
@@ -789,18 +838,20 @@ export default function CyclesPanel() {
                                     </div>
                                 </button>
                                 <AdminOnly permission="canManageCycles">
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() =>
-                                                setOpenCreateKRForObjId(
-                                                    obj.objective_id
-                                                )
-                                            }
-                                            className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
-                                        >
-                                            Thêm KR
-                                        </button>
-                                    </div>
+                                    {detail?.cycle?.status === 'active' && (
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() =>
+                                                    setOpenCreateKRForObjId(
+                                                        obj.objective_id
+                                                    )
+                                                }
+                                                className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
+                                            >
+                                                Thêm KR
+                                            </button>
+                                        </div>
+                                    )}
                                 </AdminOnly>
                             </div>
                             {openObj[obj.objective_id] !== false && (
