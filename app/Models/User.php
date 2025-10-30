@@ -70,7 +70,8 @@ class User extends Authenticatable
         return $this->role && $this->role->isAdmin();
     }
 
-   /**
+
+    /**
      * Kiểm tra xem user có phải Manager không
      */
     public function isManager()

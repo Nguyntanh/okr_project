@@ -151,12 +151,10 @@ function DashboardSidebar({ open, user }) {
                         }
                     />
                 )}
-                {/* Báo cáo - hiển thị cho Manager */}
-                {(!user?.role?.role_name || 
-                  user.role.role_name.toLowerCase() === 'admin' || 
-                  user.role.role_name.toLowerCase() === 'manager') && (
+                {/* Báo cáo - chỉ hiển thị cho Manager */}
+                {user?.role?.role_name?.toLowerCase() === 'manager' && (
                     <SidebarItem
-                        collapsed={false}
+                        collapsed={collapsed}
                         href="/reports"
                         label="Báo cáo"
                         icon={
@@ -430,10 +428,8 @@ export default function DashboardLayout({ children, user }) {
                                 }
                             />
                         )}
-                        {/* Báo cáo - hiển thị cho Manager */}
-                        {(!user?.role?.role_name || 
-                          user.role.role_name.toLowerCase() === 'admin' || 
-                          user.role.role_name.toLowerCase() === 'manager') && (
+                        {/* Báo cáo - chỉ hiển thị cho Manager */}
+                        {user?.role?.role_name?.toLowerCase() === 'manager' && (
                             <SidebarItem
                                 collapsed={false}
                                 href="/reports"
