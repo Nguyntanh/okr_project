@@ -352,18 +352,19 @@ class ReportController extends Controller
             ];
         }
 
-        // Trend over time: weekly average completion_rate from check_in grouped by objective
+        // Trend over time: weekly average progress_percent from check_ins grouped by KR of filtered objectives
         $trend = [];
         if ($cycleId) {
-            $objIds = Objective::query()
-                ->where('cycle_id', $cycleId)
-                ->when($departmentId, fn ($q) => $q->where('department_id', $departmentId))
-                ->when($ownerId, fn ($q) => $q->where('user_id', $ownerId))
-                ->pluck('objective_id');
-            if ($objIds->count() > 0) {
+            $krIds = DB::table('key_results as kr')
+                ->join('objectives as obj', 'obj.objective_id', '=', 'kr.objective_id')
+                ->when($departmentId, fn ($q) => $q->where('obj.department_id', $departmentId))
+                ->when($ownerId, fn ($q) => $q->where('obj.user_id', $ownerId))
+                ->where('obj.cycle_id', $cycleId)
+                ->pluck('kr.kr_id');
+            if ($krIds->count() > 0) {
                 $checkIns = CheckIn::query()
-                    ->select(DB::raw("DATE_FORMAT(created_at, '%Y-%u') as year_week"), DB::raw('AVG(completion_rate) as avg_progress'))
-                    ->whereIn('objective_id', $objIds)
+                    ->select(DB::raw("DATE_FORMAT(created_at, '%Y-%u') as year_week"), DB::raw('AVG(progress_percent) as avg_progress'))
+                    ->whereIn('kr_id', $krIds)
                     ->groupBy('year_week')
                     ->orderBy('year_week')
                     ->get();

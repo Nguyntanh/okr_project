@@ -7,32 +7,37 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CheckIn extends Model
 {
-    protected $table = 'check_in';
-    protected $primaryKey = 'checkin_id';
+    protected $table = 'check_ins';
+    protected $primaryKey = 'check_in_id';
 
     protected $fillable = [
-        'objective_id',
+        'kr_id',
         'user_id',
-        'completion_rate',
-        'note',
+        'progress_value',
+        'progress_percent',
+        'notes',
+        'check_in_type',
+        'is_completed',
     ];
 
     protected $casts = [
-        'completion_rate' => 'decimal:2',
+        'progress_value' => 'decimal:2',
+        'progress_percent' => 'decimal:2',
+        'is_completed' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
 
     /**
-     * Mối quan hệ với Objective
+     * Quan hệ với KeyResult
      */
-    public function objective(): BelongsTo
+    public function keyResult(): BelongsTo
     {
-        return $this->belongsTo(Objective::class, 'objective_id', 'objective_id');
+        return $this->belongsTo(KeyResult::class, 'kr_id', 'kr_id');
     }
 
     /**
-     * Mối quan hệ với User
+     * Quan hệ với User
      */
     public function user(): BelongsTo
     {
