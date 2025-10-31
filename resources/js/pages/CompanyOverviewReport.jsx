@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import PieChart from '../components/PieChart';
 import LineChart from '../components/LineChart';
-import StackedBarChart from '../components/StackedBarChart';
+import GroupedBarChart from '../components/GroupedBarChart';
 
 function StatCard({ title, value, suffix = '%', hint }) {
     return (
@@ -160,41 +160,47 @@ export default function CompanyOverviewReport() {
         ];
     }, [report]);
 
-    const stackedDataByLevel = useMemo(() => {
+    const groupedChartData = useMemo(() => {
         if (level === 'company') {
-            const ov = report?.overall || { statusCounts: {}, statusDistribution: {} };
-            return [{
-                departmentName: 'Công ty',
-                onTrack: ov.statusCounts?.onTrack || 0,
-                atRisk: ov.statusCounts?.atRisk || 0,
-                offTrack: ov.statusCounts?.offTrack || 0,
-            }];
+            const ov = report?.overall || { statusCounts: {} };
+            return {
+                categories: ['Công ty'],
+                series: [
+                    { name: 'On Track', color: '#22c55e', data: [ov.statusCounts?.onTrack || 0] },
+                    { name: 'At Risk', color: '#f59e0b', data: [ov.statusCounts?.atRisk || 0] },
+                    { name: 'Off Track', color: '#ef4444', data: [ov.statusCounts?.offTrack || 0] },
+                ],
+            };
         }
         if (level === 'departments') {
-            return (report.departmentsHierarchy || report.departments || [])
-              .filter(d => d.departmentId && (d.departmentName || '').toLowerCase() !== 'công ty')
-              .map(d => ({
-                departmentName: d.departmentName,
-                onTrack: d.onTrack,
-                atRisk: d.atRisk,
-                offTrack: d.offTrack,
-            }));
+            const list = (report.departmentsHierarchy || report.departments || [])
+              .filter(d => d.departmentId && (d.departmentName || '').toLowerCase() !== 'công ty');
+            return {
+                categories: list.map(d => d.departmentName),
+                series: [
+                    { name: 'On Track', color: '#22c55e', data: list.map(d => d.onTrack || 0) },
+                    { name: 'At Risk', color: '#f59e0b', data: list.map(d => d.atRisk || 0) },
+                    { name: 'Off Track', color: '#ef4444', data: list.map(d => d.offTrack || 0) },
+                ],
+            };
         }
         // teams
         const list = [];
         (report.departmentsHierarchy || []).forEach(d => {
             (d.children || []).forEach(t => {
                 if (!teamsParentId || String(teamsParentId) === String(d.departmentId)) {
-                    list.push({
-                        departmentName: t.departmentName,
-                        onTrack: t.onTrack,
-                        atRisk: t.atRisk,
-                        offTrack: t.offTrack,
-                    });
+                    list.push(t);
                 }
             });
         });
-        return list;
+        return {
+            categories: list.map(t => t.departmentName),
+            series: [
+                { name: 'On Track', color: '#22c55e', data: list.map(t => t.onTrack || 0) },
+                { name: 'At Risk', color: '#f59e0b', data: list.map(t => t.atRisk || 0) },
+                { name: 'Off Track', color: '#ef4444', data: list.map(t => t.offTrack || 0) },
+            ],
+        };
     }, [report, level, teamsParentId]);
 
     // Close filter popover when clicking outside
@@ -290,8 +296,7 @@ export default function CompanyOverviewReport() {
                     </div>
 
                     {/* Charts */}
-                    <div className="mt-6 grid gap-6 md:grid-cols-2">
-                        <LineChart data={report.trend || []} label="Xu hướng tiến độ theo tuần" />
+                    <div className="mt-6">
                         <div>
                             <div className="mb-2 flex items-center justify-between">
                                 <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 text-sm font-semibold text-slate-700">
@@ -302,13 +307,19 @@ export default function CompanyOverviewReport() {
                                 {level==='teams' && (
                                     <select value={teamsParentId} onChange={e=>setTeamsParentId(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm">
                                         <option value="">Tất cả phòng ban</option>
-                                        {(report.departmentsHierarchy||[]).map(d=> (
-                                            <option key={d.departmentId} value={d.departmentId}>{d.departmentName}</option>
-                                        ))}
+                                        {(report.departmentsHierarchy||[])
+                                            .filter(d => d.departmentId && (d.departmentName||'').toLowerCase() !== 'công ty')
+                                            .map(d=> (
+                                                <option key={d.departmentId} value={d.departmentId}>{d.departmentName}</option>
+                                            ))}
                                     </select>
                                 )}
                             </div>
-                            <StackedBarChart data={stackedDataByLevel} label={`Phân bổ trạng thái theo ${level==='company'?'công ty':(level==='departments'?'phòng ban':'đội nhóm')}`} />
+                            <GroupedBarChart
+                                categories={groupedChartData.categories}
+                                series={groupedChartData.series}
+                                label={`Phân bổ trạng thái theo ${level==='company'?'công ty':(level==='departments'?'phòng ban':'đội nhóm')}`}
+                            />
                         </div>
                     </div>
 
@@ -388,7 +399,10 @@ export default function CompanyOverviewReport() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {((report.risks || []).filter(r => r.status === 'at_risk')).map((r, i) => (
+                                    {((report.risks || [])
+                                        .filter(r => r.status === 'at_risk' || r.status === 'off_track')
+                                        .sort((a,b) => (a.status === 'off_track' ? -1 : 0) - (b.status === 'off_track' ? -1 : 0))
+                                    ).map((r, i) => (
                                         <tr key={i} className="border-t border-slate-100">
                                             <td className="px-6 py-3">{r.objective_title || (`#${r.objective_id}`)}</td>
                                             <td className="px-6 py-3">{(report.departments || []).find(d => d.departmentId === r.department_id)?.departmentName || '—'}</td>
