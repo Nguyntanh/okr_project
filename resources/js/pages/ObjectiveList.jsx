@@ -311,7 +311,7 @@ export default function ObjectiveList({
                                                         <span className="text-blue-600 font-medium">
                                                             {formatPercent(kr.progress_percent)}
                                                         </span>
-                                                        {/* Nút Check-in cho Key Result */}
+                                                        {/* Nút Check-in cho Key Result - chỉ hiển thị khi openCheckInModal được cung cấp */}
                                                         {openCheckInModal && canCheckInKeyResult(currentUser, kr, obj) && (
                                                             <button
                                                                 onClick={() => openCheckInModal({ ...kr, objective_id: obj.objective_id })}

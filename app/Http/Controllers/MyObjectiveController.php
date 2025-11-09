@@ -65,7 +65,9 @@ class MyObjectiveController extends Controller
             $objectives->where('cycle_id', $request->cycle_id);
         }
 
-        $objectives = $objectives->paginate(10);
+        // Hỗ trợ per_page, mặc định ít nhất 5 items mỗi trang
+        $perPage = max(5, (int) $request->get('per_page', 10));
+        $objectives = $objectives->paginate($perPage);
 
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'data' => $objectives]);

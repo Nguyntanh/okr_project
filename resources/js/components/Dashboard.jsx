@@ -7,12 +7,12 @@ import ToastComponent from "../pages/ToastComponent.jsx";
 import ErrorBoundary from "./ErrorBoundary";
 import OKRBarChart from "./OKRBarChart";
 import OKRTable from "./OKRTable";
-import CheckInModal from "./CheckInModal";
 import CheckInHistory from "./CheckInHistory";
 import OKRStats from "./OKRStats";
 
 export default function Dashboard() {
     const [items, setItems] = useState([]);
+    const [allItems, setAllItems] = useState([]); // Lưu tất cả items đã tải
     const [departments, setDepartments] = useState([]);
     const [cyclesList, setCyclesList] = useState([]);
     const [links, setLinks] = useState([]);
@@ -24,12 +24,11 @@ export default function Dashboard() {
     const [editingObjective, setEditingObjective] = useState(null);
     const [openObj, setOpenObj] = useState({});
     const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
+    const [itemsPerPage] = useState(5); // Số items hiển thị mỗi trang (client-side)
     const [currentUser, setCurrentUser] = useState(null);
     const [pieChartData, setPieChartData] = useState([]);
     const [error, setError] = useState(null);
     const [showFilters, setShowFilters] = useState(false);
-    const [checkInModal, setCheckInModal] = useState({ open: false, keyResult: null });
     const [checkInHistory, setCheckInHistory] = useState({ open: false, keyResult: null });
     const [activeTab, setActiveTab] = useState('my'); // 'my', 'department', 'company'
     
@@ -108,7 +107,7 @@ export default function Dashboard() {
         }
     };
 
-    const load = async (pageNum = 1, filter = "", myOKR = false) => {
+    const load = async (filter = "", myOKR = false) => {
         try {
             setLoading(true);
             const token = document
@@ -122,8 +121,8 @@ export default function Dashboard() {
                 throw new Error("CSRF token not found");
             }
 
-            // Tạo URL với filter
-            let url = `/my-objectives?page=${pageNum}&dashboard=1&_t=${Date.now()}`;
+            // Tải TẤT CẢ dữ liệu một lần (per_page lớn để lấy tất cả)
+            let url = `/my-objectives?page=1&dashboard=1&per_page=1000&_t=${Date.now()}`;
             if (filter) {
                 url += `&cycle_id=${filter}`;
             }
@@ -155,7 +154,7 @@ export default function Dashboard() {
                     type: "error",
                     message: "Lỗi phân tích dữ liệu objectives",
                 });
-                return { success: false, data: { data: [], last_page: 1 } };
+                return { success: false, data: { data: [] } };
             });
             // Normalize data: convert keyResults to key_results
             const list = Array.isArray(objData?.data?.data) ? objData.data.data : (Array.isArray(objData?.data) ? objData.data : []);
@@ -166,9 +165,9 @@ export default function Dashboard() {
                 }))
                 : [];
             if (resObj.ok && Array.isArray(list)) {
-                setItems(normalizedItems);
+                setAllItems(normalizedItems); // Lưu tất cả items
+                setItems(normalizedItems); // Set items ban đầu
                 try { localStorage.setItem('my_objectives', JSON.stringify(normalizedItems)); } catch {}
-                if (objData?.data?.last_page) setTotalPages(objData.data.last_page);
             } else {
                 console.warn('Keeping previous objectives due to bad response');
             }
@@ -185,21 +184,15 @@ export default function Dashboard() {
         }
     };
 
-    const handlePageChange = (newPage) => {
-        if (newPage >= 1 && newPage <= totalPages) {
-            setPage(newPage);
-        }
-    };
-
     useEffect(() => {
         const currentFilters = getCurrentFilters();
-        load(page, currentFilters.cycle, currentFilters.myOKROnly);
-    }, [page]);
+        load(currentFilters.cycle, currentFilters.myOKROnly);
+    }, []); // Chỉ load một lần khi mount
 
     useEffect(() => {
-        // Reset page khi chuyển tab
+        // Reset page khi chuyển tab hoặc filter thay đổi
         setPage(1);
-    }, [activeTab]);
+    }, [activeTab, myFilters, departmentFilters, companyFilters]);
 
     useEffect(() => {
         // Load static data một lần khi component mount
@@ -296,7 +289,7 @@ export default function Dashboard() {
         const overallAvgProgress = filteredItems.length > 0 ? totalProgress / filteredItems.length : 0;
 
         // Sort by created_at descending (newest first) và thêm thông tin deadline
-        return [...filteredItems].map(item => {
+        const sorted = [...filteredItems].map(item => {
             // Tính overall progress cho item này (tỷ lệ % chung)
             let itemOverallProgress = 0;
             if (item.key_results && item.key_results.length > 0) {
@@ -314,30 +307,43 @@ export default function Dashboard() {
             let isUpcoming = false; // Sắp hết hạn (còn <= 7 ngày)
             let deadlineCharacter = '-';
             let priority = 'low'; // Mặc định là thấp
+            let status = 'in_progress'; // Mặc định là đang thực hiện
 
+            // Format ngày hết hạn nếu có
             if (item.cycle && item.cycle.end_date) {
                 const endDate = new Date(item.cycle.end_date);
-                isOverdue = endDate < now;
-                
-                // Format ngày hết hạn
                 deadlineCharacter = endDate.toLocaleDateString('vi-VN', {
                     day: '2-digit',
                     month: '2-digit',
                     year: 'numeric'
                 });
+            }
+
+            // Nếu tiến độ đạt 100% (hoặc >= 99.99 để tránh sai số làm tròn), trạng thái là hoàn thành (ưu tiên cao nhất)
+            if (itemOverallProgress >= 99.99) {
+                status = 'completed';
+                priority = 'low'; // Hoàn thành = ưu tiên thấp
+                // Không kiểm tra deadline nữa nếu đã hoàn thành
+            } else if (item.cycle && item.cycle.end_date) {
+                const endDate = new Date(item.cycle.end_date);
+                isOverdue = endDate < now;
 
                 // Tính mức độ ưu tiên và trạng thái dựa trên thời gian còn lại
                 const daysRemaining = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
                 
                 if (isOverdue) {
                     priority = 'high'; // Quá hạn = ưu tiên cao
+                    status = 'overdue';
                 } else if (daysRemaining <= 7 && daysRemaining > 0) {
                     priority = 'high'; // Còn <= 7 ngày = ưu tiên cao
                     isUpcoming = true; // Sắp hết hạn
+                    status = 'upcoming';
                 } else if (daysRemaining <= 30) {
                     priority = 'medium'; // Còn <= 30 ngày = ưu tiên trung bình
+                    status = 'in_progress';
                 } else {
                     priority = 'low'; // Còn > 30 ngày = ưu tiên thấp
+                    status = 'in_progress';
                 }
             }
 
@@ -346,45 +352,31 @@ export default function Dashboard() {
                 deadlineCharacter,
                 isOverdue,
                 isUpcoming,
-                priority
+                priority,
+                status,
+                itemOverallProgress
             };
         }).sort((a, b) => {
             const dateA = new Date(a.created_at || 0);
             const dateB = new Date(b.created_at || 0);
             return dateB - dateA; // Descending order
         });
-    }, [filteredItems]);
 
+        // Phân trang ở client-side: lấy 5 items cho trang hiện tại
+        const startIndex = (page - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        return sorted.slice(startIndex, endIndex);
+    }, [filteredItems, page, itemsPerPage]);
 
-    const handleCheckInSuccess = (keyResultData) => {
-        if (keyResultData && keyResultData.kr_id) {
-            // Cập nhật Key Result trong danh sách
-            setItems((prev) =>
-                prev.map((obj) => ({
-                    ...obj,
-                    key_results: (obj.key_results || []).map((kr) =>
-                        kr.kr_id === keyResultData.kr_id ? { ...kr, ...keyResultData } : kr
-                    ),
-                }))
-            );
+    // Tính tổng số trang dựa trên filteredItems
+    const totalPages = useMemo(() => {
+        return Math.max(1, Math.ceil(filteredItems.length / itemsPerPage));
+    }, [filteredItems.length, itemsPerPage]);
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setPage(newPage);
         }
-        
-        // Hiển thị thông báo thành công
-        setToast({
-            type: "success",
-            message: keyResultData?.progress_percent >= 100 
-                ? "🎉 Chúc mừng! Key Result đã hoàn thành 100%."
-                : "✅ Cập nhật tiến độ thành công!",
-        });
-        
-        // Reload data để đảm bảo đồng bộ
-        load(page, cycleFilter, myOKRFilter);
-    };
-
-    const openCheckInModal = (keyResult) => {
-        console.log('Opening check-in modal for:', keyResult);
-        console.log('Objective ID:', keyResult?.objective_id);
-        setCheckInModal({ open: true, keyResult });
     };
 
     const openCheckInHistory = (keyResult) => {
@@ -575,7 +567,7 @@ export default function Dashboard() {
                                 onClick={() => {
                                     setError(null);
                                     const filters = getCurrentFilters();
-                                    load(page, filters.cycle, filters.myOKROnly);
+                                    load(filters.cycle, filters.myOKROnly);
                                 }}
                                 className="ml-auto text-red-600 hover:text-red-800 underline"
                             >
@@ -620,7 +612,6 @@ export default function Dashboard() {
                         console.log('View OKR:', item);
                         // You can implement navigation here
                     }}
-                    onCheckIn={openCheckInModal}
                     onViewCheckInHistory={openCheckInHistory}
                     currentUser={currentUser}
                 />
@@ -658,7 +649,7 @@ export default function Dashboard() {
                     setToast={setToast}
                     reloadData={() => {
                         const filters = getCurrentFilters();
-                        load(page, filters.cycle, filters.myOKROnly);
+                        load(filters.cycle, filters.myOKROnly);
                     }}
                 />
             )}
@@ -672,7 +663,7 @@ export default function Dashboard() {
                     setToast={setToast}
                     reloadData={() => {
                         const filters = getCurrentFilters();
-                        load(page, filters.cycle, filters.myOKROnly);
+                        load(filters.cycle, filters.myOKROnly);
                     }}
                 />
             )}
@@ -692,7 +683,7 @@ export default function Dashboard() {
                             myOKROnly: false,
                             showFilters: getCurrentFilters().showFilters
                         });
-                        load(1, "", false); // Reload with no filters
+                        load("", false); // Reload with no filters
                     }}
                 />
             )}
@@ -707,21 +698,10 @@ export default function Dashboard() {
                     setLinks={setLinks}
                     reloadData={() => {
                         const filters = getCurrentFilters();
-                        load(page, filters.cycle, filters.myOKROnly);
+                        load(filters.cycle, filters.myOKROnly);
                     }}
                 />
             )}
-
-            {/* Check-in Modal */}
-            <ErrorBoundary>
-                <CheckInModal
-                    open={checkInModal.open}
-                    onClose={() => setCheckInModal({ open: false, keyResult: null })}
-                    keyResult={checkInModal.keyResult}
-                    objectiveId={checkInModal.keyResult?.objective_id}
-                    onSuccess={handleCheckInSuccess}
-                />
-            </ErrorBoundary>
 
             {/* Check-in History Modal */}
             <ErrorBoundary>
@@ -730,7 +710,6 @@ export default function Dashboard() {
                     onClose={() => setCheckInHistory({ open: false, keyResult: null })}
                     keyResult={checkInHistory.keyResult}
                     objectiveId={checkInHistory.keyResult?.objective_id}
-                    onSuccess={handleCheckInSuccess}
                 />
             </ErrorBoundary>
 

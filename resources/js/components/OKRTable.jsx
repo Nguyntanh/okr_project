@@ -28,7 +28,7 @@ export default function OKRTable({
         );
     }
 
-    // Kiểm tra quyền checkin Key Result - sử dụng logic đồng bộ với backend
+    // Kiểm tra quyền checkin Key Result - chỉ owner của Key Result mới có quyền
     const canCheckIn = (kr, objective) => {
         return canCheckInKeyResult(currentUser, kr, objective);
     };
@@ -124,15 +124,20 @@ export default function OKRTable({
                                             {item.deadlineCharacter ? item.deadlineCharacter : '-'}
                                         </div>
                                         <div className="hidden lg:block text-sm">
-                                            {item.isOverdue !== undefined && (
+                                            {item.status && (
                                                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                    item.isOverdue 
-                                                        ? 'bg-red-100 text-red-700' 
-                                                        : item.isUpcoming
+                                                    item.status === 'completed'
+                                                        ? 'bg-blue-100 text-blue-700' 
+                                                        : item.status === 'overdue'
+                                                        ? 'bg-red-100 text-red-700'
+                                                        : item.status === 'upcoming'
                                                         ? 'bg-amber-100 text-amber-700'
                                                         : 'bg-green-100 text-green-700'
                                                 }`}>
-                                                    {item.isOverdue ? 'Quá Hạn' : item.isUpcoming ? 'Sắp Hết Hạn' : 'Còn Hạn'}
+                                                    {item.status === 'completed' ? 'Hoàn Thành' : 
+                                                     item.status === 'overdue' ? 'Quá Hạn' : 
+                                                     item.status === 'upcoming' ? 'Sắp Hết Hạn' : 
+                                                     'Còn Hạn'}
                                                 </span>
                                             )}
                                         </div>
@@ -156,16 +161,21 @@ export default function OKRTable({
                                         <div className="text-xs text-gray-500">
                                             Phòng Ban: {departments.find(d => String(d.department_id) === String(item.department_id))?.d_name || '-'}
                                         </div>
-                                        {item.isOverdue !== undefined && (
+                                        {item.status && (
                                             <div className="text-xs">
                                                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                    item.isOverdue 
-                                                        ? 'bg-red-100 text-red-700' 
-                                                        : item.isUpcoming
+                                                    item.status === 'completed'
+                                                        ? 'bg-blue-100 text-blue-700' 
+                                                        : item.status === 'overdue'
+                                                        ? 'bg-red-100 text-red-700'
+                                                        : item.status === 'upcoming'
                                                         ? 'bg-amber-100 text-amber-700'
                                                         : 'bg-green-100 text-green-700'
                                                 }`}>
-                                                    {item.isOverdue ? 'Quá Hạn' : item.isUpcoming ? 'Sắp Hết Hạn' : 'Còn Hạn'}
+                                                    {item.status === 'completed' ? 'Hoàn Thành' : 
+                                                     item.status === 'overdue' ? 'Quá Hạn' : 
+                                                     item.status === 'upcoming' ? 'Sắp Hết Hạn' : 
+                                                     'Còn Hạn'}
                                                 </span>
                                             </div>
                                         )}
@@ -199,8 +209,8 @@ export default function OKRTable({
                                                             <div className="flex items-center space-x-2 bg-blue-50 px-3 py-1 rounded-lg">
                                                                 <span className="text-sm font-bold text-blue-700">{calculatedPercentage.toFixed(2)}%</span>
                                                             </div>
-                                                            {/* Nút Check-in cho Key Result */}
-                                                            {canCheckIn(kr, item) && (
+                                                            {/* Nút Check-in cho Key Result - chỉ hiển thị khi onCheckIn được cung cấp */}
+                                                            {onCheckIn && canCheckIn(kr, item) && (
                                                                 <button
                                                                     onClick={() => onCheckIn?.({ ...kr, objective_id: item.objective_id })}
                                                                     className="p-1 rounded hover:bg-blue-50 transition-colors"
