@@ -187,7 +187,6 @@ class DepartmentController extends Controller
      */
     public function storeAssignUsers(Request $request, Department $department): JsonResponse|RedirectResponse
     {
-        // Kiểm tra quyền admin hoặc unit manager
         if (!Auth::user()->canManageUsers() && !Auth::user()->isDeptManager()) {
             if ($request->wantsJson()) {
                 return response()->json(['success' => false, 'message' => 'Bạn không có quyền gán người dùng.'], 403);
@@ -198,36 +197,32 @@ class DepartmentController extends Controller
         $validated = $request->validate([
             'user_ids' => 'required|array',
             'user_ids.*' => 'exists:users,user_id',
-            'role' => 'nullable|string|in:manager,member,Manager,Member',
+            'role' => 'required|string|in:manager,member,Manager,Member',
         ]);
 
-        // Xác định role_id từ role (nếu có)
-        $roleId = null;
-        if (!empty($validated['role'])) {
-            $roleName = strtolower($validated['role']);
-            $role = Role::whereRaw('LOWER(role_name) = ?', [$roleName])->first();
-            if (!$role) {
-                if ($request->wantsJson()) {
-                    return response()->json(['success' => false, 'message' => 'Vai trò không hợp lệ.'], 422);
-                }
-                return redirect()->back()->withErrors('Vai trò không hợp lệ.');
+        // === TỰ ĐỘNG XÁC ĐỊNH ROLE THEO LOẠI ĐƠN VỊ ===
+        $level = $department->type === 'phòng ban' ? 'unit' : 'team';
+        $roleNameInput = strtolower(trim($validated['role']));
+
+        $role = Role::whereRaw('LOWER(role_name) = ?', [$roleNameInput])
+                    ->where('level', $level)
+                    ->first();
+
+        if (!$role) {
+            $errorMsg = "Không tìm thấy vai trò '{$validated['role']}' cho " . 
+                        ($level === 'unit' ? 'phòng ban' : 'đội nhóm');
+            
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $errorMsg], 422);
             }
-            $roleId = $role->role_id;
-
-            // Chỉ admin được gán vai trò manager
-            // if ($roleName === 'manager' && !Auth::user()->isAdmin()) {
-            //     if ($request->wantsJson()) {
-            //         return response()->json(['success' => false, 'message' => 'Chỉ admin được gán vai trò Manager.'], 403);
-            //     }
-            //     return redirect()->back()->withErrors('Chỉ admin được gán vai trò Manager.');
-            // }
+            return redirect()->back()->withErrors($errorMsg);
         }
 
-        // Cập nhật department_id và role_id (nếu có) cho các user được chọn
-        $updateData = ['department_id' => $department->department_id];
-        if ($roleId !== null) {
-            $updateData['role_id'] = $roleId;
-        }
+        $updateData = [
+            'department_id' => $department->department_id,
+            'role_id'       => $role->role_id
+        ];
+
         User::whereIn('user_id', $validated['user_ids'])->update($updateData);
 
         if ($request->wantsJson()) {

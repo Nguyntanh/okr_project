@@ -260,7 +260,6 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
     const [saving, setSaving] = useState(false);
     const [toast, setToast] = useState({ type: "success", message: "" });
     const roleOptions = [
-        { value: "", label: "Không thay đổi vai trò" },
         { value: "member", label: "Member" },
         { value: "manager", label: "Manager" },
     ];
@@ -574,9 +573,9 @@ export default function DepartmentsPanel() {
                 {canCreateNew && (
                     <button
                         onClick={() => setOpenCreate(true)}
-                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700"
+                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700 flex items-center gap-2"
                     >
-                        Tạo mới
+                        + Tạo mới
                     </button>
                 )}
             </div>
@@ -588,11 +587,11 @@ export default function DepartmentsPanel() {
                             <th className="px-3 py-2 w-[30%] border-r border-slate-200">
                                 Tên
                             </th>
-                            <th className="px-3 py-2 w-[20%] border-r border-slate-200 text-center">
+                            {/* <th className="px-3 py-2 w-[20%] border-r border-slate-200 text-center">
                                 Loại
-                            </th>
-                            <th className="px-3 py-2 w-[50%] text-center">
-                                Mô tả
+                            </th> */}
+                            <th className="px-3 py-2 w-[50%] text-center border-r border-slate-200">
+                                Thành viên
                             </th>
                             <th className="px-3 py-2 w-[20%] text-center">
                                 Hành động
@@ -687,14 +686,13 @@ export default function DepartmentsPanel() {
                                                 </button>
                                             </AdminOnly>
                                         </td>
-                                        <td className="px-3 py-3 border-r border-slate-200 text-center">
+                                        {/* <td className="px-3 py-3 border-r border-slate-200 text-center">
                                             {d.type}
-                                        </td>
-                                        <td className="px-3 py-3 text-center">
-                                            {d.d_description || "-"}
+                                        </td> */}
+                                        <td className="px-3 py-3 text-center border-r border-slate-200">
                                             {d.users && d.users.length > 0 && (
                                                 <div className="text-xs text-slate-500">
-                                                    Người dùng:{" "}
+                                                    {/* Người dùng:{" "} */}
                                                     {d.users
                                                         .map((u) => u.full_name)
                                                         .join(", ")}
@@ -702,7 +700,12 @@ export default function DepartmentsPanel() {
                                             )}
                                         </td>
                                         <td className="px-3 py-3 text-center">
-                                            <AdminOnly permission={["canManageUsers", "canManageRooms"]}>
+                                            <AdminOnly
+                                                permission={
+                                                    "canManageUsers" &&
+                                                    "canManageRooms"
+                                                }
+                                            >
                                                 <button
                                                     onClick={() =>
                                                         openAssignModal(d)
@@ -748,16 +751,16 @@ export default function DepartmentsPanel() {
                                                             </button>
                                                         </AdminOnly>
                                                     </td>
-                                                    <td className="px-3 py-3 border-r border-slate-200 text-center">
+                                                    {/* <td className="px-3 py-3 border-r border-slate-200 text-center">
                                                         {t.type}
-                                                    </td>
+                                                    </td> */}
                                                     <td className="px-3 py-3 text-center">
-                                                        {t.d_description || "-"}
+                                                        {/* {t.d_description || "-"} */}
                                                         {t.users &&
                                                             t.users.length >
                                                                 0 && (
                                                                 <div className="text-xs text-slate-500">
-                                                                    Người dùng:{" "}
+                                                                    {/* Người dùng:{" "} */}
                                                                     {t.users
                                                                         .map(
                                                                             (
@@ -772,7 +775,12 @@ export default function DepartmentsPanel() {
                                                             )}
                                                     </td>
                                                     <td className="px-3 py-3 text-center">
-                                                        <AdminOnly permission="canManageUsers">
+                                                        <AdminOnly
+                                                            permission={
+                                                                "canManageUsers" &&
+                                                                "canManageTeams"
+                                                            }
+                                                        >
                                                             <button
                                                                 onClick={() =>
                                                                     openAssignModal(
