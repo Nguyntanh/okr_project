@@ -297,7 +297,7 @@ export default function CompanyOverviewReport() {
 
                     {/* Charts */}
                     <div className="mt-6 space-y-6">
-                        <LineChart data={report.trend || []} label="Xu hướng tiến độ theo tuần" />
+                        {/* <LineChart data={report.trend || []} label="Xu hướng tiến độ theo tuần" /> */}
                         <div>
                             <div className="mb-2 flex items-center justify-between">
                                 <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 text-sm font-semibold text-slate-700">
