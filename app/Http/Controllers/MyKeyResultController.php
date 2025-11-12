@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use App\Models\User;
 
 class MyKeyResultController extends Controller
 {
@@ -314,29 +315,6 @@ class MyKeyResultController extends Controller
         }
     }
 
-    // === HÀM HỖ TRỢ ===
-    private function successResponse($request, $message, $data = null)
-    {
-        if ($request && $request->expectsJson()) {
-            return response()->json([
-                'success' => true,
-                'message' => $message,
-                'data' => $data
-            ]);
-        }
-
-        return redirect()->route('my-key-results.index')->with('success', $message);
-    }
-
-    private function errorResponse($request, $message, $status)
-    {
-        if ($request && $request->expectsJson()) {
-            return response()->json(['success' => false, 'message' => $message], $status);
-        }
-
-        return redirect()->back()->withErrors(['error' => $message])->withInput();
-    }
-
     /**
      * Giao Key Result cho người dùng thực hiện
      */
@@ -379,5 +357,28 @@ class MyKeyResultController extends Controller
                 'assigned_to' => $assignee->only(['user_id', 'name', 'email', 'avatar'])
             ]
         ]);
+    }
+
+    // === HÀM HỖ TRỢ ===
+    private function successResponse($request, $message, $data = null)
+    {
+        if ($request && $request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'data' => $data
+            ]);
+        }
+
+        return redirect()->route('my-key-results.index')->with('success', $message);
+    }
+
+    private function errorResponse($request, $message, $status)
+    {
+        if ($request && $request->expectsJson()) {
+            return response()->json(['success' => false, 'message' => $message], $status);
+        }
+
+        return redirect()->back()->withErrors(['error' => $message])->withInput();
     }
 }

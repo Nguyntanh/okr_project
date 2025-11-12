@@ -4,6 +4,7 @@ import Dropdown from "../components/Dropdown";
 import Tabs from "../components/Tabs";
 import ConfirmationModal from "../components/ConfirmationModal";
 import ToastNotification from "../components/ToastNotification";
+import AssignKeyResultModal from "../components/AssignKeyResultModal";
 
 export default function ObjectiveList({
     items,
@@ -34,6 +35,13 @@ export default function ObjectiveList({
     const [archivingKR, setArchivingKR] = useState(null);
     const [unarchivingKR, setUnarchivingKR] = useState(null);
     const [deletingKR, setDeletingKR] = useState(null);
+    const [assignModal, setAssignModal] = useState({
+        show: false,
+        kr: null,
+        objective: null,
+        email: "",
+        loading: false,
+    });
 
     const canCheckInKR = (kr, objective) => {
         return canCheckInKeyResult(currentUser, kr, objective);
@@ -461,6 +469,60 @@ export default function ObjectiveList({
         );
     };
 
+    const openAssignModal = (kr, objective) => {
+        setAssignModal({
+            show: true,
+            kr,
+            objective,
+            email: "",
+            loading: false,
+        });
+    };
+
+    const closeAssignModal = () => {
+        setAssignModal((prev) => ({ ...prev, show: false }));
+    };
+
+    const handleAssignKR = async () => {
+        const { kr, objective, email } = assignModal;
+        if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) {
+            setToast({ type: "error", message: "Vui lòng nhập email hợp lệ." });
+            return;
+        }
+
+        setAssignModal((prev) => ({ ...prev, loading: true }));
+
+        try {
+            const token = document
+                .querySelector('meta[name="csrf-token"]')
+                ?.getAttribute("content");
+
+            const res = await fetch(`/my-key-results/${kr.kr_id}/assign`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRF-TOKEN": token,
+                    Accept: "application/json",
+                },
+                body: JSON.stringify({ email }),
+            });
+
+            const json = await res.json();
+
+            if (json.success) {
+                await reloadBothTabs(token);
+                setToast({ type: "success", message: json.message });
+                closeAssignModal();
+            } else {
+                throw new Error(json.message || "Giao việc thất bại");
+            }
+        } catch (err) {
+            setToast({ type: "error", message: err.message });
+        } finally {
+            setAssignModal((prev) => ({ ...prev, loading: false }));
+        }
+    };
+
     // === HELPER FORMAT ===
     const formatPercent = (value) => {
         const n = Number(value);
@@ -845,6 +907,45 @@ export default function ObjectiveList({
                                                                     `menu_${kr.kr_id}`
                                                                 ] && (
                                                                     <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-50 py-1">
+                                                                        {/* Giao việc */}
+                                                                        <button
+                                                                            onClick={(
+                                                                                e
+                                                                            ) => {
+                                                                                e.stopPropagation();
+                                                                                openAssignModal(
+                                                                                    kr,
+                                                                                    obj
+                                                                                );
+                                                                                setOpenObj(
+                                                                                    (
+                                                                                        prev
+                                                                                    ) => ({
+                                                                                        ...prev,
+                                                                                        [`menu_${kr.kr_id}`]: false,
+                                                                                    })
+                                                                                );
+                                                                            }}
+                                                                            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                                                                        >
+                                                                            <svg
+                                                                                className="h-4 w-4"
+                                                                                fill="none"
+                                                                                viewBox="0 0 24 24"
+                                                                                stroke="currentColor"
+                                                                            >
+                                                                                <path
+                                                                                    strokeLinecap="round"
+                                                                                    strokeLinejoin="round"
+                                                                                    strokeWidth={
+                                                                                        2
+                                                                                    }
+                                                                                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                                                                                />
+                                                                            </svg>
+                                                                            Giao
+                                                                            việc
+                                                                        </button>
                                                                         {/* Check-in */}
                                                                         {openCheckInModal &&
                                                                             canCheckInKR(
@@ -1498,6 +1599,20 @@ export default function ObjectiveList({
 
             {/* === TOAST === */}
             <ToastNotification toast={toast} />
+
+            {/* === MODAL GIAO VIỆC === */}
+            <AssignKeyResultModal
+                show={assignModal.show}
+                kr={assignModal.kr}
+                objective={assignModal.objective}
+                email={assignModal.email}
+                setEmail={(email) =>
+                    setAssignModal((prev) => ({ ...prev, email }))
+                }
+                loading={assignModal.loading}
+                onConfirm={handleAssignKR}
+                onClose={closeAssignModal}
+            />
         </div>
     );
 }
