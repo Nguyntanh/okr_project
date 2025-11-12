@@ -781,66 +781,6 @@ export default function ObjectiveList({
                                                 </td>
                                                 <td className="px-3 py-3 text-center">
                                                     <div className="flex items-center justify-center gap-1">
-                                                        {openCheckInModal &&
-                                                            canCheckInKR(
-                                                                kr,
-                                                                obj
-                                                            ) && (
-                                                                <button
-                                                                    onClick={() =>
-                                                                        handleOpenCheckIn(
-                                                                            kr,
-                                                                            obj
-                                                                        )
-                                                                    }
-                                                                    className="p-1 text-slate-600 hover:bg-slate-100 rounded"
-                                                                    title="Check-in Key Result"
-                                                                >
-                                                                    <svg
-                                                                        className="h-4 w-4"
-                                                                        fill="none"
-                                                                        viewBox="0 0 24 24"
-                                                                        stroke="currentColor"
-                                                                    >
-                                                                        <path
-                                                                            strokeLinecap="round"
-                                                                            strokeLinejoin="round"
-                                                                            strokeWidth={
-                                                                                2
-                                                                            }
-                                                                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                                                                        />
-                                                                    </svg>
-                                                                </button>
-                                                            )}
-                                                        {openCheckInHistory && (
-                                                            <button
-                                                                onClick={() =>
-                                                                    handleOpenCheckInHistory(
-                                                                        kr,
-                                                                        obj
-                                                                    )
-                                                                }
-                                                                className="p-1 text-slate-600 hover:bg-slate-100 rounded"
-                                                                title="Lịch sử Check-in"
-                                                            >
-                                                                <svg
-                                                                    className="h-4 w-4"
-                                                                    fill="none"
-                                                                    viewBox="0 0 24 24"
-                                                                    stroke="currentColor"
-                                                                >
-                                                                    <path
-                                                                        strokeLinecap="round"
-                                                                        strokeLinejoin="round"
-                                                                        strokeWidth={
-                                                                            2
-                                                                        }
-                                                                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                                                                    />
-                                                                </svg>
-                                                            </button>
-                                                        )}
                                                         <button
                                                             onClick={() =>
                                                                 setEditingKR(kr)
@@ -864,6 +804,150 @@ export default function ObjectiveList({
                                                                 />
                                                             </svg>
                                                         </button>
+                                                        {/* Menu 3 chấm dọc – ĐÃ SỬA Z-INDEX */}
+                                                        {(openCheckInModal &&
+                                                            canCheckInKR(
+                                                                kr,
+                                                                obj
+                                                            )) ||
+                                                        openCheckInHistory ? (
+                                                            <div className="relative z-[100]">
+                                                                {" "}
+                                                                {/* z-10 thay vì z-1 */}
+                                                                <button
+                                                                    onClick={(
+                                                                        e
+                                                                    ) => {
+                                                                        e.stopPropagation();
+                                                                        setOpenObj(
+                                                                            (
+                                                                                prev
+                                                                            ) => ({
+                                                                                ...prev,
+                                                                                [`menu_${kr.kr_id}`]:
+                                                                                    !prev[
+                                                                                        `menu_${kr.kr_id}`
+                                                                                    ],
+                                                                            })
+                                                                        );
+                                                                    }}
+                                                                    className="p-1 text-slate-600 hover:bg-slate-100 rounded transition-colors"
+                                                                    title="Tùy chọn Check-in"
+                                                                >
+                                                                    <svg
+                                                                        className="h-4 w-4"
+                                                                        fill="none"
+                                                                        viewBox="0 0 24 24"
+                                                                        stroke="currentColor"
+                                                                    >
+                                                                        <path
+                                                                            strokeLinecap="round"
+                                                                            strokeLinejoin="round"
+                                                                            strokeWidth={
+                                                                                2
+                                                                            }
+                                                                            d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
+                                                                        />
+                                                                    </svg>
+                                                                </button>
+                                                                {/* Dropdown Menu – z-index cao hơn */}
+                                                                {openObj[
+                                                                    `menu_${kr.kr_id}`
+                                                                ] && (
+                                                                    <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-50 py-1">
+                                                                        {/* Check-in */}
+                                                                        {openCheckInModal &&
+                                                                            canCheckInKR(
+                                                                                kr,
+                                                                                obj
+                                                                            ) && (
+                                                                                <button
+                                                                                    onClick={(
+                                                                                        e
+                                                                                    ) => {
+                                                                                        e.stopPropagation();
+                                                                                        handleOpenCheckIn(
+                                                                                            kr,
+                                                                                            obj
+                                                                                        );
+                                                                                        setOpenObj(
+                                                                                            (
+                                                                                                prev
+                                                                                            ) => ({
+                                                                                                ...prev,
+                                                                                                [`menu_${kr.kr_id}`]: false,
+                                                                                            })
+                                                                                        );
+                                                                                    }}
+                                                                                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                                                                                >
+                                                                                    <svg
+                                                                                        className="h-4 w-4"
+                                                                                        fill="none"
+                                                                                        viewBox="0 0 24 24"
+                                                                                        stroke="currentColor"
+                                                                                    >
+                                                                                        <path
+                                                                                            strokeLinecap="round"
+                                                                                            strokeLinejoin="round"
+                                                                                            strokeWidth={
+                                                                                                2
+                                                                                            }
+                                                                                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                                                                        />
+                                                                                    </svg>
+                                                                                    Check-in
+                                                                                    Key
+                                                                                    Result
+                                                                                </button>
+                                                                            )}
+
+                                                                        {/* Lịch sử */}
+                                                                        {openCheckInHistory && (
+                                                                            <button
+                                                                                onClick={(
+                                                                                    e
+                                                                                ) => {
+                                                                                    e.stopPropagation();
+                                                                                    handleOpenCheckInHistory(
+                                                                                        kr,
+                                                                                        obj
+                                                                                    );
+                                                                                    setOpenObj(
+                                                                                        (
+                                                                                            prev
+                                                                                        ) => ({
+                                                                                            ...prev,
+                                                                                            [`menu_${kr.kr_id}`]: false,
+                                                                                        })
+                                                                                    );
+                                                                                }}
+                                                                                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                                                                            >
+                                                                                <svg
+                                                                                    className="h-4 w-4"
+                                                                                    fill="none"
+                                                                                    viewBox="0 0 24 24"
+                                                                                    stroke="currentColor"
+                                                                                >
+                                                                                    <path
+                                                                                        strokeLinecap="round"
+                                                                                        strokeLinejoin="round"
+                                                                                        strokeWidth={
+                                                                                            2
+                                                                                        }
+                                                                                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                                                                                    />
+                                                                                </svg>
+                                                                                Lịch
+                                                                                sử
+                                                                                Check-in
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ) : null}
                                                         <button
                                                             onClick={() =>
                                                                 handleArchiveKR(
