@@ -220,9 +220,11 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
             ->name('my-key-results.archive');
         Route::post('/{objectiveId}/{keyResultId}/unarchive', [MyKeyResultController::class, 'unarchive'])
             ->name('my-key-results.unarchive');
+            Route::post('/{objectiveId}/{keyResultId}/assign', [MyKeyResultController::class, 'assign'])
+            ->name('my-key-results.unarchive');
         Route::delete('/{id}', [MyKeyResultController::class, 'destroy'])  
             ->middleware('auth')
-            ->name('my-key-result.destroy');
+            ->name('my-key-result.assign');
     });
 
     // Check-in Routes

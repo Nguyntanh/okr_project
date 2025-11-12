@@ -104,6 +104,7 @@ class MyKeyResultController extends Controller
                     'department_id' => $objective->department_id ?? null,
                     'user_id' => $user->user_id,
                     'archived_at' => null,
+                    'assigned_to' => $request->input('assigned_to') ?? $user->user_id,
                 ])->load('objective', 'cycle');
             });
 
@@ -129,6 +130,15 @@ class MyKeyResultController extends Controller
         $keyResult = KeyResult::where('objective_id', $objectiveId)
             ->where('kr_id', $keyResultId)
             ->firstOrFail();
+
+        $canEdit = 
+            $objective->user_id === $user->user_id || 
+            $keyResult->assigned_to === $user->user_id || 
+            $user->isAdmin();
+
+        if (!$canEdit) {
+            return response()->json(['success' => false, 'message' => 'Không có quyền.'], 403);
+        }
 
         if ($keyResult->isArchived()) {
             return response()->json(['success' => false, 'message' => 'Không thể chỉnh sửa Key Result đã lưu trữ.'], 403);
@@ -325,5 +335,49 @@ class MyKeyResultController extends Controller
         }
 
         return redirect()->back()->withErrors(['error' => $message])->withInput();
+    }
+
+    /**
+     * Giao Key Result cho người dùng thực hiện
+     */
+    public function assign(Request $request, string $keyResultId): JsonResponse
+    {
+        $user = Auth::user();
+        $keyResult = KeyResult::findOrFail($keyResultId);
+        $objective = $keyResult->objective;
+
+        // Chỉ owner OKR hoặc admin mới được giao
+        if ($objective->user_id !== $user->user_id && !$user->isAdmin()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bạn không có quyền giao Key Result này.'
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'email' => 'required|email|exists:users,email'
+        ]);
+
+        $assignee = User::where('email', $validated['email'])->first();
+
+        // (Tùy chọn) Kiểm tra cùng phòng ban
+        if ($objective->level === 'unit' && $assignee->department_id !== $objective->department_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Chỉ được giao cho người trong cùng phòng ban.'
+            ], 422);
+        }
+
+        $keyResult->assigned_to = $assignee->user_id;
+        $keyResult->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => "Đã giao KR cho {$assignee->name}",
+            'data' => [
+                'kr_id' => $keyResult->kr_id,
+                'assigned_to' => $assignee->only(['user_id', 'name', 'email', 'avatar'])
+            ]
+        ]);
     }
 }
