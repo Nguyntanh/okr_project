@@ -521,9 +521,9 @@ export default function ObjectiveList({
                             <th className="px-3 py-2 text-left w-[30%] border-r border-slate-200">
                                 Tiêu đề
                             </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[12%]">
+                            {/* <th className="px-3 py-2 text-center border-r border-slate-200 w-[12%]">
                                 Phòng ban
-                            </th>
+                            </th> */}
                             <th className="px-3 py-2 text-center border-r border-slate-200 w-[12%]">
                                 Trạng thái
                             </th>
@@ -580,7 +580,7 @@ export default function ObjectiveList({
                                         }`}
                                     >
                                         <td
-                                            colSpan={7}
+                                            colSpan={6}
                                             className="px-3 py-3 border-r border-slate-200"
                                         >
                                             <div className="flex items-center justify-between w-full">
@@ -732,7 +732,7 @@ export default function ObjectiveList({
                                                         {kr.kr_title}
                                                     </span>
                                                 </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                                {/* <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     {departments.find(
                                                         (d) =>
                                                             String(
@@ -742,7 +742,7 @@ export default function ObjectiveList({
                                                                 obj.department_id
                                                             )
                                                     )?.d_name || "-"}
-                                                </td>
+                                                </td> */}
                                                 <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     <span
                                                         className={`inline-flex items-center rounded-md px-2 py-1 text-[11px] font-semibold ${
@@ -774,7 +774,7 @@ export default function ObjectiveList({
                                                 <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     {kr.target_value ?? ""}
                                                 </td>
-                                                <td className="px-3 py-3 text-center">
+                                                <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     {formatPercent(
                                                         kr.progress_percent
                                                     )}
