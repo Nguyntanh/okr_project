@@ -78,6 +78,7 @@ class MyKeyResultController extends Controller
             'status' => 'required|in:draft,active,completed',
             'weight' => 'nullable|numeric|min:0|max:100',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
+            'assigned_to' => 'nullable|exists:users,user_id',
         ], [
             'kr_title.required' => 'Tiêu đề Key Result là bắt buộc.',
             'unit.required' => 'Đơn vị là bắt buộc.',
@@ -86,11 +87,36 @@ class MyKeyResultController extends Controller
         ]);
 
         try {
-            $created = DB::transaction(function () use ($validated, $objective, $user) {
+            $created = DB::transaction(function () use ($validated, $objective, $user, $request) {
                 $target = (float) $validated['target_value'];
                 $current = (float) ($validated['current_value'] ?? 0);
                 $progress = $target > 0 ? max(0, min(100, ($current / $target) * 100)) : 0;
 
+                // === XỬ LÝ assigned_to ===
+                $assignedTo = $validated['assigned_to'] ?? null;
+                $finalAssignedTo = null;
+
+                if ($assignedTo !== null) {
+                    // Giao ngay cho người khác
+                    if (!$this->canAssign($user, $objective)) {
+                        throw new \Exception('Bạn không có quyền giao Key Result.', 403);
+                    }
+                    $assignee = User::findOrFail($assignedTo);
+                    if ($objective->level === 'unit' && $assignee->department_id !== $objective->department_id) {
+                        throw new \Exception('Chỉ được giao cho người trong cùng phòng ban.', 422);
+                    }
+                    $finalAssignedTo = $assignee->user_id;
+                } else {
+                    // Không gửi assigned_to
+                    $finalAssignedTo = $validated['status'] === 'active' ? $user->user_id : null;
+                }
+
+                // KR active phải có người thực hiện
+                if ($validated['status'] === 'active' && is_null($finalAssignedTo)) {
+                    throw new \Exception('Key Result đang active phải có người thực hiện.', 422);
+                }
+
+                // === TẠO KEY RESULT ===
                 return KeyResult::create([
                     'kr_id' => (string) \Str::uuid(),
                     'kr_title' => $validated['kr_title'],
@@ -105,19 +131,24 @@ class MyKeyResultController extends Controller
                     'department_id' => $objective->department_id ?? null,
                     'user_id' => $user->user_id,
                     'archived_at' => null,
-                    'assigned_to' => $request->input('assigned_to') ?? $user->user_id,
+                    'assigned_to' => $finalAssignedTo,
                 ])->load('objective', 'cycle');
             });
 
             return $this->successResponse($request, 'Key Result được tạo thành công!', $created);
+
         } catch (\Exception $e) {
+            $status = in_array($e->getCode(), [400, 403, 422, 500]) ? $e->getCode() : 500;
+            $message = $e->getMessage() ?: 'Tạo Key Result thất bại.';
+
             Log::error('Tạo Key Result thất bại', [
                 'objective_id' => $objectiveId,
                 'user_id' => $user->user_id,
                 'error' => $e->getMessage(),
+                'code' => $status
             ]);
 
-            return $this->errorResponse($request, 'Tạo Key Result thất bại.', 500);
+            return $this->errorResponse($request, $message, $status);
         }
     }
 
@@ -132,10 +163,9 @@ class MyKeyResultController extends Controller
             ->where('kr_id', $keyResultId)
             ->firstOrFail();
 
-        $canEdit = 
-            $objective->user_id === $user->user_id || 
-            $keyResult->assigned_to === $user->user_id || 
-            $user->isAdmin();
+        $canEdit = $objective->user_id === $user->user_id || 
+                $keyResult->assigned_to === $user->user_id || 
+                $user->isAdmin();
 
         if (!$canEdit) {
             return response()->json(['success' => false, 'message' => 'Không có quyền.'], 403);
@@ -145,10 +175,8 @@ class MyKeyResultController extends Controller
             return response()->json(['success' => false, 'message' => 'Không thể chỉnh sửa Key Result đã lưu trữ.'], 403);
         }
 
-        if (
-            ($objective->cycle && strtolower($objective->cycle->status) !== 'active') ||
-            ($keyResult->cycle && strtolower($keyResult->cycle->status) !== 'active')
-        ) {
+        if (($objective->cycle && strtolower($objective->cycle->status) !== 'active') ||
+            ($keyResult->cycle && strtolower($keyResult->cycle->status) !== 'active')) {
             return response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng. Không thể chỉnh sửa Key Result.'], 403);
         }
 
@@ -175,6 +203,7 @@ class MyKeyResultController extends Controller
             'status' => 'required|in:draft,active,completed',
             'weight' => 'nullable|numeric|min:0|max:100',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
+            'assigned_to' => 'nullable|exists:users,user_id',
         ], [
             'kr_title.required' => 'Tiêu đề Key Result là bắt buộc.',
             'unit.required' => 'Đơn vị là bắt buộc.',
@@ -182,11 +211,29 @@ class MyKeyResultController extends Controller
         ]);
 
         try {
-            $updated = DB::transaction(function () use ($validated, $keyResult) {
+            $updated = DB::transaction(function () use ($validated, $keyResult, $user, $objective) {
                 $target = (float) $validated['target_value'];
                 $current = (float) ($validated['current_value'] ?? 0);
                 $progress = $target > 0 ? max(0, min(100, ($current / $target) * 100)) : 0;
 
+                // === XỬ LÝ assigned_to ===
+                $assignedToInput = $validated['assigned_to'] ?? null;
+
+                if ($assignedToInput !== null && $assignedToInput !== $keyResult->assigned_to) {
+                    if (!$this->canAssign($user, $objective)) {
+                        throw new \Exception('Bạn không có quyền thay đổi người thực hiện.', 403);
+                    }
+
+                    $assignee = User::findOrFail($assignedToInput);
+                    if ($objective->level === 'unit' && $assignee->department_id !== $objective->department_id) {
+                        throw new \Exception('Chỉ được giao cho người trong cùng phòng ban.', 422);
+                    }
+
+                    $keyResult->assigned_to = $assignee->user_id;
+                }
+                // Không thay đổi nếu không gửi hoặc gửi giống cũ
+
+                // === CẬP NHẬT CÁC TRƯỜNG KHÁC ===
                 $keyResult->update([
                     'kr_title' => $validated['kr_title'],
                     'target_value' => $target,
@@ -195,6 +242,7 @@ class MyKeyResultController extends Controller
                     'status' => $validated['status'],
                     'weight' => $validated['weight'] ?? $keyResult->weight,
                     'progress_percent' => $validated['progress_percent'] ?? $progress,
+                    'assigned_to' => $keyResult->assigned_to,
                 ]);
 
                 return $keyResult->load('objective', 'cycle');
@@ -205,14 +253,19 @@ class MyKeyResultController extends Controller
                 'message' => 'Key Result được cập nhật thành công!',
                 'data' => $updated
             ]);
+
         } catch (\Exception $e) {
+            $status = in_array($e->getCode(), [400, 403, 422, 500]) ? $e->getCode() : 500;
+            $message = $e->getMessage() ?: 'Cập nhật thất bại.';
+
             Log::error('Cập nhật Key Result thất bại', [
                 'kr_id' => $keyResultId,
                 'user_id' => $user->user_id,
                 'error' => $e->getMessage(),
+                'code' => $status
             ]);
 
-            return response()->json(['success' => false, 'message' => 'Cập nhật thất bại.'], 500);
+            return response()->json(['success' => false, 'message' => $message], $status);
         }
     }
 
@@ -357,6 +410,14 @@ class MyKeyResultController extends Controller
                 'assigned_to' => $assignee->only(['user_id', 'name', 'email', 'avatar'])
             ]
         ]);
+    }
+
+    private function canAssign(User $user, Objective $objective): bool
+    {
+        if ($objective->cycle && strtolower($objective->cycle->status) !== 'active') {
+            return false;
+        }
+        return $objective->user_id === $user->user_id || $user->isAdmin();
     }
 
     // === HÀM HỖ TRỢ ===
