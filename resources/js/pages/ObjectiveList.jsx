@@ -27,7 +27,6 @@ export default function ObjectiveList({
     const [archivedCount, setArchivedCount] = useState(0);
     const [loadingArchived, setLoadingArchived] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
-    const [currentCycleId, setCurrentCycleId] = useState(null);
     const [archivingKR, setArchivingKR] = useState(null);
     const [unarchivingKR, setUnarchivingKR] = useState(null);
     const [deletingKR, setDeletingKR] = useState(null);
@@ -45,6 +44,7 @@ export default function ObjectiveList({
         if (!openCheckInHistory) return;
         openCheckInHistory({ ...kr, objective_id: objective.objective_id });
     };
+
     const [archiving, setArchiving] = useState(null);
     const [unarchiving, setUnarchiving] = useState(null);
     const [deleting, setDeleting] = useState(null);
@@ -125,38 +125,59 @@ export default function ObjectiveList({
         }
     }, [showArchived, cycleFilter]);
 
-    // === TỰ ĐỘNG CHỌN QUÝ HIỆN TẠI ===
+    // === HELPER: Tìm quý hiện tại ===
+    const getCurrentCycle = (cyclesList) => {
+        const now = new Date();
+        const currentQuarter = Math.ceil((now.getMonth() + 1) / 3);
+        const currentYear = now.getFullYear();
+
+        return cyclesList.find((cycle) => {
+            const match = cycle.cycle_name.match(/Quý (\d+) năm (\d+)/);
+            if (!match) return false;
+            const quarter = parseInt(match[1]);
+            const year = parseInt(match[2]);
+            return quarter === currentQuarter && year === currentYear;
+        });
+    };
+
+    // === 1. FRESH TRẠNG THÁI: XÓA cycle_id KHI VÀO TRANG ===
     useEffect(() => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlCycleId = urlParams.get("cycle_id");
-
-        if (urlCycleId && !cycleFilter) {
-            setCycleFilter(urlCycleId);
-            return;
+        const url = new URL(window.location);
+        if (url.searchParams.has("cycle_id")) {
+            url.searchParams.delete("cycle_id");
+            window.history.replaceState({}, "", url);
         }
+        setCycleFilter(null); // Reset filter
+    }, []);
 
+    // === 2. TỰ ĐỘNG CHỌN QUÝ HIỆN TẠI SAU KHI FRESH ===
+    useEffect(() => {
         if (cycleFilter) return;
 
-        if (currentCycleId) {
-            setCycleFilter(currentCycleId);
+        const currentCycle = getCurrentCycle(cyclesList);
+        if (currentCycle) {
+            setCycleFilter(currentCycle.cycle_id);
             return;
         }
 
-        if (items.length > 0) {
-            const firstItemCycleId = items[0]?.cycle_id;
-            if (firstItemCycleId) setCycleFilter(firstItemCycleId);
+        if (items.length > 0 && items[0]?.cycle_id) {
+            setCycleFilter(items[0].cycle_id);
         }
-    }, [items, cycleFilter, currentCycleId]);
+    }, [cycleFilter, cyclesList, items]);
 
-    // === RELOAD CẢ 2 TAB TỪ SERVER (dùng chung) ===
+    // === 3. CHỌN QUÝ: KHÔNG CẬP NHẬT URL ===
+    const handleCycleChange = (newCycleId) => {
+        setCycleFilter(newCycleId);
+    };
+
+    // === RELOAD CẢ 2 TAB TỪ SERVER ===
     const reloadBothTabs = useCallback(
         async (token) => {
             const baseParams = new URLSearchParams();
             if (cycleFilter) baseParams.append("cycle_id", cycleFilter);
 
-            // 1. Tab Hoạt động: chỉ KR chưa lưu trữ
-            const activeParams = new URLSearchParams(baseParams);
-            const activeRes = await fetch(`/my-objectives?${activeParams}`, {
+            // Tab Hoạt động
+            const activeRes = await fetch(`/my-objectives?${baseParams}`, {
                 headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
             });
             const activeJson = await activeRes.json();
@@ -164,7 +185,7 @@ export default function ObjectiveList({
                 setItems(activeJson.data.data || []);
             }
 
-            // 2. Tab Lưu trữ: tất cả KR (nếu đang mở)
+            // Tab Lưu trữ
             if (showArchived) {
                 const archivedParams = new URLSearchParams({
                     archived: "1",
@@ -407,7 +428,6 @@ export default function ObjectiveList({
                     const token = document
                         .querySelector('meta[name="csrf-token"]')
                         ?.getAttribute("content");
-                    // SỬA URL ĐÚNG TẠI ĐÂY
                     const res = await fetch(
                         `/my-key-results/destroy/${obj.objective_id}/${krId}`,
                         {
@@ -467,21 +487,6 @@ export default function ObjectiveList({
             default:
                 return unit || "";
         }
-    };
-
-    const calculateObjectiveProgress = (keyResults) => {
-        if (!keyResults || keyResults.length === 0) return 0;
-        const validKRs = keyResults.filter(
-            (kr) => kr.target_value && Number(kr.target_value) > 0
-        );
-        if (validKRs.length === 0) return 0;
-        const totalProgress = validKRs.reduce((sum, kr) => {
-            const current = Number(kr.current_value) || 0;
-            const target = Number(kr.target_value) || 0;
-            const progress = target > 0 ? (current / target) * 100 : 0;
-            return sum + Math.min(progress, 100);
-        }, 0);
-        return totalProgress / validKRs.length;
     };
 
     return (
@@ -560,7 +565,7 @@ export default function ObjectiveList({
                                                     String(cycle.cycle_id)
                                                 }
                                                 onChange={(e) => {
-                                                    setCycleFilter(
+                                                    handleCycleChange(
                                                         e.target.value
                                                     );
                                                     setDropdownOpen(false);
@@ -654,7 +659,7 @@ export default function ObjectiveList({
                         {!showArchived && loading && (
                             <tr>
                                 <td
-                                    colSpan={7}
+                                    colSpan={8}
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
                                     Đang tải...
@@ -666,7 +671,7 @@ export default function ObjectiveList({
                         {!showArchived && !loading && items.length === 0 && (
                             <tr>
                                 <td
-                                    colSpan={7}
+                                    colSpan={8}
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
                                     Bạn chưa tạo OKR nào.
@@ -684,7 +689,10 @@ export default function ObjectiveList({
                                             index > 0 ? "mt-4" : ""
                                         }`}
                                     >
-                                        <td colSpan={7} className="px-3 py-3 border-r border-slate-200">
+                                        <td
+                                            colSpan={7}
+                                            className="px-3 py-3 border-r border-slate-200"
+                                        >
                                             <div className="flex items-center justify-between w-full">
                                                 <div className="flex items-center gap-1">
                                                     {obj.key_results &&
@@ -884,7 +892,10 @@ export default function ObjectiveList({
                                                 <td className="px-3 py-3 text-center">
                                                     <div className="flex items-center justify-center gap-1">
                                                         {openCheckInModal &&
-                                                            canCheckInKR(kr, obj) && (
+                                                            canCheckInKR(
+                                                                kr,
+                                                                obj
+                                                            ) && (
                                                                 <button
                                                                     onClick={() =>
                                                                         handleOpenCheckIn(
@@ -904,7 +915,9 @@ export default function ObjectiveList({
                                                                         <path
                                                                             strokeLinecap="round"
                                                                             strokeLinejoin="round"
-                                                                            strokeWidth={2}
+                                                                            strokeWidth={
+                                                                                2
+                                                                            }
                                                                             d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                                                                         />
                                                                     </svg>
@@ -930,7 +943,9 @@ export default function ObjectiveList({
                                                                     <path
                                                                         strokeLinecap="round"
                                                                         strokeLinejoin="round"
-                                                                        strokeWidth={2}
+                                                                        strokeWidth={
+                                                                            2
+                                                                        }
                                                                         d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                                                                     />
                                                                 </svg>
@@ -952,7 +967,9 @@ export default function ObjectiveList({
                                                                 <path
                                                                     strokeLinecap="round"
                                                                     strokeLinejoin="round"
-                                                                    strokeWidth={2}
+                                                                    strokeWidth={
+                                                                        2
+                                                                    }
                                                                     d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
                                                                 />
                                                             </svg>
@@ -979,7 +996,9 @@ export default function ObjectiveList({
                                                                 <path
                                                                     strokeLinecap="round"
                                                                     strokeLinejoin="round"
-                                                                    strokeWidth={2}
+                                                                    strokeWidth={
+                                                                        2
+                                                                    }
                                                                     d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
                                                                 />
                                                             </svg>
@@ -995,7 +1014,7 @@ export default function ObjectiveList({
                         {showArchived && loadingArchived && (
                             <tr>
                                 <td
-                                    colSpan={7}
+                                    colSpan={8}
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
                                     Đang tải...
@@ -1008,7 +1027,7 @@ export default function ObjectiveList({
                             archivedItems.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={7}
+                                        colSpan={8}
                                         className="px-3 py-5 text-center text-slate-500"
                                     >
                                         Không có OKR nào Lưu trữ.
@@ -1028,7 +1047,10 @@ export default function ObjectiveList({
                                                     index > 0 ? "mt-4" : ""
                                                 }`}
                                             >
-                                                <td colSpan={7} className="px-3 py-3 border-r border-slate-200">
+                                                <td
+                                                    colSpan={7}
+                                                    className="px-3 py-3 border-r border-slate-200"
+                                                >
                                                     <div className="flex items-center">
                                                         <div className="flex items-center gap-1">
                                                             {obj.key_results?.some(
@@ -1279,7 +1301,7 @@ export default function ObjectiveList({
                                         </React.Fragment>
                                     ))}
 
-                                {/* Case 2: Chỉ có KR lưu trữ (Objective KHÔNG lưu trữ) */}
+                                {/* Case 2: Chỉ có KR lưu trữ */}
                                 {archivedItems
                                     .filter(
                                         (obj) =>
@@ -1305,7 +1327,10 @@ export default function ObjectiveList({
                                                         index > 0 ? "mt-4" : ""
                                                     }`}
                                                 >
-                                                    <td colSpan={7} className="px-3 py-3 border-r border-slate-200">
+                                                    <td
+                                                        colSpan={7}
+                                                        className="px-3 py-3 border-r border-slate-200"
+                                                    >
                                                         <div className="flex items-center justify-between w-full">
                                                             <div className="flex items-center gap-1">
                                                                 {hasArchivedKRs && (
@@ -1361,9 +1386,7 @@ export default function ObjectiveList({
                                                             </div>
                                                         </div>
                                                     </td>
-                                                    <td
-                                                        className="text-center text-slate-400 py-3 bg-gradient-to-r from-yellow-50 to-orange-50"
-                                                    >
+                                                    <td className="text-center text-slate-400 py-3 bg-gradient-to-r from-yellow-50 to-orange-50">
                                                         Objective đang hoạt động
                                                         – {archivedKRs.length}{" "}
                                                         Key Result đã lưu trữ
@@ -1503,7 +1526,7 @@ export default function ObjectiveList({
                 </table>
             </div>
 
-            {/* === MODAL XÁC NHẬN – ĐẶT CUỐI RETURN === */}
+            {/* === MODAL XÁC NHẬN === */}
             {confirmModal.show && (
                 <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50">
                     <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 border border-slate-200 animate-in fade-in zoom-in duration-200">
@@ -1533,6 +1556,8 @@ export default function ObjectiveList({
                     </div>
                 </div>
             )}
+
+            {/* === TOAST === */}
             {toast && (
                 <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-5 duration-300">
                     <div
