@@ -322,7 +322,7 @@ export default function KeyResultModal({
                     </div>
 
                     <div className="flex justify-end gap-2 pt-2">
-                        {editingKR && (
+                        {/* {editingKR && (
                             <button
                                 type="button"
                                 onClick={handleDelete}
@@ -330,7 +330,7 @@ export default function KeyResultModal({
                             >
                                 Xóa
                             </button>
-                        )}
+                        )} */}
                         <div className="flex gap-2">
                             <button
                                 type="button"
