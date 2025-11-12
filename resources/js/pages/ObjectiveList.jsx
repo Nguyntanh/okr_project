@@ -794,7 +794,39 @@ export default function ObjectiveList({
                                                         {kr.kr_title}
                                                     </span>
                                                 </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200"></td>
+                                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                                    {kr.assign_to ? (
+                                                        <div className="flex items-center justify-center gap-1">
+                                                            <svg
+                                                                className="w-4 h-4 text-slate-500"
+                                                                fill="none"
+                                                                viewBox="0 0 24 24"
+                                                                stroke="currentColor"
+                                                            >
+                                                                <path
+                                                                    strokeLinecap="round"
+                                                                    strokeLinejoin="round"
+                                                                    strokeWidth={
+                                                                        2
+                                                                    }
+                                                                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                                                                />
+                                                            </svg>
+                                                            <span className="text-sm text-slate-700">
+                                                                {/* Ưu tiên tên, nếu không có thì email */}
+                                                                {kr.assignedUser
+                                                                    .name ||
+                                                                    kr
+                                                                        .assignedUser
+                                                                        .email}
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-slate-400 text-xs">
+                                                            Chưa giao
+                                                        </span>
+                                                    )}
+                                                </td>
                                                 <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     <span
                                                         className={`inline-flex items-center rounded-md px-2 py-1 text-[11px] font-semibold ${

@@ -178,4 +178,9 @@ class KeyResult extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+
+    public function assignedUser()
+    {
+        return $this->belongsTo(User::class, 'assigned_to', 'user_id');
+    }
 }

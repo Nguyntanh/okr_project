@@ -21,7 +21,7 @@ class MyKeyResultController extends Controller
     {
         $user = Auth::user();
 
-        $keyResults = KeyResult::with(['objective', 'cycle'])
+        $keyResults = KeyResult::with(['objective', 'cycle', 'assignedUser'])
             ->active() 
             ->where(function ($query) use ($user) {
                 $query->whereHas('objective', function ($q) use ($user) {
@@ -132,7 +132,7 @@ class MyKeyResultController extends Controller
                     'user_id' => $user->user_id,
                     'archived_at' => null,
                     'assigned_to' => $finalAssignedTo,
-                ])->load('objective', 'cycle');
+                ])->load('objective', 'cycle', 'assignedUser');
             });
 
             return $this->successResponse($request, 'Key Result được tạo thành công!', $created);
@@ -245,7 +245,7 @@ class MyKeyResultController extends Controller
                     'assigned_to' => $keyResult->assigned_to,
                 ]);
 
-                return $keyResult->load('objective', 'cycle');
+                return $keyResult->load('objective', 'cycle', 'assignedUser');
             });
 
             return response()->json([

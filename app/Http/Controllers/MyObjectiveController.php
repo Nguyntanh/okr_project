@@ -93,6 +93,7 @@ class MyObjectiveController extends Controller
         }
 
         $query = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role'])
+            ->with('assignedUser')
             ->where('user_id', $user->user_id);
 
         if ($request->has('archived') && $request->archived == '1') {
