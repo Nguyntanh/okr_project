@@ -616,9 +616,6 @@ export default function ObjectiveList({
                                 Phòng ban
                             </th>
                             <th className="px-3 py-2 text-center border-r border-slate-200 w-[12%]">
-                                Chu kỳ
-                            </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[12%]">
                                 Trạng thái
                             </th>
                             <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
@@ -643,7 +640,7 @@ export default function ObjectiveList({
                         {!showArchived && loading && (
                             <tr>
                                 <td
-                                    colSpan={9}
+                                    colSpan={7}
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
                                     Đang tải...
@@ -655,7 +652,7 @@ export default function ObjectiveList({
                         {!showArchived && !loading && items.length === 0 && (
                             <tr>
                                 <td
-                                    colSpan={9}
+                                    colSpan={7}
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
                                     Bạn chưa tạo OKR nào.
@@ -673,7 +670,7 @@ export default function ObjectiveList({
                                             index > 0 ? "mt-4" : ""
                                         }`}
                                     >
-                                        <td className="px-3 py-3 border-r border-slate-200">
+                                        <td colSpan={7} className="px-3 py-3 border-r border-slate-200">
                                             <div className="flex items-center justify-between w-full">
                                                 <div className="flex items-center gap-1">
                                                     {obj.key_results &&
@@ -725,45 +722,7 @@ export default function ObjectiveList({
                                                 </div>
                                             </div>
                                         </td>
-
-                                        <td className="px-3 py-3 text-center border-r border-slate-200"></td>
-                                        <td className="px-3 py-3 text-center border-r border-slate-200">
-                                            {cyclesList.find(
-                                                (c) =>
-                                                    String(c.cycle_id) ===
-                                                    String(obj.cycle_id)
-                                            )?.cycle_name || ""}
-                                        </td>
-                                        <td className="px-3 py-3 text-center border-r border-slate-200">
-                                            <span
-                                                className={`inline-flex items-center rounded-md px-2 py-1 text-[11px] font-semibold ${
-                                                    (
-                                                        obj.status || ""
-                                                    ).toUpperCase() ===
-                                                    "COMPLETED"
-                                                        ? "bg-emerald-100 text-emerald-700"
-                                                        : (
-                                                              obj.status || ""
-                                                          ).toUpperCase() ===
-                                                          "ACTIVE"
-                                                        ? "bg-blue-100 text-blue-700"
-                                                        : "bg-slate-100 text-slate-700"
-                                                }`}
-                                            >
-                                                {getStatusText(obj.status)}
-                                            </span>
-                                        </td>
-                                        <td className="px-3 py-3 text-center border-r border-slate-200"></td>
-                                        <td className="px-3 py-3 text-center border-r border-slate-200"></td>
-                                        <td className="px-3 py-3 text-center border-r border-slate-200"></td>
-                                        <td className="px-3 py-3 text-center border-r border-slate-200">
-                                            {formatPercent(
-                                                calculateObjectiveProgress(
-                                                    obj.key_results
-                                                )
-                                            )}
-                                        </td>
-                                        <td className="px-3 py-3 text-center">
+                                        <td className="px-3 py-3 text-center bg-gradient-to-r from-blue-50 to-indigo-50">
                                             <div className="flex items-center justify-center gap-1">
                                                 <button
                                                     onClick={() =>
@@ -873,15 +832,6 @@ export default function ObjectiveList({
                                                     )?.d_name || "-"}
                                                 </td>
                                                 <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {cyclesList.find(
-                                                        (c) =>
-                                                            String(
-                                                                c.cycle_id
-                                                            ) ===
-                                                            String(kr.cycle_id)
-                                                    )?.cycle_name || ""}
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     <span
                                                         className={`inline-flex items-center rounded-md px-2 py-1 text-[11px] font-semibold ${
                                                             (
@@ -976,7 +926,7 @@ export default function ObjectiveList({
                         {showArchived && loadingArchived && (
                             <tr>
                                 <td
-                                    colSpan={9}
+                                    colSpan={7}
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
                                     Đang tải...
@@ -989,7 +939,7 @@ export default function ObjectiveList({
                             archivedItems.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={9}
+                                        colSpan={7}
                                         className="px-3 py-5 text-center text-slate-500"
                                     >
                                         Không có OKR nào Lưu trữ.
@@ -1009,7 +959,7 @@ export default function ObjectiveList({
                                                     index > 0 ? "mt-4" : ""
                                                 }`}
                                             >
-                                                <td className="px-3 py-3 border-r border-slate-200">
+                                                <td colSpan={7} className="px-3 py-3 border-r border-slate-200">
                                                     <div className="flex items-center">
                                                         <div className="flex items-center gap-1">
                                                             {obj.key_results?.some(
@@ -1063,36 +1013,7 @@ export default function ObjectiveList({
                                                         </div>
                                                     </div>
                                                 </td>
-
-                                                <td className="px-3 py-3 text-center border-r border-slate-200"></td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {cyclesList.find(
-                                                        (c) =>
-                                                            String(
-                                                                c.cycle_id
-                                                            ) ===
-                                                            String(obj.cycle_id)
-                                                    )?.cycle_name || ""}
-                                                </td>
-
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    <span className="inline-flex items-center rounded-md px-2 py-1 text-[11px] font-semibold bg-gray-100 text-gray-700">
-                                                        Lưu trữ
-                                                    </span>
-                                                </td>
-
-                                                <td className="px-3 py-3 text-center border-r border-slate-200"></td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200"></td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200"></td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {formatPercent(
-                                                        calculateObjectiveProgress(
-                                                            obj.key_results
-                                                        )
-                                                    )}
-                                                </td>
-
-                                                <td className="px-3 py-3 text-center">
+                                                <td className="px-3 py-3 text-center bg-gradient-to-r from-blue-50 to-indigo-50">
                                                     <div className="flex items-center justify-center gap-1">
                                                         <button
                                                             onClick={() =>
@@ -1173,7 +1094,7 @@ export default function ObjectiveList({
                                                                 {kr.kr_title}
                                                             </td>
                                                             <td
-                                                                colSpan={7}
+                                                                colSpan={6}
                                                             ></td>
                                                             <td className="text-center py-2">
                                                                 <div className="flex items-center justify-center gap-2">
@@ -1315,7 +1236,7 @@ export default function ObjectiveList({
                                                         index > 0 ? "mt-4" : ""
                                                     }`}
                                                 >
-                                                    <td className="px-3 py-3 border-r border-slate-200">
+                                                    <td colSpan={7} className="px-3 py-3 border-r border-slate-200">
                                                         <div className="flex items-center justify-between w-full">
                                                             <div className="flex items-center gap-1">
                                                                 {hasArchivedKRs && (
@@ -1372,8 +1293,7 @@ export default function ObjectiveList({
                                                         </div>
                                                     </td>
                                                     <td
-                                                        colSpan={8}
-                                                        className="text-center text-slate-400 py-3"
+                                                        className="text-center text-slate-400 py-3 bg-gradient-to-r from-yellow-50 to-orange-50"
                                                     >
                                                         Objective đang hoạt động
                                                         – {archivedKRs.length}{" "}
@@ -1392,7 +1312,7 @@ export default function ObjectiveList({
                                                                 <span className="text-orange-600 text-xs"></span>
                                                             </td>
                                                             <td
-                                                                colSpan={7}
+                                                                colSpan={6}
                                                             ></td>
                                                             <td className="text-center py-2">
                                                                 <div className="flex items-center justify-center gap-2">
