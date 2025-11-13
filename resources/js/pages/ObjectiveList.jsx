@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { canCheckInKeyResult } from "../utils/checkinPermissions";
-import Dropdown from "../components/Dropdown";
+import { CycleDropdown } from "../components/Dropdown";
 import Tabs from "../components/Tabs";
 import ConfirmationModal from "../components/ConfirmationModal";
 import ToastNotification from "../components/ToastNotification";
@@ -611,7 +611,7 @@ export default function ObjectiveList({
         <div className="mx-auto w-full max-w-6xl">
             <div className="mb-4 flex w-full items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <Dropdown
+                    <CycleDropdown
                         cyclesList={cyclesList}
                         cycleFilter={cycleFilter}
                         handleCycleChange={setCycleFilter}
