@@ -1,7 +1,7 @@
 // components/objective-list/ArchivedTabContent.jsx
 import React, { useState, useEffect } from "react";
-import ToastNotification from "../ToastNotification"; // giữ nguyên đường dẫn hiện tại của bạn
-import ConfirmationModal from "../ConfirmationModal"; // giữ nguyên
+import ToastNotification from "../components/ToastNotification"; // giữ nguyên đường dẫn hiện tại của bạn
+import ConfirmationModal from "../components/ConfirmationModal"; // giữ nguyên
 
 export default function ObjectiveArchive({
     archivedItems,

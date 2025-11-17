@@ -337,15 +337,18 @@ export default function ObjectiveList({
             }
 
             // 4. Gửi request
-            const res = await fetch(`/my-key-results/${kr.kr_id}/assign`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRF-TOKEN": token,
-                    Accept: "application/json",
-                },
-                body: JSON.stringify({ email }),
-            });
+            const res = await fetch(
+                `/my-key-results/${objective.objective_id}/${kr.kr_id}/assign`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRF-TOKEN": token,
+                        Accept: "application/json",
+                    },
+                    body: JSON.stringify({ email }),
+                }
+            );
 
             // 5. Parse JSON (có thể lỗi nếu server trả HTML)
             let json;
@@ -363,31 +366,29 @@ export default function ObjectiveList({
             }
 
             if (!json.success) {
-                console.log("Assign KR success:", {
-                    kr_id: kr.kr_id,
-                    email,
-                    assignee: json.assignee,
-                });
                 throw new Error(json.message || "Giao việc thất bại");
             }
 
-            // 7. Cập nhật KR với assignee từ API
-            if (json.assignee) {
-                setKeyResults((prev) =>
-                    prev.map((item) =>
-                        item.kr_id === kr.kr_id
-                            ? { ...item, assignee: json.assignee }
-                            : item
-                    )
+            // Cập nhật giao diện ngay lập tức
+            if (json.data?.assigned_to) {
+                const assignee = json.data.assigned_to;
+
+                setItems((prevItems) =>
+                    prevItems.map((obj) => ({
+                        ...obj,
+                        key_results: obj.key_results.map((kr) =>
+                            kr.kr_id === assignModal.kr.kr_id
+                                ? {
+                                      ...kr,
+                                      assigned_to: assignee.user_id,
+                                      assignee: assignee,
+                                  }
+                                : kr
+                        ),
+                    }))
                 );
             }
 
-            // 8. (Tùy chọn) Reload các tab khác nếu cần đồng bộ realtime
-            if (typeof reloadBothTabs === "function") {
-                await reloadBothTabs(token);
-            }
-
-            // 9. Thành công
             setToast({
                 type: "success",
                 message: json.message || "Giao việc thành công!",
