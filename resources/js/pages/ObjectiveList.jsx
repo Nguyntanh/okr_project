@@ -1173,6 +1173,7 @@ export default function ObjectiveList({
                                 unarchivingKR={unarchivingKR}
                                 deletingKR={deletingKR}
                                 loadingArchived={loadingArchived}
+                                showArchived={showArchived}
                             />
                         ) : null}
                     </tbody>
