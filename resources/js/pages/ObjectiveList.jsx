@@ -259,76 +259,6 @@ export default function ObjectiveList({
         );
     };
 
-    // === BỎ LƯU TRỮ OKR ===
-    const handleUnarchive = async (id) => {
-        openConfirm(
-            "Bỏ lưu trữ OKR",
-            "OKR sẽ được khôi phục vào danh sách hoạt động.",
-            async () => {
-                setUnarchiving(id);
-                try {
-                    const token = document
-                        .querySelector('meta[name="csrf-token"]')
-                        ?.getAttribute("content");
-                    const res = await fetch(`/my-objectives/${id}/unarchive`, {
-                        method: "POST",
-                        headers: {
-                            "X-CSRF-TOKEN": token,
-                            Accept: "application/json",
-                        },
-                    });
-                    const json = await res.json();
-                    if (json.success) {
-                        await reloadBothTabs(token);
-                        setToast({ type: "success", message: json.message });
-                    } else {
-                        throw new Error(json.message);
-                    }
-                } catch (err) {
-                    setToast({ type: "error", message: err.message });
-                } finally {
-                    setUnarchiving(null);
-                }
-            }
-        );
-    };
-
-    // === XÓA VĨNH VIỄN OKR ===
-    const handleDelete = async (id) => {
-        openConfirm(
-            "XÓA VĨNH VIỄN",
-            "OKR sẽ bị xóa hoàn toàn, không thể khôi phục!",
-            async () => {
-                setDeleting(id);
-                try {
-                    const token = document
-                        .querySelector('meta[name="csrf-token"]')
-                        ?.getAttribute("content");
-                    const res = await fetch(`/my-objectives/${id}`, {
-                        method: "DELETE",
-                        headers: {
-                            "X-CSRF-TOKEN": token,
-                            Accept: "application/json",
-                        },
-                    });
-                    const json = await res.json();
-                    if (json.success) {
-                        await reloadBothTabs(token);
-                        setToast({ type: "success", message: json.message });
-                    } else {
-                        throw new Error(json.message);
-                    }
-                } catch (err) {
-                    setToast({ type: "error", message: err.message });
-                } finally {
-                    setDeleting(null);
-                }
-            },
-            "Xóa vĩnh viễn",
-            "Hủy"
-        );
-    };
-
     // === LƯU TRỮ KR ===
     const handleArchiveKR = async (krId) => {
         openConfirm(
@@ -367,106 +297,6 @@ export default function ObjectiveList({
                     setArchivingKR(null);
                 }
             }
-        );
-    };
-
-    // === BỎ LƯU TRỮ KR ===
-    const handleUnarchiveKR = async (krId) => {
-        openConfirm(
-            "Bỏ lưu trữ Key Result",
-            "Key Result sẽ quay lại danh sách hoạt động.",
-            async () => {
-                setUnarchivingKR(krId);
-                const obj = archivedItems.find((o) =>
-                    o.key_results?.some((kr) => kr.kr_id === krId)
-                );
-                if (!obj) {
-                    setToast({
-                        type: "error",
-                        message: "Không tìm thấy OKR cha.",
-                    });
-                    setUnarchivingKR(null);
-                    return;
-                }
-
-                try {
-                    const token = document
-                        .querySelector('meta[name="csrf-token"]')
-                        ?.getAttribute("content");
-                    const res = await fetch(
-                        `/my-key-results/${obj.objective_id}/${krId}/unarchive`,
-                        {
-                            method: "POST",
-                            headers: {
-                                "X-CSRF-TOKEN": token,
-                                Accept: "application/json",
-                            },
-                        }
-                    );
-                    const json = await res.json();
-                    if (!json.success)
-                        throw new Error(json.message || "Bỏ lưu trữ thất bại");
-
-                    await reloadBothTabs(token);
-                    setToast({ type: "success", message: json.message });
-                } catch (err) {
-                    setToast({ type: "error", message: err.message });
-                } finally {
-                    setUnarchivingKR(null);
-                }
-            }
-        );
-    };
-
-    // === XÓA VĨNH VIỄN KR ===
-    const handleDeleteKR = async (krId) => {
-        openConfirm(
-            "XÓA VĨNH VIỄN",
-            "Key Result sẽ bị xóa hoàn toàn, không thể khôi phục!",
-            async () => {
-                setDeletingKR(krId);
-                const obj = archivedItems.find((o) =>
-                    o.key_results?.some((kr) => kr.kr_id === krId)
-                );
-                if (!obj) {
-                    setToast({
-                        type: "error",
-                        message: "Không tìm thấy OKR cha.",
-                    });
-                    setDeletingKR(null);
-                    return;
-                }
-
-                try {
-                    const token = document
-                        .querySelector('meta[name="csrf-token"]')
-                        ?.getAttribute("content");
-                    const res = await fetch(
-                        `/my-key-results/destroy/${obj.objective_id}/${krId}`,
-                        {
-                            method: "DELETE",
-                            headers: {
-                                "X-CSRF-TOKEN": token,
-                                Accept: "application/json",
-                            },
-                        }
-                    );
-                    const json = await res.json();
-
-                    if (json.success) {
-                        await reloadBothTabs(token);
-                        setToast({ type: "success", message: json.message });
-                    } else {
-                        throw new Error(json.message);
-                    }
-                } catch (err) {
-                    setToast({ type: "error", message: err.message });
-                } finally {
-                    setDeletingKR(null);
-                }
-            },
-            "Xóa vĩnh viễn",
-            "Hủy"
         );
     };
 
@@ -1164,16 +994,9 @@ export default function ObjectiveList({
                                 archivedItems={archivedItems}
                                 openObj={openObj}
                                 setOpenObj={setOpenObj}
-                                handleUnarchive={handleUnarchive}
-                                handleDelete={handleDelete}
-                                handleUnarchiveKR={handleUnarchiveKR}
-                                handleDeleteKR={handleDeleteKR}
-                                unarchiving={unarchiving}
-                                deleting={deleting}
-                                unarchivingKR={unarchivingKR}
-                                deletingKR={deletingKR}
                                 loadingArchived={loadingArchived}
                                 showArchived={showArchived}
+                                reloadBothTabs={reloadBothTabs}
                             />
                         ) : null}
                     </tbody>
