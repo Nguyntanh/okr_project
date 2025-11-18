@@ -9,26 +9,28 @@ export function useAuth() {
         const user = window.__USER__ || null;
         console.log("User data:", window.__USER__);
 
-        const roleName = user?.role?.role_name?.toLowerCase() || "";
-        const roleLevel = user?.role?.level?.toLowerCase() || "";
-
         return {
             user,
             isAuthenticated: !!user,
             isAdmin: user?.is_admin === true,
-            isCeo: user?.is_ceo === true,
-            isDeptManager: roleName === "manager" && roleLevel === "unit",
-            isMember: roleName === "member",
+            isDeptManager:
+                user?.role?.role_name?.toLowerCase() === "manager" &&
+                user?.role?.level?.toLowerCase() === "unit",
+            isTeamManager:
+                user?.role?.role_name?.toLowerCase() === "manager" &&
+                user?.role?.level?.toLowerCase() === "team",
+            isMember: user?.role?.role_name?.toLowerCase() === "member",
             // Helper methods
             canManageCycles: user?.is_admin === true,
             canManageUsers:
                 user?.is_admin === true ||
-                (roleName === "manager" && roleLevel === "unit"),
+                (user?.role?.role_name?.toLowerCase() === "manager" &&
+                    user?.role?.level?.toLowerCase() === "unit"),
             canManageRooms: user?.is_admin === true, // Chỉ admin quản lý phòng ban
-            canCreateCompanyOKR:
-                user?.is_admin === true ||
-                user?.is_ceo === true ||
-                roleName === "manager",
+            canManageTeams:
+                user?.role?.role_name?.toLowerCase() === "manager" &&
+                user?.role?.level?.toLowerCase() === "unit", // Chỉ unit manager quản lý đội nhóm
+            canCreateCompanyOKR: user?.is_admin === true,
             canCreatePersonalOKR: true, // Mọi user đều có thể tạo OKR cá nhân
         };
     }, []);

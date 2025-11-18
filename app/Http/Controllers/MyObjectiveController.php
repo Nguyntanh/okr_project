@@ -168,7 +168,7 @@ class MyObjectiveController extends Controller
         $validated = $request->validate([
             'obj_title' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'level' => 'required|in:company,unit,person',
+            'level' => 'required|in:company,unit,team,person',
             'status' => 'required|in:draft,active,completed',
             'cycle_id' => 'required|exists:cycles,cycle_id',
             'department_id' => 'nullable|exists:departments,department_id',
@@ -339,7 +339,7 @@ class MyObjectiveController extends Controller
         $validated = $request->validate([
             'obj_title' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'level' => 'required|in:company,unit,person',
+            'level' => 'required|in:company,unit,team,person',
             'status' => 'required|in:draft,active,completed',
             'cycle_id' => 'required|exists:cycles,cycle_id',
             'department_id' => 'nullable|exists:departments,department_id',

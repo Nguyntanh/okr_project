@@ -28,27 +28,11 @@ class Role extends Model
     }
 
     /**
-     * Chuẩn hóa tên role (lowercase, trim)
-     */
-    protected function normalizedRoleName(): string
-    {
-        return strtolower(trim($this->role_name ?? ''));
-    }
-
-    /**
      * Kiểm tra xem role có phải Admin không
      */
     public function isAdmin()
     {
-        return $this->normalizedRoleName() === 'admin';
-    }
-
-    /**
-     * Kiểm tra role có phải CEO không
-     */
-    public function isCeo()
-    {
-        return $this->normalizedRoleName() === 'ceo';
+        return strtolower($this->role_name) === 'admin';
     }
 
     /**
@@ -56,7 +40,7 @@ class Role extends Model
      */
     public function isDeptManager()
     {
-        return ($this->normalizedRoleName() === 'manager' && strtolower(trim($this->level ?? '')) === 'unit');
+        return (strtolower($this->role_name) === 'manager' && strtolower($this->level) === 'unit');
     }
 
 
@@ -65,7 +49,7 @@ class Role extends Model
      */
     public function isManager()
     {
-        return $this->normalizedRoleName() === 'manager';
+        return strtolower($this->role_name) === 'manager';
     }
     
     /**
@@ -74,7 +58,7 @@ class Role extends Model
      */
     public function isMember()
     {
-        return $this->normalizedRoleName() === 'member';
+        return strtolower($this->role_name) === 'member';
     }
 
     /**
@@ -82,7 +66,7 @@ class Role extends Model
      */
     public function canCreateCompanyOKR()
     {
-        return $this->isAdmin() || $this->isCeo() || $this->isManager();
+        return $this->isAdmin() || $this->isManager();
     }
 
     /**

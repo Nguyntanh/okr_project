@@ -20,16 +20,8 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
     const handleSubmit = async (e) => {
         e.preventDefault();
         
-        const requiresDepartment = formData.level === 'unit';
-
         // Validation frontend - chỉ kiểm tra có điền đầy đủ thông tin
-        if (
-            !formData.email ||
-            !formData.full_name ||
-            !formData.role_name ||
-            !formData.level ||
-            (requiresDepartment && !formData.department_id)
-        ) {
+        if (!formData.email || !formData.full_name || !formData.role_name || !formData.level || !formData.department_id) {
             showToast('error', 'Vui lòng điền đầy đủ tất cả thông tin bắt buộc');
             return;
         }
@@ -67,7 +59,7 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
                                          field === 'full_name' ? 'Họ và tên' :
                                          field === 'role_name' ? 'Vai trò' :
                                          field === 'level' ? 'Cấp độ' :
-                                         field === 'department_id' ? 'Phòng ban' : field;
+                                         field === 'department_id' ? 'Phòng ban/Đội nhóm' : field;
                         return `${fieldName}: ${result.errors[field][0]}`;
                     });
                     errorMessage += errorMessages.join(', ');
@@ -132,17 +124,6 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
             if (field === 'level') {
                 newData.department_id = '';
             }
-            if (field === 'role_name') {
-                if (value === 'ceo') {
-                    newData.level = 'company';
-                    newData.department_id = '';
-                } else if (['manager', 'member'].includes(value)) {
-                    newData.level = newData.level === 'company' ? 'unit' : newData.level || 'unit';
-                }
-            }
-            if (field === 'level' && value === 'company') {
-                newData.department_id = '';
-            }
             
             return newData;
         });
@@ -155,21 +136,11 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
             return departments.filter(d => 
                 d.parent_department_id === null && d.type === "phòng ban"
             );
+        } else if (formData.level === 'team') {
+            // Chỉ hiển thị nhóm (type === "đội nhóm")
+            return departments.filter(d => d.type === "đội nhóm");
         }
-        return [];
-    };
-
-    const getLevelOptions = () => {
-        if (formData.role_name === 'ceo') {
-            return [{ value: 'company', label: 'Công ty' }];
-        }
-        if (['manager', 'member'].includes(formData.role_name)) {
-            return [{ value: 'unit', label: 'Phòng ban' }];
-        }
-        return [
-            { value: 'company', label: 'Công ty' },
-            { value: 'unit', label: 'Phòng ban' },
-        ];
+        return departments;
     };
 
     // Tạo options cho dropdown phòng ban
@@ -178,6 +149,14 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
         
         return filteredDepts.map(d => {
             let label = d.d_name;
+            
+            // Nếu là nhóm, thêm tên phòng ban vào đằng sau
+            if (formData.level === 'team' && d.parent_department_id) {
+                const parentDept = departments.find(pd => pd.department_id === d.parent_department_id);
+                if (parentDept) {
+                    label = `${d.d_name} (${parentDept.d_name})`;
+                }
+            }
             
             return {
                 value: String(d.department_id),
@@ -233,8 +212,7 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
                             placeholder="-- Chọn vai trò --"
                             options={[
                                 { value: 'member', label: 'Thành viên' },
-                                { value: 'manager', label: 'Quản lý' },
-                                { value: 'ceo', label: 'CEO' }
+                                { value: 'manager', label: 'Quản lý' }
                             ]}
                             className="w-full"
                         />
@@ -249,30 +227,27 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
                             value={formData.level}
                             onChange={(value) => handleInputChange('level', value)}
                             placeholder="-- Chọn cấp độ --"
-                            options={getLevelOptions()}
+                            options={[
+                                { value: 'unit', label: 'Đơn vị' },
+                                { value: 'team', label: 'Nhóm' }
+                            ]}
                             className="w-full"
-                            disabled={
-                                formData.role_name === 'ceo' ||
-                                ['manager', 'member'].includes(formData.role_name)
-                            }
                         />
                     </div>
 
-                    {/* Phòng ban */}
-                    {formData.level === 'unit' && (
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Phòng ban <span className="text-red-500">*</span>
-                            </label>
-                            <Select
-                                value={formData.department_id}
-                                onChange={(value) => handleInputChange('department_id', value)}
-                                placeholder="-- Chọn phòng ban --"
-                                options={getDepartmentOptions()}
-                                className="w-full"
-                            />
-                        </div>
-                    )}
+                    {/* Phòng ban/Đội nhóm */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Phòng ban/Đội nhóm <span className="text-red-500">*</span>
+                        </label>
+                        <Select
+                            value={formData.department_id}
+                            onChange={(value) => handleInputChange('department_id', value)}
+                            placeholder={formData.level ? `-- Chọn ${formData.level === 'unit' ? 'phòng ban' : 'nhóm'} --` : "-- Chọn phòng ban/đội nhóm --"}
+                            options={getDepartmentOptions()}
+                            className="w-full"
+                        />
+                    </div>
 
                     {/* Thông báo */}
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">

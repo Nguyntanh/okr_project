@@ -35,17 +35,12 @@ class AdminController extends Controller
     public function inviteUser(Request $request)
     {
         try {
-            $request->merge([
-                'role_name' => strtolower($request->input('role_name', '')),
-                'level' => strtolower($request->input('level', '')),
-            ]);
-
             // 1. Validate input
             $validator = Validator::make($request->all(), [
                 'email' => 'required|email|unique:users,email',
                 'full_name' => 'required|string|max:255',
-                'role_name' => 'required|in:member,manager,ceo',
-                'level' => 'required|in:company,unit',
+                'role_name' => 'required|in:member,manager',
+                'level' => 'required|in:unit,team',
                 'department_id' => 'nullable|exists:departments,department_id'
             ]);
 
@@ -82,15 +77,15 @@ class AdminController extends Controller
                 }
                 
                 if ($errors->has('role_name')) {
-                    $errorMessages['role_name'] = ['Vai trò không hợp lệ. Vui lòng chọn Thành viên, Quản lý hoặc CEO.'];
+                    $errorMessages['role_name'] = ['Vai trò không hợp lệ. Vui lòng chọn Thành viên hoặc Quản lý.'];
                 }
                 
                 if ($errors->has('level')) {
-                    $errorMessages['level'] = ['Cấp độ không hợp lệ. Vui lòng chọn Công ty hoặc Phòng ban.'];
+                    $errorMessages['level'] = ['Cấp độ không hợp lệ. Vui lòng chọn Đơn vị hoặc Nhóm.'];
                 }
                 
                 if ($errors->has('department_id')) {
-                    $errorMessages['department_id'] = ['Phòng ban không tồn tại. Vui lòng chọn lại.'];
+                    $errorMessages['department_id'] = ['Phòng ban/Đội nhóm không tồn tại. Vui lòng chọn lại.'];
                 }
                 
                 // Nếu không có error messages tùy chỉnh, dùng mặc định
@@ -105,30 +100,6 @@ class AdminController extends Controller
                 ], 422);
             }
 
-            $roleName = strtolower($request->role_name);
-            $level = strtolower($request->level);
-
-            // Ràng buộc giữa role và level
-            if ($roleName === 'ceo' && $level !== 'company') {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'CEO chỉ áp dụng cho cấp Công ty.'
-                ], 422);
-            }
-            if (in_array($roleName, ['member', 'manager']) && $level !== 'unit') {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Vai trò Thành viên/Quản lý chỉ áp dụng cho cấp Phòng ban.'
-                ], 422);
-            }
-
-            if ($level === 'unit' && empty($request->department_id)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Vui lòng chọn phòng ban cho vai trò cấp Phòng ban.'
-                ], 422);
-            }
-
             // 2. Tạo user trong Cognito User Pool
             $cognitoResult = $this->createCognitoUser(
                 $request->email,
@@ -137,8 +108,8 @@ class AdminController extends Controller
             );
 
             // 3. Lấy role_id từ role_name và level
-            $role = Role::whereRaw('LOWER(role_name) = ?', [$roleName])
-                        ->where('level', $level)
+            $role = Role::where('role_name', $request->role_name)
+                        ->where('level', $request->level)
                         ->first();
             if (!$role) {
                 throw new \Exception('Vai trò "' . $request->role_name . '" không tồn tại với cấp độ "' . $request->level . '". Vui lòng kiểm tra lại.');
@@ -149,7 +120,7 @@ class AdminController extends Controller
                 'email' => $request->email,
                 'full_name' => $request->full_name,
                 'role_id' => $role->role_id,
-                'department_id' => $level === 'company' ? null : $request->department_id,
+                'department_id' => $request->department_id,
                 'status' => 'active',
                 'is_invited' => true,
                 'invited_at' => now(),

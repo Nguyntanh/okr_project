@@ -510,17 +510,6 @@ class AuthController extends Controller
 
         Auth::login($user);
 
-        // Log role hiện tại của user sau khi đăng nhập
-        $user->load('role');
-        Log::info('User role after login', [
-            'email' => $user->email,
-            'role_name' => $user->role->role_name ?? 'N/A',
-            'role_level' => $user->role->level ?? 'N/A',
-            'is_admin' => $user->isAdmin(),
-            'is_ceo' => $user->isCeo(),
-            'is_manager' => $user->isManager(),
-        ]);
-
         return redirect('/dashboard')->with('success', 'Đăng nhập thành công từ ' . $provider);
     }
 

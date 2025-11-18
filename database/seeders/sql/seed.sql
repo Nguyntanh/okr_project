@@ -3,27 +3,33 @@
 
 -- ROLES
 INSERT INTO roles (role_name, description, level, allowed_levels, created_at, updated_at)
-SELECT 'admin', 'Quản trị viên hệ thống', 'company', JSON_ARRAY('company','unit','person'), NOW(), NOW()
+SELECT 'admin', 'Quản trị viên hệ thống', 'company', JSON_ARRAY('company','unit','team','person'), NOW(), NOW()
 WHERE NOT EXISTS (
   SELECT 1 FROM roles WHERE role_name='admin' AND level='company'
 );
 
 INSERT INTO roles (role_name, description, level, allowed_levels, created_at, updated_at)
-SELECT 'ceo', 'Tổng giám đốc điều hành', 'company', JSON_ARRAY('company','unit','person'), NOW(), NOW()
+SELECT 'manager', 'Quản lý cấp đơn vị', 'unit', JSON_ARRAY('unit','team','person'), NOW(), NOW()
 WHERE NOT EXISTS (
-  SELECT 1 FROM roles WHERE role_name='ceo' AND level='company'
+  SELECT 1 FROM roles WHERE role_name='manager' AND level='unit'
 );
 
 INSERT INTO roles (role_name, description, level, allowed_levels, created_at, updated_at)
-SELECT 'manager', 'Quản lý cấp đơn vị', 'unit', JSON_ARRAY('unit','person'), NOW(), NOW()
+SELECT 'manager', 'Quản lý cấp đội nhóm', 'team', JSON_ARRAY('team','person'), NOW(), NOW()
 WHERE NOT EXISTS (
-  SELECT 1 FROM roles WHERE role_name='manager' AND level='unit'
+  SELECT 1 FROM roles WHERE role_name='manager' AND level='team'
 );
 
 INSERT INTO roles (role_name, description, level, allowed_levels, created_at, updated_at)
 SELECT 'member', 'Thành viên cấp đơn vị', 'unit', JSON_ARRAY('person'), NOW(), NOW()
 WHERE NOT EXISTS (
   SELECT 1 FROM roles WHERE role_name='member' AND level='unit'
+);
+
+INSERT INTO roles (role_name, description, level, allowed_levels, created_at, updated_at)
+SELECT 'member', 'Thành viên cấp nhóm', 'team', JSON_ARRAY('person'), NOW(), NOW()
+WHERE NOT EXISTS (
+  SELECT 1 FROM roles WHERE role_name='member' AND level='team'
 );
 
 -- DEPARTMENTS

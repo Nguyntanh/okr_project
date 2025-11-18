@@ -23,8 +23,8 @@ class ManagerOnly
 
         // Kiểm tra quyền Admin hoặc Manager
         $user = Auth::user();
-        if (!$user->isAdmin() && !$user->isManager() && !$user->isCeo()) {
-            abort(403, 'Bạn không có quyền truy cập trang này. Chỉ Admin, CEO và Manager mới có thể truy cập.');
+        if (!$user->isAdmin() && !$user->isManager()) {
+            abort(403, 'Bạn không có quyền truy cập trang này. Chỉ Admin và Manager mới có thể truy cập.');
         }
 
         return $next($request);

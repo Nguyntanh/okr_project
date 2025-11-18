@@ -131,9 +131,9 @@ class UserController extends Controller
         // Chấp nhận cả role_id hoặc role (theo tên: admin/manager/member)
         $request->validate([
             'role_id' => 'nullable|exists:roles,role_id',
-            'role' => 'nullable|string|in:admin,manager,member,ceo,Admin,Manager,Member,CEO',
+            'role' => 'nullable|string|in:admin,manager,member,Admin,Manager,Member',
             'department_id' => 'nullable|exists:departments,department_id',
-            'level' => 'nullable|string|in:company,unit,person',
+            'level' => 'nullable|string|in:company,unit,team,person',
             'status' => 'nullable|in:active,inactive',
         ]);
 
