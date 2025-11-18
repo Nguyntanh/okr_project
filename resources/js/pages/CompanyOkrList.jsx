@@ -14,11 +14,8 @@ export default function CompanyOkrList({
     const [cycleFilter, setCycleFilter] = useState(null);
     const [openObj, setOpenObj] = useState({});
     const [overallProgress, setOverallProgress] = useState(0);
-    const [cyclesList, setCyclesList] = useState(initialCycles);
-
-    useEffect(() => {
-        setCyclesList(initialCycles);
-    }, [initialCycles]);
+    const [fetchedCycles, setFetchedCycles] = useState([]);
+    const cyclesList = initialCycles?.length ? initialCycles : fetchedCycles;
 
     useEffect(() => {
         if (initialCycles?.length) {
