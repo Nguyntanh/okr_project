@@ -3,136 +3,116 @@
 namespace App\Http\Controllers;
 
 use App\Models\Objective;
-use App\Models\KeyResult;
 use App\Models\Cycle;
 use App\Models\Department;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
-use Nette\Utils\Json;
+use Illuminate\Http\JsonResponse;
+use Illuminate\View\View;
 
 class CompanyOkrController extends Controller
 {
     /**
      * Hiển thị OKR toàn công ty
      */
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse|View
     {
-        $user = Auth::user();
+        $currentCycleId = null;
+        $currentCycleName = null;
 
-        // Xác định chu kỳ hiện tại (giống logic trong MyObjectiveController)
-        $currentCycle = $this->getCurrentCycle($request);
-        $cycleId = $request->input('cycle_id') ?? $currentCycle?->cycle_id;
+        // === 1. XÁC ĐỊNH CHU KỲ HIỆN TẠI - GIỐNG HỆT MyObjectiveController ===
+        if (!$request->filled('cycle_id')) {
+            $now = Carbon::now('Asia/Ho_Chi_Minh');
+            $year = $now->year;
+            $quarter = ceil($now->month / 3);
+            $cycleNameDisplay = "Quý {$quarter} năm {$year}";
 
-        // Query tất cả Objective công khai hoặc được phép xem
+            $currentCycle = Cycle::where('start_date', '<=', $now)
+                ->where('end_date', '>=', $now)
+                ->first();
+
+            if (!$currentCycle) {
+                $possibleNames = [$cycleNameDisplay, "Q{$quarter} {$year}", "Q{$quarter} - {$year}"];
+                $currentCycle = Cycle::whereIn('cycle_name', $possibleNames)->first();
+            }
+
+            if ($currentCycle) {
+                $currentCycleId = $currentCycle->cycle_id;
+                $currentCycleName = $currentCycle->cycle_name;
+                $request->merge(['cycle_id' => $currentCycleId]);
+            } else {
+                $currentCycleName = $cycleNameDisplay;
+            }
+        } else {
+            $currentCycle = Cycle::find($request->cycle_id);
+            if ($currentCycle) {
+                $currentCycleId = $currentCycle->cycle_id;
+                $currentCycleName = $currentCycle->cycle_name;
+            }
+        }
+
+        // === 2. QUERY OKR CÔNG KHAI (chỉ company + unit) ===
         $query = Objective::with([
-                'keyResults' => fn($q) => $q->active()->with('assignedUser'),
+                'keyResults' => fn($q) => $q->with('assignedUser')->whereNull('archived_at'),
                 'department',
                 'cycle',
-                'user' => fn($q) => $q->select('user_id', 'fullName', 'avatar'),
-                'assignments.user' => fn($q) => $q->select('users.user_id', 'fullName', 'avatar')
+                'user' => fn($q) => $q->select('user_id', 'full_name', 'avatar_url'),
             ])
             ->whereNull('archived_at')
-            ->whereHas('cycle', fn($q) => $q->where('status', 'active')->orWhere('status', 'closed')); // cho xem cả chu kỳ đã đóng
+            ->whereIn('level', ['company', 'unit'])
+            ->when($request->filled('cycle_id'), fn($q) => $q->where('cycle_id', $request->cycle_id))
+            ->orderByRaw("CASE WHEN level = 'company' THEN 1 ELSE 2 END")
+            ->orderBy('department_id')
+            ->orderBy('created_at', 'desc');
 
-        // Lọc theo chu kỳ
-        if ($cycleId) {
-            $query->where('cycle_id', $cycleId);
-        }
-
-        // === PHÂN QUYỀN XEM THEO ROLE (tùy chỉnh theo chính sách công ty bạn) ===
-        if (!$user->isAdmin()) {
-            // Cách 1: Mọi người được xem tất cả (phổ biến ở công ty minh bạch)
-            // → Không cần lọc gì thêm
-
-            // Cách 2: Chỉ xem được OKR công ty + OKR phòng ban của mình (bảo mật hơn)
-            $query->where(function ($q) use ($user) {
-                $q->where('level', 'company')
-                  ->orWhere(function ($sq) use ($user) {
-                      $sq->where('level', 'unit')
-                         ->where('department_id', $user->department_id ?? null);
-                  });
-                  // ->orWhere('level', 'team') ... nếu muốn
-                  // ->orWhere('user_id', $user->user_id) ... nếu muốn xem cả KR cá nhân
-            });
-        }
-        // Admin thì thấy hết → không lọc
-
-        $objectives = $query->orderByRaw("
-            CASE level 
-                WHEN 'company' THEN 1
-                WHEN 'unit' THEN 2
-                WHEN 'team' THEN 3
-                WHEN 'person' THEN 4
-                ELSE 5 
-            END
-        ")
-        ->orderBy('created_at', 'desc')
-        ->get()
-        ->groupBy('level'); // nhóm theo cấp độ cho dễ hiển thị
-
-        $cycles = Cycle::orderByDesc('start_date')->get();
-
-        // Tính tiến độ tổng thể (tùy chọn)
-        $overallProgress = $this->calculateOverallProgress($objectives->flatten());
+        $objectives = $query->get();
 
         if ($request->expectsJson()) {
             return response()->json([
                 'success' => true,
-                'data' => [
-                    'objectives' => $objectives,
-                    'current_cycle' => $currentCycle,
-                    'overall_progress' => $overallProgress,
-                    'cycles' => $cycles,
-                ]
+                'data' => $objectives,                    // ← mảng Objective
+                'current_cycle_id' => $currentCycleId,
+                'current_cycle_name' => $currentCycleName,
             ]);
         }
 
-        return view('app', compact(
-            'objectives',
-            'cycles',
-            'currentCycle',
-            'overallProgress'
-        ));
-
-        // return response()->json([
-        //     'success' => true,
-        //     'data' => [
-        //         'objectives' => $objectives,
-        //         'current_cycle' => $currentCycle,
-        //         'overall_progress' => $overallProgress,
-        //         'cycles' => $cycles,
-        //     ]
-        // ]);
+        // Nếu truy cập trực tiếp bằng trình duyệt (không cần login)
+        $cycles = Cycle::orderByDesc('start_date')->get();
+        return view('app', compact('objectives', 'cycles', 'currentCycleId', 'currentCycleName'));
     }
 
     /**
-     * Chi tiết 1 Objective toàn công ty (có thể dùng modal)
+     * Chi tiết 1 Objective (nếu cần cho modal)
      */
-    public function show($id)
+    public function show(string $id): JsonResponse
     {
-        $objective = Objective::with([
-                'keyResults' => fn($q) => $q->active()->with('assignedUser'),
-                'department',
-                'cycle',
-                'user',
-                'assignments.user'
-            ])
-            ->findOrFail($id);
+        try {
+            $objective = Objective::with([
+                    'keyResults' => fn($q) => $q->active()->with('assignedUser'),
+                    'department',
+                    'cycle',
+                    'user',
+                    'assignments.user'
+                ])
+                ->findOrFail($id);
 
-        // Kiểm tra quyền xem (tương tự như index)
-        if (!Auth::user()->isAdmin() && !in_array($objective->level, ['company']) 
-            && ($objective->level === 'unit' && $objective->department_id !== Auth::user()->department_id)) {
-            abort(403);
+            $user = Auth::user();
+            if (!$user->isAdmin() && $objective->level !== 'company' 
+                && ($objective->level === 'unit' && $objective->department_id !== $user->department_id)) {
+                return response()->json(['success' => false, 'message' => 'Không có quyền xem'], 403);
+            }
+
+            return response()->json(['success' => true, 'data' => $objective]);
+
+        } catch (\Exception $e) {
+            Log::error('CompanyOkrController::show error', ['id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Lỗi tải chi tiết'], 500);
         }
-
-        return response()->json([
-            'success' => true,
-            'data' => $objective
-        ]);
     }
 
-    // Helper: lấy chu kỳ hiện tại
+    // Helper methods (giữ nguyên)
     private function getCurrentCycle($request)
     {
         if ($request->filled('cycle_id')) {
@@ -145,7 +125,6 @@ class CompanyOkrController extends Controller
             ->first();
     }
 
-    // Helper: tính % hoàn thành toàn công ty (theo weight hoặc trung bình)
     private function calculateOverallProgress($objectives)
     {
         $totalWeight = 0;
@@ -153,7 +132,7 @@ class CompanyOkrController extends Controller
 
         foreach ($objectives as $obj) {
             $objProgress = $obj->keyResults->avg('progress_percent') ?? 0;
-            $weight = $obj->level === 'company' ? 1.5 : 1; // ưu tiên company hơn
+            $weight = $obj->level === 'company' ? 1.5 : 1;
             $totalWeight += $weight;
             $weightedProgress += $objProgress * $weight;
         }
