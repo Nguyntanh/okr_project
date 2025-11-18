@@ -28,11 +28,19 @@ class Role extends Model
     }
 
     /**
+     * Chuẩn hóa tên role (lowercase, trim)
+     */
+    protected function normalizedRoleName(): string
+    {
+        return strtolower(trim($this->role_name ?? ''));
+    }
+
+    /**
      * Kiểm tra xem role có phải Admin không
      */
     public function isAdmin()
     {
-        return strtolower($this->role_name) === 'admin';
+        return $this->normalizedRoleName() === 'admin';
     }
 
     /**
@@ -40,7 +48,7 @@ class Role extends Model
      */
     public function isCeo()
     {
-        return strtolower($this->role_name) === 'ceo';
+        return $this->normalizedRoleName() === 'ceo';
     }
 
     /**
@@ -48,7 +56,7 @@ class Role extends Model
      */
     public function isDeptManager()
     {
-        return (strtolower($this->role_name) === 'manager' && strtolower($this->level) === 'unit');
+        return ($this->normalizedRoleName() === 'manager' && strtolower(trim($this->level ?? '')) === 'unit');
     }
 
 
@@ -57,7 +65,7 @@ class Role extends Model
      */
     public function isManager()
     {
-        return strtolower($this->role_name) === 'manager';
+        return $this->normalizedRoleName() === 'manager';
     }
     
     /**
@@ -66,7 +74,7 @@ class Role extends Model
      */
     public function isMember()
     {
-        return strtolower($this->role_name) === 'member';
+        return $this->normalizedRoleName() === 'member';
     }
 
     /**

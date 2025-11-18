@@ -176,6 +176,25 @@ function DashboardSidebar({ open, user }) {
                         }
                     />
                 )}
+                {/* Báo cáo công ty - dành cho Admin & CEO */}
+                {(isAdmin || isCeo) && (
+                    <SidebarItem
+                        collapsed={collapsed}
+                        href="/reports/company-overview"
+                        label="Báo cáo công ty"
+                        icon={
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-6 w-6"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M4 4h16v16H4z" opacity="0.3" />
+                                <path d="M13 15h-2V9h2v6zm4 0h-2V5h2v10zm-8 0H7v-4h2v4zm10-12H5a2 2 0 00-2 2v14h18V5a2 2 0 00-2-2zM4 19V5h16v14H4z" />
+                            </svg>
+                        }
+                    />
+                )}
             </nav>
         </aside>
     );
