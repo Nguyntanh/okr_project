@@ -170,8 +170,16 @@ export default function CyclesPanel() {
     const [openObj, setOpenObj] = useState({});
     const [editOpen, setEditOpen] = useState(false);
     const [toast, setToast] = useState({ type: "success", message: "" });
-    const [openCreateObjective, setOpenCreateObjective] = useState(false);
-    const [openCreateKRForObjId, setOpenCreateKRForObjId] = useState(null);
+    // Xác nhận hành động qua modal thay vì window.confirm
+    const [confirm, setConfirm] = useState({
+        open: false,
+        title: "",
+        message: "",
+        confirmText: "Xác nhận",
+        cancelText: "Hủy",
+        onConfirm: null,
+    });
+    const [confirmLoading, setConfirmLoading] = useState(false);
     
     // Sử dụng custom hook để lấy thông tin authentication
     const { isAdmin } = useAuth();
@@ -197,6 +205,13 @@ export default function CyclesPanel() {
         const yyyy = d.getFullYear();
         return `${dd}/${mm}/${yyyy}`;
     };
+    const isEnded = (v) => {
+        if (!v) return false;
+        const d = new Date(v);
+        if (isNaN(d.getTime())) return false;
+        const now = new Date();
+        return d.getTime() <= now.getTime();
+    };
 
     const sortByStartDesc = (arr = []) =>
         [...arr].sort(
@@ -204,6 +219,74 @@ export default function CyclesPanel() {
                 new Date(b.start_date || b.startDate) -
                 new Date(a.start_date || a.startDate)
         );
+
+    const isActive = (c) => String(c?.status).toLowerCase() === "active";
+    const isClosed = (c) => !isActive(c);
+    const formatRange = (c) => `${formatDMY(c.start_date)} - ${formatDMY(c.end_date)}`;
+
+    // Helpers: mở/đóng modal xác nhận
+    const openConfirm = (cfg = {}) => {
+        setConfirm({
+            open: true,
+            title: cfg.title || "Xác nhận",
+            message: cfg.message || "",
+            confirmText: cfg.confirmText || "Xác nhận",
+            cancelText: cfg.cancelText || "Hủy",
+            onConfirm: cfg.onConfirm || null,
+        });
+    };
+    const closeConfirm = () => setConfirm((p) => ({ ...p, open: false }));
+
+    // API helpers
+    const postCloseCycle = async (id) => {
+        const token = document
+            .querySelector('meta[name="csrf-token"]')
+            .getAttribute('content');
+        const res = await fetch(`/cycles/${id}/close`, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': token, Accept: 'application/json' },
+        });
+        const json = await res.json().catch(() => ({ success: res.ok }));
+        if (!res.ok || json.success === false)
+            throw new Error(json.message || 'Đóng chu kỳ thất bại');
+        return json;
+    };
+    const deleteCycleById = async (id) => {
+        const token = document
+            .querySelector('meta[name="csrf-token"]')
+            .getAttribute('content');
+        const res = await fetch(`/cycles/${id}`, {
+            method: 'DELETE',
+            headers: { 'X-CSRF-TOKEN': token, Accept: 'application/json' },
+        });
+        const json = await res.json().catch(() => ({ success: res.ok }));
+        if (!res.ok || json.success === false)
+            throw new Error(json.message || 'Xóa chu kỳ thất bại');
+        return json;
+    };
+
+    // Mở modal xác nhận cho nút "Đóng chu kỳ" ở danh sách
+    function closeCycle(cy) {
+        const id = cy?.cycle_id || cy?.id;
+        openConfirm({
+            title: 'Đóng chu kỳ',
+            message:
+                'Đóng chu kỳ sẽ khóa tất cả OKR và kết quả. Bạn không thể chỉnh sửa hay check-in nữa. Bạn chắc chắn?',
+            confirmText: 'Đóng chu kỳ',
+            onConfirm: async () => {
+                const json = await postCloseCycle(id);
+                const cyNew = json.data || {};
+                setCycles((prev) =>
+                    prev.map((c) =>
+                        String(c.cycle_id || c.id) === String(id)
+                            ? { ...c, ...cyNew }
+                            : c
+                    )
+                );
+                setToast({ type: 'success', message: json.message || 'Đã đóng chu kỳ' });
+            },
+        });
+    }
 
     useEffect(() => {
         (async () => {
@@ -265,13 +348,55 @@ export default function CyclesPanel() {
     }
 
     return (
-        <div className="px-4 py-6">
+        <div className="px-4 py-6 m-auto max-w-6xl  ">
             <Toast
                 type={toast.type}
                 message={toast.message}
                 onClose={() => setToast({ type: "success", message: "" })}
             />
-            <div className="mx-auto mb-3 flex w-full max-w-4xl items-center justify-between">
+            {/* Global Confirm Modal */}
+            {confirm.open && (
+                <Modal
+                    open={true}
+                    onClose={confirmLoading ? () => {} : () => closeConfirm()}
+                    title={confirm.title || "Xác nhận"}
+                >
+                    <div className="space-y-4">
+                        {confirm.message && (
+                            <p className="text-sm text-slate-600">{confirm.message}</p>
+                        )}
+                        <div className="flex justify-end gap-2">
+                            <button
+                                type="button"
+                                disabled={confirmLoading}
+                                onClick={() => closeConfirm()}
+                                className="rounded-md border border-slate-300 px-4 py-2 text-xs"
+                            >
+                                {confirm.cancelText || "Hủy"}
+                            </button>
+                            <button
+                                type="button"
+                                disabled={confirmLoading}
+                                onClick={async () => {
+                                    try {
+                                        setConfirmLoading(true);
+                                        if (typeof confirm.onConfirm === 'function') {
+                                            await confirm.onConfirm();
+                                        }
+                                    } finally {
+                                        setConfirmLoading(false);
+                                        closeConfirm();
+                                    }
+                                }}
+                                className="rounded-md bg-rose-600 px-5 py-2 text-xs font-semibold text-white hover:bg-rose-700"
+                            >
+                                {confirm.confirmText || "Xác nhận"}
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+            <div className="mx-auto mb-3 flex w-full items-center justify-between">
                 <h2 className="text-2xl font-extrabold text-slate-900">
                     {isDetail ? "Chi tiết chu kỳ" : "Danh sách chu kỳ"}
                 </h2>
@@ -279,61 +404,30 @@ export default function CyclesPanel() {
                     <div className="flex items-center gap-2">
                         <AdminOnly permission="canManageCycles">
                             <>
+                                {detail?.cycle?.status === 'active' && (
+                                    <button
+                                        onClick={() => setEditOpen(true)}
+                                        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                                    >
+                                        Sửa
+                                    </button>
+                                )}
                                 <button
-                                    onClick={() => setEditOpen(true)}
-                                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-                                >
-                                    Sửa
-                                </button>
-                                <button
-                                    onClick={async () => {
-                                        const ok = window.confirm(
-                                            "Xóa chu kỳ này? Hành động không thể hoàn tác."
-                                        );
-                                        if (!ok) return;
-                                        try {
-                                            const token = document
-                                                .querySelector(
-                                                    'meta[name="csrf-token"]'
-                                                )
-                                                .getAttribute("content");
-                                            const id =
-                                                detail?.cycle?.cycle_id ||
-                                                detail?.cycle_id;
-                                            const res = await fetch(`/cycles/${id}`, {
-                                                method: "DELETE",
-                                                headers: {
-                                                    "X-CSRF-TOKEN": token,
-                                                    Accept: "application/json",
-                                                },
-                                            });
-                                            const json = await res
-                                                .json()
-                                                .catch(() => ({ success: res.ok }));
-                                            if (!res.ok || json.success === false)
-                                                throw new Error(
-                                                    json.message ||
-                                                        "Xóa chu kỳ thất bại"
+                                    onClick={() => {
+                                        const id = detail?.cycle?.cycle_id || detail?.cycle_id;
+                                        openConfirm({
+                                            title: 'Xóa chu kỳ',
+                                            message: 'Xóa chu kỳ này? Hành động không thể hoàn tác.',
+                                            confirmText: 'Xóa',
+                                            onConfirm: async () => {
+                                                const json = await deleteCycleById(id);
+                                                setCycles((prev) =>
+                                                    prev.filter((c) => String(c.cycle_id || c.id) !== String(id))
                                                 );
-                                            setCycles((prev) =>
-                                                prev.filter(
-                                                    (c) =>
-                                                        String(c.cycle_id || c.id) !==
-                                                        String(id)
-                                                )
-                                            );
-                                            setToast({
-                                                type: "success",
-                                                message: "Đã xóa chu kỳ",
-                                            });
-                                            goBack();
-                                        } catch (e) {
-                                            setToast({
-                                                type: "error",
-                                                message:
-                                                    e.message || "Xóa chu kỳ thất bại",
-                                            });
-                                        }
+                                                setToast({ type: 'success', message: json.message || 'Đã xóa chu kỳ' });
+                                                goBack();
+                                            },
+                                        });
                                     }}
                                     className="rounded-md border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
                                 >
@@ -677,16 +771,6 @@ export default function CyclesPanel() {
                             </div>
                         </div>
                     </div>
-                    <AdminOnly permission="canManageCycles">
-                        <div className="px-6 pb-4">
-                            <button
-                                onClick={() => setOpenCreateObjective(true)}
-                                className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-                            >
-                                Thêm Objective
-                            </button>
-                        </div>
-                    </AdminOnly>
                     {(detail.objectives || []).map((obj) => (
                         <div
                             key={obj.objective_id}
@@ -716,20 +800,6 @@ export default function CyclesPanel() {
                                         </div>
                                     </div>
                                 </button>
-                                <AdminOnly permission="canManageCycles">
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() =>
-                                                setOpenCreateKRForObjId(
-                                                    obj.objective_id
-                                                )
-                                            }
-                                            className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
-                                        >
-                                            Thêm KR
-                                        </button>
-                                    </div>
-                                </AdminOnly>
                             </div>
                             {openObj[obj.objective_id] !== false && (
                                 <div className="mt-3 space-y-3">
@@ -754,141 +824,81 @@ export default function CyclesPanel() {
             )}
             {!isDetail && (
                 <>
-                    <div className="mx-auto w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                        {loading && (
-                            <div className="px-4 py-6 text-center text-slate-500">
-                                Đang tải...
-                            </div>
-                        )}
-                        {!loading && (
-                            <div className="divide-y divide-slate-100">
-                                {cycles.map((c) => {
-                                    const id = c.cycle_id || c.id;
-                                    const active = c.status === "active";
-                                    return (
-                                        <div key={id} className="px-4 py-3">
-                                            <button
-                                                onClick={() => goDetail(id)}
-                                                className="flex w-full items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-left hover:bg-slate-100"
-                                            >
-                                                <div className="font-semibold text-slate-900">
-                                                    {c.cycle_name}
+                    {loading ? (
+                        <div className="mx-auto w-full max-w-6xl rounded-2xl border border-slate-200 bg-white p-6 text-center text-slate-500 shadow-sm">
+                            Đang tải...
+                        </div>
+                    ) : (
+                        <div className=" grid w-full  gap-6 md:grid-cols-3">
+                            {/* Left: Active cycles (span 2) */}
+                            <div className="md:col-span-2">
+                                <div className="mb-3 text-sm font-semibold text-slate-700">Chu kỳ đang hoạt động</div>
+                                <div className="space-y-3">
+                                    {sortByStartDesc(cycles.filter(isActive)).map((c) => {
+                                        const id = c.cycle_id || c.id;
+                                        const canClose = isEnded(c.end_date);
+                                        return (
+                                            <div key={id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                                                <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3">
+                                                    <div className="font-semibold text-slate-900">{c.cycle_name}</div>
+                                                    <div className="flex items-center gap-2">
+                                                        <Badge color="emerald">Đang hoạt động</Badge>
+                                                        <button onClick={() => goDetail(id)} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Xem chi tiết</button>
+                                                        <AdminOnly permission="canManageCycles">
+                                                            {canClose && (
+                                                                <button onClick={() => closeCycle(c)} className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Đóng chu kỳ</button>
+                                                            )}
+                                                        </AdminOnly>
+                                                    </div>
                                                 </div>
-                                                {active ? (
-                                                    <Badge color="emerald">
-                                                        Active
-                                                    </Badge>
-                                                ) : (
-                                                    <Badge color="red">
-                                                        Inactive
-                                                    </Badge>
-                                                )}
-                                            </button>
-                                        </div>
-                                    );
-                                })}
+                                                <div className="px-4 py-3 text-sm text-slate-600">{formatRange(c)}</div>
+                                            </div>
+                                        );
+                                    })}
+                                    {sortByStartDesc(cycles.filter(isActive)).length === 0 && (
+                                        <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-slate-500">Chưa có chu kỳ hoạt động</div>
+                                    )}
+                                </div>
                             </div>
-                        )}
-                    </div>
+                            {/* Right: Closed cycles */}
+                            <div>
+                                <div className="mb-3 text-sm font-semibold text-slate-700">Chu kỳ đã đóng</div>
+                                <div className="space-y-3">
+                                    {sortByStartDesc(cycles.filter(isClosed)).map((c) => {
+                                        const id = c.cycle_id || c.id;
+                                        return (
+                                            <div key={id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="font-semibold text-slate-900">{c.cycle_name}</div>
+                                                    <Badge color="red">Đã đóng</Badge>
+                                                </div>
+                                                <div className="mt-1 text-xs text-slate-600">{formatRange(c)}</div>
+                                                <div className="mt-3 flex items-center gap-2">
+                                                    <button onClick={() => goDetail(id)} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Xem chi tiết</button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                    {sortByStartDesc(cycles.filter(isClosed)).length === 0 && (
+                                        <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-slate-500">Chưa có chu kỳ đã đóng</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <NewCycleModal
                         open={open}
                         onClose={() => setOpen(false)}
                         onCreated={(cy) => {
                             setCycles((prev) => sortByStartDesc([cy, ...prev]));
-                            setToast({
-                                type: "success",
-                                message: "Tạo chu kỳ thành công",
-                            });
+                            setToast({ type: 'success', message: 'Tạo chu kỳ thành công' });
                         }}
                     />
                 </>
             )}
 
-            {/* Modal tạo Objective mới trong chu kỳ hiện tại */}
-            {isDetail && openCreateObjective && (
-                <Modal
-                    open={true}
-                    onClose={() => setOpenCreateObjective(false)}
-                    title="Tạo Objective mới"
-                >
-                    <div className="max-h-[75vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100 hover:scrollbar-thumb-slate-400 rounded-lg">
-                        <ObjectiveCreateForm
-                            cycleId={
-                                detail?.cycle?.cycle_id || detail?.cycle_id
-                            }
-                            onCreated={(objective) => {
-                                setToast({
-                                    type: "success",
-                                    message: "Tạo Objective thành công",
-                                });
-                                const objId =
-                                    objective?.objective_id || objective?.id;
-                                const krList =
-                                    objective?.keyResults ||
-                                    objective?.key_results ||
-                                    [];
-                                // Cập nhật danh sách KR map để hiển thị ngay
-                                if (objId) {
-                                    setKrs((prev) => ({
-                                        ...prev,
-                                        [objId]: krList,
-                                    }));
-                                }
-                                // Thêm objective vào danh sách hiện tại, giữ nguyên KR trong card
-                                setDetail((prev) => ({
-                                    ...prev,
-                                    objectives: [
-                                        ...(prev?.objectives || []),
-                                        { ...objective },
-                                    ],
-                                }));
-                                setOpenCreateObjective(false);
-                            }}
-                            onError={(msg) =>
-                                setToast({
-                                    type: "error",
-                                    message: msg || "Tạo Objective thất bại",
-                                })
-                            }
-                        />
-                    </div>
-                </Modal>
-            )}
 
-            {/* Modal tạo KR cho một Objective */}
-            {isDetail && openCreateKRForObjId && (
-                <Modal
-                    open={true}
-                    onClose={() => setOpenCreateKRForObjId(null)}
-                    title="Tạo Key Result"
-                >
-                    <div className="max-h-[70vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100 hover:scrollbar-thumb-slate-400 rounded-lg">
-                        <KeyResultCreateForm
-                            objectiveId={openCreateKRForObjId}
-                            onCreated={(kr) => {
-                                setToast({
-                                    type: "success",
-                                    message: "Tạo Key Result thành công",
-                                });
-                                setKrs((prev) => ({
-                                    ...prev,
-                                    [openCreateKRForObjId]: [
-                                        kr,
-                                        ...(prev[openCreateKRForObjId] || []),
-                                    ],
-                                }));
-                                setOpenCreateKRForObjId(null);
-                            }}
-                            onError={(msg) =>
-                                setToast({
-                                    type: "error",
-                                    message: msg || "Tạo Key Result thất bại",
-                                })
-                            }
-                        />
-                    </div>
-                </Modal>
-            )}
         </div>
     );
 }
@@ -1101,7 +1111,7 @@ function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
                                     <label className="mb-1 block text-xs font-semibold text-slate-600">
                                         Đơn vị
                                     </label>
-                                    <input
+                                    <select
                                         value={kr.unit}
                                         onChange={(e) =>
                                             updateKR(idx, {
@@ -1110,7 +1120,13 @@ function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
                                         }
                                         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                                         required
-                                    />
+                                    >
+                                        <option value="">-- chọn đơn vị --</option>
+                                        <option value="number">Số lượng</option>
+                                        <option value="percent">Phần trăm</option>
+                                        <option value="completion">Hoàn thành</option>
+                                        <option value="bai">Bài</option>
+                                    </select>
                                 </div>
                                 <div>
                                     <label className="mb-1 block text-xs font-semibold text-slate-600">

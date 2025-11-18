@@ -6,17 +6,22 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Carbon\Carbon;
 
 class KeyResult extends Model
 {
     use HasFactory;
 
-    public $timestamps = false;
+    public $timestamps = true;
     protected $primaryKey = 'kr_id';
+    public $incrementing = false;
+    protected $keyType = 'string';
+
     /**
      * The attributes that are mass assignable.
      */
     protected $fillable = [
+        'kr_id',
         'kr_title',
         'target_value',
         'current_value',
@@ -26,9 +31,40 @@ class KeyResult extends Model
         'department_id',
         'objective_id',
         'cycle_id',
-        'progress_percent'
+        'progress_percent',
+        'user_id',
+        'archived_at',
+        'assigned_to',
     ];
 
+    /**
+     * The attributes that should be cast.
+     */
+    protected $casts = [
+        'archived_at' => 'datetime',
+        'target_value' => 'float',
+        'current_value' => 'float',
+        'weight' => 'float',
+        'progress_percent' => 'float',
+    ];
+
+    /**
+     * Chỉ lấy Key Result chưa lưu trữ
+     */
+    public function scopeActive($query)
+    {
+        return $query->whereNull('archived_at');
+    }
+
+    /**
+     * Chỉ lấy Key Result đã lưu trữ
+     */
+    public function scopeArchived($query)
+    {
+        return $query->whereNotNull('archived_at');
+    }
+
+    // === RELATIONSHIPS ===
     public function objective(): BelongsTo
     {
         return $this->belongsTo(Objective::class, 'objective_id', 'objective_id');
@@ -39,59 +75,112 @@ class KeyResult extends Model
         return $this->belongsTo(Cycle::class, 'cycle_id', 'cycle_id');
     }
 
-    /**
-     * Get the progress percentage attribute.
-     */
-    public function getProgressPercentAttribute()
+    public function user(): BelongsTo
     {
-        // Nếu có progress_percent trong database, sử dụng nó
-        if (isset($this->attributes['progress_percent']) && $this->attributes['progress_percent'] !== null) {
-            return $this->attributes['progress_percent'];
-        }
-
-        // Nếu có check-ins, sử dụng check-in gần đây nhất
-        if ($this->relationLoaded('checkIns') && $this->checkIns->isNotEmpty()) {
-            $latestCheckIn = $this->checkIns->sortByDesc('created_at')->first();
-            return $latestCheckIn->progress_percent;
-        }
-
-        // Tính toán dựa trên current_value và target_value
-        if ($this->target_value > 0) {
-            return min(100, max(0, ($this->current_value / $this->target_value) * 100));
-        }
-
-        return 0;
+        return $this->belongsTo(User::class, 'user_id', 'user_id');
     }
 
-    /**
-     * Mối quan hệ với CheckIns
-     */
     public function checkIns(): HasMany
     {
         return $this->hasMany(CheckIn::class, 'kr_id', 'kr_id');
     }
 
-    /**
-     * Lấy check-in gần đây nhất
-     */
     public function latestCheckIn()
     {
-        return $this->hasOne(CheckIn::class, 'kr_id', 'kr_id')->latest();
+        return $this->hasOne(CheckIn::class, 'kr_id', 'kr_id')->latestOfMany();
     }
 
     /**
-     * Kiểm tra xem Key Result có check-ins không
+     * Tính toán progress_percent một cách thông minh
      */
+    public function getProgressPercentAttribute($value)
+    {
+        if (!is_null($value)) {
+            return (float) $value;
+        }
+
+        if ($this->relationLoaded('latestCheckIn') && $this->latestCheckIn) {
+            return (float) $this->latestCheckIn->progress_percent;
+        }
+
+        if ($this->relationLoaded('checkIns') && $this->checkIns->isNotEmpty()) {
+            return (float) $this->checkIns->sortByDesc('created_at')->first()->progress_percent;
+        }
+
+        // 3. Tính từ current_value / target_value
+        if ($this->target_value > 0) {
+            $progress = ($this->current_value / $this->target_value) * 100;
+            return (float) round(max(0, min(100, $progress)), 2);
+        }
+
+        return 0.0;
+    }
+
+    /**
+     * Tự động cập nhật progress_percent khi current_value thay đổi
+     */
+    public function setCurrentValueAttribute($value)
+    {
+        $this->attributes['current_value'] = $value;
+
+        // Chỉ tự động cập nhật nếu chưa có progress_percent thủ công
+        if (is_null($this->attributes['progress_percent'] ?? null)) {
+            if ($this->target_value > 0) {
+                $progress = ($value / $this->target_value) * 100;
+                $this->attributes['progress_percent'] = round(max(0, min(100, $progress)), 2);
+            } else {
+                $this->attributes['progress_percent'] = 0;
+            }
+        }
+    }
+
+    public function getCheckInsCountAttribute(): int
+    {
+        return $this->checkIns()->count();
+    }
+
     public function hasCheckIns(): bool
     {
         return $this->checkIns()->exists();
     }
 
-    /**
-     * Lấy số lượng check-ins
-     */
-    public function getCheckInsCountAttribute(): int
+    public function archive(): bool
     {
-        return $this->checkIns()->count();
+        if ($this->archived_at) {
+            return false; 
+        }
+
+        $this->archived_at = Carbon::now();
+        return $this->save();
+    }
+
+    public function unarchive(): bool
+    {
+        if (!$this->archived_at) {
+            return false; 
+        }
+
+        $this->archived_at = null;
+        return $this->save();
+    }
+
+    public function isArchived(): bool
+    {
+        return !is_null($this->archived_at);
+    }
+
+    public function assignee()
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function assignedUser()
+    {
+        return $this->belongsTo(User::class, 'assigned_to', 'user_id');
     }
 }

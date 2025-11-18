@@ -5,8 +5,8 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
     const [formData, setFormData] = useState({
         email: '',
         full_name: '',
-        role_name: 'member',
-        level: 'unit',
+        role_name: '',
+        level: '',
         department_id: ''
     });
     const [loading, setLoading] = useState(false);
@@ -20,21 +20,22 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
     const handleSubmit = async (e) => {
         e.preventDefault();
         
-        // Validation
-        if (!formData.email || !formData.full_name) {
-            showToast('error', 'Vui lòng điền đầy đủ thông tin bắt buộc');
-            return;
-        }
-
-        if (!formData.email.includes('@')) {
-            showToast('error', 'Email không hợp lệ');
+        // Validation frontend - chỉ kiểm tra có điền đầy đủ thông tin
+        if (!formData.email || !formData.full_name || !formData.role_name || !formData.level || !formData.department_id) {
+            showToast('error', 'Vui lòng điền đầy đủ tất cả thông tin bắt buộc');
             return;
         }
 
         setLoading(true);
 
         try {
-            const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            if (!token) {
+                showToast('error', 'Không tìm thấy CSRF token. Vui lòng tải lại trang.');
+                setLoading(false);
+                return;
+            }
+
             const response = await fetch('/admin/invite-user', {
                 method: 'POST',
                 headers: {
@@ -47,16 +48,55 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
 
             const result = await response.json();
 
-            if (result.success) {
-                showToast('success', result.message);
-                onSuccess();
-                handleClose();
+            // Xử lý các trường hợp lỗi khác nhau
+            if (response.status === 422) {
+                // Validation errors từ backend
+                let errorMessage = 'Dữ liệu không hợp lệ: ';
+                if (result.errors) {
+                    const errorFields = Object.keys(result.errors);
+                    const errorMessages = errorFields.map(field => {
+                        const fieldName = field === 'email' ? 'Email' : 
+                                         field === 'full_name' ? 'Họ và tên' :
+                                         field === 'role_name' ? 'Vai trò' :
+                                         field === 'level' ? 'Cấp độ' :
+                                         field === 'department_id' ? 'Phòng ban/Đội nhóm' : field;
+                        return `${fieldName}: ${result.errors[field][0]}`;
+                    });
+                    errorMessage += errorMessages.join(', ');
+                } else {
+                    errorMessage = result.message || 'Dữ liệu không hợp lệ';
+                }
+                showToast('error', errorMessage);
+            } else if (response.status === 500) {
+                // Server errors
+                if (result.message) {
+                    showToast('error', result.message);
+                } else {
+                    showToast('error', 'Có lỗi xảy ra ở máy chủ. Vui lòng thử lại sau.');
+                }
+            } else if (result.success) {
+                // Thành công
+                if (result.warning) {
+                    // Trường hợp có cảnh báo (tài khoản tạo thành công nhưng email không gửi được)
+                    showToast('error', result.message || 'Tài khoản đã được tạo nhưng không thể gửi email mời.');
+                } else {
+                    showToast('success', result.message || 'Email mời đã được gửi thành công!');
+                }
+                setTimeout(() => {
+                    onSuccess();
+                    handleClose();
+                }, result.warning ? 2000 : 1000);
             } else {
-                showToast('error', result.message || 'Có lỗi xảy ra khi gửi email mời');
+                // Lỗi khác
+                showToast('error', result.message || 'Có lỗi xảy ra khi gửi email mời. Vui lòng thử lại.');
             }
         } catch (error) {
             console.error('Error inviting user:', error);
-            showToast('error', 'Có lỗi xảy ra khi gửi email mời');
+            if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                showToast('error', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng và thử lại.');
+            } else {
+                showToast('error', 'Có lỗi xảy ra khi gửi email mời. Vui lòng thử lại sau.');
+            }
         } finally {
             setLoading(false);
         }
@@ -66,18 +106,63 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
         setFormData({
             email: '',
             full_name: '',
-            role_name: 'member',
-            level: 'unit',
+            role_name: '',
+            level: '',
             department_id: ''
         });
         onClose();
     };
 
     const handleInputChange = (field, value) => {
-        setFormData(prev => ({
-            ...prev,
-            [field]: value
-        }));
+        setFormData(prev => {
+            const newData = {
+                ...prev,
+                [field]: value
+            };
+            
+            // Khi thay đổi level, reset department_id
+            if (field === 'level') {
+                newData.department_id = '';
+            }
+            
+            return newData;
+        });
+    };
+
+    // Lọc departments theo level
+    const getFilteredDepartments = () => {
+        if (formData.level === 'unit') {
+            // Chỉ hiển thị phòng ban (parent_department_id === null và type === "phòng ban")
+            return departments.filter(d => 
+                d.parent_department_id === null && d.type === "phòng ban"
+            );
+        } else if (formData.level === 'team') {
+            // Chỉ hiển thị nhóm (type === "đội nhóm")
+            return departments.filter(d => d.type === "đội nhóm");
+        }
+        return departments;
+    };
+
+    // Tạo options cho dropdown phòng ban
+    const getDepartmentOptions = () => {
+        const filteredDepts = getFilteredDepartments();
+        
+        return filteredDepts.map(d => {
+            let label = d.d_name;
+            
+            // Nếu là nhóm, thêm tên phòng ban vào đằng sau
+            if (formData.level === 'team' && d.parent_department_id) {
+                const parentDept = departments.find(pd => pd.department_id === d.parent_department_id);
+                if (parentDept) {
+                    label = `${d.d_name} (${parentDept.d_name})`;
+                }
+            }
+            
+            return {
+                value: String(d.department_id),
+                label: label
+            };
+        });
     };
 
     return (
@@ -124,11 +209,12 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
                         <Select
                             value={formData.role_name}
                             onChange={(value) => handleInputChange('role_name', value)}
-                            placeholder="Chọn vai trò"
+                            placeholder="-- Chọn vai trò --"
                             options={[
                                 { value: 'member', label: 'Thành viên' },
                                 { value: 'manager', label: 'Quản lý' }
                             ]}
+                            className="w-full"
                         />
                     </div>
 
@@ -140,30 +226,26 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
                         <Select
                             value={formData.level}
                             onChange={(value) => handleInputChange('level', value)}
-                            placeholder="Chọn cấp độ"
+                            placeholder="-- Chọn cấp độ --"
                             options={[
                                 { value: 'unit', label: 'Đơn vị' },
                                 { value: 'team', label: 'Nhóm' }
                             ]}
+                            className="w-full"
                         />
                     </div>
 
-                    {/* Phòng ban */}
+                    {/* Phòng ban/Đội nhóm */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Phòng ban
+                            Phòng ban/Đội nhóm <span className="text-red-500">*</span>
                         </label>
                         <Select
                             value={formData.department_id}
                             onChange={(value) => handleInputChange('department_id', value)}
-                            placeholder="Chọn phòng ban (tùy chọn)"
-                            options={[
-                                { value: '', label: 'Không chọn' },
-                                ...departments.map(d => ({
-                                    value: String(d.department_id),
-                                    label: d.d_name
-                                }))
-                            ]}
+                            placeholder={formData.level ? `-- Chọn ${formData.level === 'unit' ? 'phòng ban' : 'nhóm'} --` : "-- Chọn phòng ban/đội nhóm --"}
+                            options={getDepartmentOptions()}
+                            className="w-full"
                         />
                     </div>
 
@@ -184,16 +266,8 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
                         </div>
                     </div>
 
-                    {/* Buttons */}
-                    <div className="flex gap-3 justify-end pt-4">
-                        <button
-                            type="button"
-                            onClick={handleClose}
-                            className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                            disabled={loading}
-                        >
-                            Hủy
-                        </button>
+                    {/* Submit Button */}
+                    <div className="flex justify-end pt-4">
                         <button
                             type="submit"
                             disabled={loading}

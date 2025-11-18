@@ -8,51 +8,118 @@ export default function CheckInModal({
     objectiveId, 
     onSuccess 
 }) {
-    const [formData, setFormData] = useState({
-        check_in_type: 'quantity',
-        progress_value: 0,
-        progress_percent: 0,
-        notes: '',
-        is_completed: false
+    console.log('🔧 CheckInModal: Props received:', { open, keyResult, objectiveId });
+    console.log('🔧 CheckInModal: keyResult details:', {
+        kr_id: keyResult?.kr_id,
+        current_value: keyResult?.current_value,
+        target_value: keyResult?.target_value,
+        progress_percent: keyResult?.progress_percent,
+        unit: keyResult?.unit,
+        status: keyResult?.status
     });
+
+    // Null check for keyResult
+    if (!keyResult) {
+        console.error('❌ CheckInModal: keyResult is null or undefined');
+        return null;
+    }
+
+    const [formData, setFormData] = useState({
+        progress_value: parseFloat(keyResult.current_value) || 0,
+        progress_percent: parseFloat(keyResult.progress_percent) || 0,
+        check_in_type: 'quantity',
+        notes: ''
+    });
+
+    const [isInputFocused, setIsInputFocused] = useState(false);
+
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
+    // Debug: Log formData changes
     useEffect(() => {
-        if (keyResult && open) {
-            setFormData({
-                check_in_type: keyResult.unit === '%' ? 'percentage' : 'quantity',
-                progress_value: Math.round(parseFloat(keyResult.current_value)) || 0,
-                progress_percent: Math.round(parseFloat(keyResult.progress_percent) / 10) * 10 || 0,
-                notes: '',
-                is_completed: keyResult.status === 'completed'
-            });
-            setError('');
+        console.log('🔧 CheckInModal: formData updated:', {
+            progress_value: formData.progress_value,
+            progress_percent: formData.progress_percent,
+            check_in_type: formData.check_in_type,
+            notes: formData.notes
+        });
+    }, [formData]);
+
+    // Debug: Log keyResult changes
+    useEffect(() => {
+        console.log('🔧 CheckInModal: keyResult prop changed:', {
+            kr_id: keyResult?.kr_id,
+            current_value: keyResult?.current_value,
+            target_value: keyResult?.target_value,
+            progress_percent: keyResult?.progress_percent,
+            unit: keyResult?.unit,
+            status: keyResult?.status
+        });
+    }, [keyResult]);
+
+    // Auto-calculate progress_percent when progress_value changes (giá trị hiện tại → thanh tiến độ)
+    useEffect(() => {
+        if (keyResult?.target_value) {
+            const targetValue = parseFloat(keyResult.target_value);
+            if (targetValue > 0) {
+                const calculatedPercent = (formData.progress_value / targetValue) * 100;
+                console.log('🔧 Auto-calculate progress_percent from value:', {
+                    progress_value: formData.progress_value,
+                    target_value: targetValue,
+                    calculated_percent: calculatedPercent,
+                    current_percent: formData.progress_percent
+                });
+                
+                setFormData(prev => ({
+                    ...prev,
+                    progress_percent: calculatedPercent
+                }));
+            }
         }
-    }, [keyResult, open]);
+    }, [formData.progress_value, keyResult?.target_value]);
 
     const handleInputChange = (field, value) => {
-        setFormData(prev => {
-            const newData = { ...prev, [field]: value };
+        console.log('🔧 handleInputChange called:', { field, value, type: typeof value });
+        
+        if (field === 'progress_value') {
+            const numValue = parseFloat(value) || 0;
+            console.log('🔧 Progress value change:', { 
+                old_value: formData.progress_value, 
+                new_value: numValue,
+                target_value: keyResult?.target_value 
+            });
             
-            // Tự động tính toán progress_percent nếu thay đổi progress_value
-            if (field === 'progress_value' && keyResult?.target_value > 0) {
-                const percent = Math.min(100, Math.max(0, 
-                    Math.round((parseFloat(value) / parseFloat(keyResult.target_value)) * 100 / 10) * 10
-                ));
-                newData.progress_percent = percent;
-                newData.is_completed = percent >= 100;
-            }
+            setFormData(prev => {
+                const newData = {
+                    ...prev,
+                    progress_value: numValue
+                };
+                console.log('🔧 New formData after progress_value change:', newData);
+                return newData;
+            });
+        } else if (field === 'progress_percent') {
+            const numValue = parseFloat(value) || 0;
+            console.log('🔧 Progress percent change:', { 
+                old_percent: formData.progress_percent, 
+                new_percent: numValue,
+                target_value: keyResult?.target_value 
+            });
             
-            // Tự động tính toán progress_value nếu thay đổi progress_percent
-            if (field === 'progress_percent' && keyResult?.target_value > 0) {
-                const progressValue = Math.round((parseFloat(value) / 100) * parseFloat(keyResult.target_value));
-                newData.progress_value = progressValue;
-                newData.is_completed = parseFloat(value) >= 100;
-            }
-            
-            return newData;
-        });
+            setFormData(prev => {
+                const newData = {
+                    ...prev,
+                    progress_percent: numValue
+                };
+                console.log('🔧 New formData after progress_percent change:', newData);
+                return newData;
+            });
+        } else {
+            setFormData(prev => ({
+                ...prev,
+                [field]: value
+            }));
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -84,6 +151,14 @@ export default function CheckInModal({
             setLoading(false);
             return;
         }
+
+        // Debug: Log form data before submit
+        console.log('🔧 Submitting form data:', {
+            progress_value: formData.progress_value,
+            progress_percent: formData.progress_percent,
+            check_in_type: formData.check_in_type,
+            notes: formData.notes
+        });
 
         try {
             const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
@@ -117,13 +192,6 @@ export default function CheckInModal({
         }
     };
 
-    if (!keyResult) {
-        console.error('CheckInModal: keyResult is null or undefined');
-        return null;
-    }
-
-    console.log('CheckInModal rendering with:', { keyResult, objectiveId, open });
-
     return (
         <Modal open={open} onClose={onClose} title="Cập nhật tiến độ Key Result">
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -133,41 +201,70 @@ export default function CheckInModal({
                     </div>
                 )}
 
-                <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Key Result
-                    </label>
-                    <div className="p-3 bg-slate-50 rounded-lg text-slate-600">
-                        {keyResult.kr_title}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                            Key Result
+                        </label>
+                        <div className="p-3 bg-slate-50 rounded-lg text-slate-600 text-sm">
+                            {keyResult.kr_title}
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                            Loại cập nhật
+                        </label>
+                        <select
+                            value={formData.check_in_type}
+                            onChange={(e) => handleInputChange('check_in_type', e.target.value)}
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value="quantity">Giá trị định lượng</option>
+                            <option value="percentage">Phần trăm</option>
+                        </select>
                     </div>
                 </div>
 
-                <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Loại cập nhật
-                    </label>
-                    <select
-                        value={formData.check_in_type}
-                        onChange={(e) => handleInputChange('check_in_type', e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                        <option value="quantity">Giá trị định lượng</option>
-                        <option value="percentage">Phần trăm</option>
-                    </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">
                             Giá trị hiện tại
+                            <span className="text-xs text-blue-600 ml-1">(Auto-calculate %)</span>
                         </label>
                         <input
                             type="number"
                             min="0"
                             step="1"
-                            value={formData.progress_value}
-                            onChange={(e) => handleInputChange('progress_value', parseFloat(e.target.value) || 0)}
+                            value={formData.progress_value === 0 && !isInputFocused ? '' : formData.progress_value}
+                            onChange={(e) => {
+                                const value = e.target.value;
+                                console.log('🔧 Input change:', { value, type: typeof value });
+                                
+                                if (value === '') {
+                                    handleInputChange('progress_value', 0);
+                                } else {
+                                    const numValue = parseFloat(value);
+                                    console.log('🔧 Parsed value:', { numValue, isNaN: isNaN(numValue) });
+                                    
+                                    if (isNaN(numValue)) {
+                                        handleInputChange('progress_value', 0);
+                                    } else {
+                                        handleInputChange('progress_value', numValue);
+                                    }
+                                }
+                            }}
+                            onFocus={(e) => {
+                                setIsInputFocused(true);
+                                if (formData.progress_value === 0) {
+                                    // Select all text when focusing on 0 value
+                                    setTimeout(() => {
+                                        e.target.select();
+                                    }, 0);
+                                }
+                            }}
+                            onBlur={() => setIsInputFocused(false)}
                             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Nhập giá trị..."
                             required
                         />
                     </div>
@@ -184,23 +281,29 @@ export default function CheckInModal({
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
                         Tiến độ (%)
+                        <span className="text-xs text-blue-600 ml-1">(Auto-calculate giá trị)</span>
                     </label>
-                    <div className="flex items-center space-x-2">
-                        <input
-                            type="range"
-                            min="0"
-                            max="10"
-                            step="1"
-                            value={Math.round(formData.progress_percent / 10)}
-                            onChange={(e) => handleInputChange('progress_percent', parseInt(e.target.value) * 10)}
-                            className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
-                            style={{
-                                background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${formData.progress_percent}%, #e2e8f0 ${formData.progress_percent}%, #e2e8f0 100%)`
-                            }}
-                        />
-                        <span className="text-sm font-medium text-slate-600 w-16">
-                            {Math.round(formData.progress_percent / 10) * 10}%
-                        </span>
+                    <div className="space-y-2">
+                        {/* Slider */}
+                        <div className="flex items-center space-x-2">
+                            <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                value={formData.progress_percent}
+                                onChange={(e) => handleInputChange('progress_percent', parseFloat(e.target.value))}
+                                className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+                                style={{
+                                    background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${Math.min(100, Math.max(0, formData.progress_percent))}%, #e2e8f0 ${Math.min(100, Math.max(0, formData.progress_percent))}%, #e2e8f0 100%)`,
+                                    WebkitAppearance: 'none',
+                                    appearance: 'none'
+                                }}
+                            />
+                            <span className="text-sm font-medium text-slate-600 w-32">
+                                {Number(formData.progress_percent).toFixed(2)}%
+                            </span>
+                        </div>
                     </div>
                 </div>
 
@@ -211,30 +314,17 @@ export default function CheckInModal({
                     <textarea
                         value={formData.notes}
                         onChange={(e) => handleInputChange('notes', e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Mô tả ngắn về tiến độ công việc..."
                         rows={3}
                         maxLength={1000}
-                        placeholder="Mô tả ngắn về tiến độ công việc..."
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <div className="text-xs text-slate-500 mt-1">
                         {formData.notes.length}/1000 ký tự
                     </div>
                 </div>
 
-                {formData.progress_percent >= 100 && (
-                    <div className="rounded-md bg-green-50 p-3">
-                        <div className="flex items-center">
-                            <svg className="h-5 w-5 text-green-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                            </svg>
-                            <span className="text-green-700 text-sm font-medium">
-                                Chúc mừng! Key Result này đã hoàn thành 100%.
-                            </span>
-                        </div>
-                    </div>
-                )}
-
-                <div className="flex justify-end space-x-3 pt-4">
+                <div className="flex justify-end space-x-3">
                     <button
                         type="button"
                         onClick={onClose}

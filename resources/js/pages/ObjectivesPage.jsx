@@ -11,7 +11,7 @@ export default function ObjectivesPage() {
     const [items, setItems] = useState([]);
     const [departments, setDepartments] = useState([]);
     const [cyclesList, setCyclesList] = useState([]);
-    const [links, setLinks] = useState([]); // Thêm state này để lưu liên kết từ okr_links
+    const [links, setLinks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState({ type: "success", message: "" });
     const [editingKR, setEditingKR] = useState(null);
@@ -23,8 +23,11 @@ export default function ObjectivesPage() {
     const [totalPages, setTotalPages] = useState(1);
     const [checkInModal, setCheckInModal] = useState({ open: false, keyResult: null });
     const [checkInHistory, setCheckInHistory] = useState({ open: false, keyResult: null });
+    const [currentUser, setCurrentUser] = useState(null);
+    const [cycleFilter, setCycleFilter] = useState("");
+    const [myOKRFilter, setMyOKRFilter] = useState(false);
 
-    const load = async (pageNum = 1) => {
+    const load = async (pageNum = 1, cycle = "", myOKR = false) => {
         try {
             setLoading(true);
             const token = document
@@ -38,27 +41,26 @@ export default function ObjectivesPage() {
                 throw new Error("CSRF token not found");
             }
 
-            const [resObj, resDept, resCycles, resLinks] = await Promise.all([
-                fetch(`/my-objectives?page=${pageNum}`, {
+            let url = `/my-objectives?page=${pageNum}`;
+            if (cycle) url += `&cycle_id=${cycle}`;
+            if (myOKR) url += `&my_okr=true`;
+
+            const [resObj, resDept, resCycles, resUser] = await Promise.all([
+                fetch(url, {
                     headers: {
                         Accept: "application/json",
                         "X-CSRF-TOKEN": token,
-                        "X-Requested-With": "XMLHttpRequest",
                     },
-                    credentials: 'same-origin',
                 }),
                 fetch("/departments", {
-                    headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
-                    credentials: 'same-origin',
+                    headers: { Accept: "application/json" },
                 }),
-                fetch("/cycles", { headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" }, credentials: 'same-origin' }),
-                fetch("/my-links", {
+                fetch("/cycles", { headers: { Accept: "application/json" } }),
+                fetch("/api/profile", {
                     headers: {
                         Accept: "application/json",
                         "X-CSRF-TOKEN": token,
-                        "X-Requested-With": "XMLHttpRequest",
                     },
-                    credentials: 'same-origin',
                 }),
             ]);
 
@@ -68,19 +70,12 @@ export default function ObjectivesPage() {
                     resObj.status,
                     resObj.statusText
                 );
-                setToast({
-                    type: "error",
-                    message: `Lỗi tải objectives: ${resObj.statusText}`,
-                });
             }
             const objData = await resObj.json().catch((err) => {
                 console.error("Error parsing objectives:", err);
-                setToast({
-                    type: "error",
-                    message: "Lỗi phân tích dữ liệu objectives",
-                });
                 return { success: false, data: { data: [], last_page: 1 } };
             });
+            
             // Normalize data: convert keyResults to key_results
             const list = Array.isArray(objData?.data?.data) ? objData.data.data : (Array.isArray(objData?.data) ? objData.data : []);
             const normalizedItems = Array.isArray(list)
@@ -89,76 +84,75 @@ export default function ObjectivesPage() {
                     key_results: obj.key_results || obj.keyResults || []
                 }))
                 : [];
-            if (resObj.ok && Array.isArray(list)) {
+            
+            if (resObj.ok && objData.success !== false) {
+                console.log('📥 Server response OK, items count:', normalizedItems.length);
+                
+                // Luôn cập nhật state với data mới từ server
                 setItems(normalizedItems);
-                try { localStorage.setItem('my_objectives', JSON.stringify(normalizedItems)); } catch {}
+                
+                // Lưu vào localStorage
+                try { 
+                    localStorage.setItem('my_objectives', JSON.stringify(normalizedItems)); 
+                    console.log('💾 Saved to localStorage:', normalizedItems.length, 'objectives');
+                    
+                    // Verify save
+                    const verify = localStorage.getItem('my_objectives');
+                    if (verify) {
+                        const verifyParsed = JSON.parse(verify);
+                        console.log('✅ Verified cache has:', verifyParsed.length, 'objectives');
+                    }
+                } catch (e) {
+                    console.error('❌ Failed to save to localStorage:', e);
+                }
+                
                 if (objData?.data?.last_page) setTotalPages(objData.data.last_page);
             } else {
-                console.warn('Keeping previous objectives due to bad response');
+                console.warn('⚠️ Bad response from server, keeping cached data');
+                console.log('Response status:', resObj.status, 'Success flag:', objData.success);
+                // Không xóa cache và không clear items khi có lỗi
             }
 
-            if (!resDept.ok) {
-                console.error(
-                    "Departments API error:",
-                    resDept.status,
-                    resDept.statusText
-                );
-                setToast({
-                    type: "error",
-                    message: `Lỗi tải departments: ${resDept.statusText}`,
-                });
-            }
             const deptData = await resDept.json().catch((err) => {
                 console.error("Error parsing departments:", err);
                 return { data: [] };
             });
-            setDepartments(deptData.data || []);
-
-            if (!resCycles.ok) {
-                console.error(
-                    "Cycles API error:",
-                    resCycles.status,
-                    resCycles.statusText
-                );
-                setToast({
-                    type: "error",
-                    message: `Lỗi tải cycles: ${resCycles.statusText}`,
-                });
+            if (resDept.ok) {
+                setDepartments(deptData.data || []);
+            } else {
+                console.error("Departments API error:", resDept.status, resDept.statusText);
+                setDepartments([]);
             }
+
             const cyclesData = await resCycles.json().catch((err) => {
                 console.error("Error parsing cycles:", err);
                 return { data: [] };
             });
-            setCyclesList(cyclesData.data || []);
-
-            if (
-                !Array.isArray(objData.data.data) ||
-                objData.data.data.length === 0
-            ) {
-                setToast({
-                    type: "warning",
-                    message: "Không có objectives nào",
-                });
-            }
-            if (deptData.data?.length === 0) {
-                setToast({
-                    type: "warning",
-                    message: "Không có phòng ban nào",
-                });
-            }
-            if (cyclesData.data?.length === 0) {
-                setToast({ type: "warning", message: "Không có chu kỳ nào" });
+            if (resCycles.ok) {
+                setCyclesList(cyclesData.data || []);
+            } else {
+                console.error("Cycles API error:", resCycles.status, resCycles.statusText);
+                setCyclesList([]);
             }
 
-            const linksData = await resLinks.json().catch((err) => {
-                console.error("Error parsing links:", err);
-                setToast({
-                    type: "error",
-                    message: "Lỗi phân tích dữ liệu liên kết",
+            // Set links to empty array (endpoint not implemented yet)
+            setLinks([]);
+
+            // Parse user data (optional, không ảnh hưởng objectives)
+            if (resUser && resUser.ok) {
+                const userData = await resUser.json().catch((err) => {
+                    console.error("Error parsing user:", err);
+                    return null;
                 });
-                return { data: [] };
-            });
-            setLinks(linksData.data || []);
+                if (userData && userData.user) {
+                    setCurrentUser(userData.user);
+                    console.log('👤 Current user loaded:', userData.user.email);
+                } else {
+                    console.warn('⚠️ User data format unexpected:', userData);
+                }
+            } else {
+                console.warn('⚠️ Failed to fetch user profile, continuing without it');
+            }
         } catch (err) {
             console.error("Load error:", err);
             setToast({
@@ -170,17 +164,64 @@ export default function ObjectivesPage() {
         }
     };
 
+    // Load cache chỉ 1 lần khi component mount
     useEffect(() => {
-        // Warm load from cache to avoid empty UI on refresh
         try {
             const cached = localStorage.getItem('my_objectives');
             if (cached) {
                 const parsed = JSON.parse(cached);
-                if (Array.isArray(parsed)) setItems(parsed);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    console.log('✅ Loaded from cache:', parsed.length, 'objectives');
+                    setItems(parsed);
+                } else {
+                    console.log('⚠️ Cache is empty');
+                }
+            } else {
+                console.log('⚠️ No cache found');
             }
-        } catch {}
-        load(page);
+        } catch (e) {
+            console.error('❌ Error loading from cache:', e);
+        }
+    }, []);
+
+    // Load data từ server khi page thay đổi
+    useEffect(() => {
+        load(page, cycleFilter, myOKRFilter);
     }, [page]);
+
+    useEffect(() => {
+        // Khi filter thay đổi, reset về trang 1 và reload
+        setPage(1);
+        load(1, cycleFilter, myOKRFilter);
+    }, [cycleFilter]);
+
+    useEffect(() => {
+        // Khi My OKR filter thay đổi, reset về trang 1 và reload
+        setPage(1);
+        load(1, cycleFilter, myOKRFilter);
+    }, [myOKRFilter]);
+
+    useEffect(() => {
+        // Load current user
+        const loadCurrentUser = async () => {
+            try {
+                const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
+                const res = await fetch("/api/profile", {
+                    headers: {
+                        Accept: "application/json",
+                        "X-CSRF-TOKEN": token,
+                    },
+                });
+                const json = await res.json();
+                if (res.ok && json.success) {
+                    setCurrentUser(json.user);
+                }
+            } catch (err) {
+                console.error("Error loading current user:", err);
+            }
+        };
+        loadCurrentUser();
+    }, []);
 
     const sortedItems = useMemo(
         () => (Array.isArray(items) ? items : []),
@@ -221,6 +262,12 @@ export default function ObjectivesPage() {
         setCheckInHistory({ open: true, keyResult });
     };
 
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setPage(newPage);
+        }
+    };
+
     return (
         <div className="px-4 py-6">
             <ToastComponent
@@ -230,6 +277,7 @@ export default function ObjectivesPage() {
             />
             <ObjectiveList
                 items={sortedItems}
+                setItems={setItems}
                 departments={departments}
                 cyclesList={cyclesList}
                 loading={loading}
@@ -242,6 +290,11 @@ export default function ObjectivesPage() {
                 links={links}
                 openCheckInModal={openCheckInModal}
                 openCheckInHistory={openCheckInHistory}
+                currentUser={currentUser}
+                cycleFilter={cycleFilter}
+                setCycleFilter={setCycleFilter}
+                myOKRFilter={myOKRFilter}
+                setMyOKRFilter={setMyOKRFilter}
             />
             <div className="mt-4 flex justify-center gap-2">
                 <button
@@ -300,6 +353,8 @@ export default function ObjectivesPage() {
                     cyclesList={cyclesList}
                     setItems={setItems}
                     setToast={setToast}
+                    setLinks={setLinks} // Thêm setLinks
+                    reloadData={load} // Thêm hàm reloadData
                 />
             )}
 

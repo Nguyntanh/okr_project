@@ -1,82 +1,86 @@
 <?php
 
-use App\Models\Objective;
-use App\Models\User;
-use Illuminate\Support\Facades\DB;
+/**
+ * Script để backfill user_id cho các objectives có user_id = NULL
+ * Gán user_id của tài khoản hiện tại (hoặc admin đầu tiên)
+ */
 
 require __DIR__ . '/../vendor/autoload.php';
 
 $app = require_once __DIR__ . '/../bootstrap/app.php';
-$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+$kernel->bootstrap();
 
-$dryRun = in_array('--dry-run', $argv, true);
+use App\Models\Objective;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
-echo "\nBackfilling objectives.user_id (" . ($dryRun ? 'DRY RUN' : 'APPLY') . ")\n";
-echo str_repeat('=', 60) . "\n";
+echo "=== Backfill Objective user_id ===\n\n";
 
-$nullCount = Objective::whereNull('user_id')->count();
-echo "Objectives with NULL user_id: $nullCount\n";
-if ($nullCount === 0) {
-    echo "Nothing to update.\n";
-    exit(0);
-}
-
-$updated = 0; $skipped = 0;
-
-DB::beginTransaction();
 try {
-    Objective::whereNull('user_id')->orderBy('objective_id')->chunk(100, function ($chunk) use (&$updated, &$skipped, $dryRun) {
-        foreach ($chunk as $objective) {
-            // Strategy:
-            // 1) If objective has department_id → pick a manager in that department; if none, any user in that department; if none, fallback to first admin; if none, skip
-            // 2) If no department_id → fallback to first admin; if none, skip
-            $candidateUser = null;
-
-            if (!empty($objective->department_id)) {
-                $candidateUser = User::where('department_id', $objective->department_id)
-                    ->whereHas('role', function ($q) { $q->whereRaw('LOWER(role_name) = ?', ['manager']); })
-                    ->orderBy('user_id')
-                    ->first();
-
-                if (!$candidateUser) {
-                    $candidateUser = User::where('department_id', $objective->department_id)
-                        ->orderBy('user_id')
-                        ->first();
-                }
-            }
-
-            if (!$candidateUser) {
-                $candidateUser = User::whereHas('role', function ($q) { $q->whereRaw('LOWER(role_name) = ?', ['admin']); })
-                    ->orderBy('user_id')
-                    ->first();
-            }
-
-            if (!$candidateUser) {
-                $skipped++;
-                echo "SKIP objective #{$objective->objective_id}: no suitable user found\n";
-                continue;
-            }
-
-            echo "SET objective #{$objective->objective_id} → user_id={$candidateUser->user_id}\n";
-            if (!$dryRun) {
-                $objective->user_id = $candidateUser->user_id;
-                $objective->save();
-            }
+    // Tìm tất cả objectives có user_id = NULL
+    $objectivesWithoutUser = Objective::whereNull('user_id')->get();
+    
+    echo "Found {$objectivesWithoutUser->count()} objectives without user_id\n\n";
+    
+    if ($objectivesWithoutUser->isEmpty()) {
+        echo "No objectives to update. All objectives already have user_id.\n";
+        exit(0);
+    }
+    
+    // Lấy user hiện tại hoặc admin đầu tiên
+    $defaultUser = User::whereHas('role', function($query) {
+        $query->where('role_name', 'admin');
+    })->first();
+    
+    if (!$defaultUser) {
+        // Nếu không có admin, lấy user đầu tiên
+        $defaultUser = User::first();
+    }
+    
+    if (!$defaultUser) {
+        echo "ERROR: No users found in database. Please create a user first.\n";
+        exit(1);
+    }
+    
+    echo "Default user selected: {$defaultUser->email} (ID: {$defaultUser->user_id})\n";
+    echo "Role: " . ($defaultUser->role ? $defaultUser->role->role_name : 'N/A') . "\n\n";
+    
+    // Hỏi xác nhận
+    echo "This will update {$objectivesWithoutUser->count()} objectives.\n";
+    echo "Do you want to continue? (yes/no): ";
+    $handle = fopen("php://stdin", "r");
+    $line = trim(fgets($handle));
+    fclose($handle);
+    
+    if (strtolower($line) !== 'yes') {
+        echo "Aborted.\n";
+        exit(0);
+    }
+    
+    echo "\nUpdating objectives...\n\n";
+    
+    $updated = 0;
+    
+    DB::transaction(function() use ($objectivesWithoutUser, $defaultUser, &$updated) {
+        foreach ($objectivesWithoutUser as $objective) {
+            // Gán user_id
+            $objective->user_id = $defaultUser->user_id;
+            $objective->save();
+            
             $updated++;
+            echo "✓ Updated Objective #{$objective->objective_id}: {$objective->obj_title}\n";
         }
     });
-
-    if ($dryRun) {
-        DB::rollBack();
-        echo "\nDry run complete. No changes were committed.\n";
-    } else {
-        DB::commit();
-        echo "\nApplied changes successfully.\n";
-    }
-
-    echo "\nSummary: updated=$updated, skipped=$skipped\n";
-} catch (Throwable $e) {
-    DB::rollBack();
+    
+    echo "\n=== Summary ===\n";
+    echo "Total objectives updated: {$updated}\n";
+    echo "Assigned to user: {$defaultUser->email}\n";
+    echo "\nDone!\n";
+    
+} catch (\Exception $e) {
     echo "\nERROR: " . $e->getMessage() . "\n";
+    echo "Stack trace:\n" . $e->getTraceAsString() . "\n";
     exit(1);
 }
+

@@ -19,13 +19,18 @@ class CheckInController extends Controller
     public function create($objectiveId, $krId): View
     {
         $user = Auth::user();
-        $keyResult = KeyResult::with(['objective', 'checkIns' => function($query) {
+        $keyResult = KeyResult::with(['objective.cycle', 'cycle', 'checkIns' => function($query) {
             $query->latest()->limit(5);
         }])->findOrFail($krId);
 
         // Load user relationship nếu chưa có
         if (!$user->relationLoaded('role')) {
             $user->load('role');
+        }
+
+        // Chặn check-in nếu chu kỳ đã đóng (status != active)
+        if (($keyResult->cycle && strtolower((string)$keyResult->cycle->status) !== 'active') || ($keyResult->objective && $keyResult->objective->cycle && strtolower((string)$keyResult->objective->cycle->status) !== 'active')) {
+            abort(403, 'Chu kỳ đã đóng. Không thể check-in.');
         }
 
         // Kiểm tra quyền check-in: chỉ người sở hữu Key Result mới có quyền check-in
@@ -42,11 +47,19 @@ class CheckInController extends Controller
     public function store(Request $request, $objectiveId, $krId)
     {
         $user = Auth::user();
-        $keyResult = KeyResult::findOrFail($krId);
+    $keyResult = KeyResult::with(['objective.cycle', 'cycle'])->findOrFail($krId);
 
         // Load user relationship nếu chưa có
         if (!$user->relationLoaded('role')) {
             $user->load('role');
+        }
+
+        // Chặn check-in nếu chu kỳ đã đóng (status != active)
+        if (($keyResult->cycle && strtolower((string)$keyResult->cycle->status) !== 'active') || ($keyResult->objective && $keyResult->objective->cycle && strtolower((string)$keyResult->objective->cycle->status) !== 'active')) {
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng. Không thể check-in.'], 403);
+            }
+            abort(403, 'Chu kỳ đã đóng. Không thể check-in.');
         }
 
         // Kiểm tra quyền check-in
@@ -208,6 +221,16 @@ class CheckInController extends Controller
     {
         $user = Auth::user();
         $checkIn = CheckIn::with('keyResult')->findOrFail($checkInId);
+        $checkIn->load('keyResult.cycle', 'keyResult.objective.cycle');
+
+        // Chặn xóa check-in nếu chu kỳ đã đóng (bảo toàn lịch sử)
+        if (($checkIn->keyResult && $checkIn->keyResult->cycle && strtolower((string)$checkIn->keyResult->cycle->status) !== 'active') ||
+            ($checkIn->keyResult && $checkIn->keyResult->objective && $checkIn->keyResult->objective->cycle && strtolower((string)$checkIn->keyResult->objective->cycle->status) !== 'active')) {
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng. Không thể xóa check-in.'], 403);
+            }
+            abort(403, 'Chu kỳ đã đóng. Không thể xóa check-in.');
+        }
 
         // Load user relationship nếu chưa có
         if (!$user->relationLoaded('role')) {
@@ -285,29 +308,13 @@ class CheckInController extends Controller
      */
     private function canCheckIn($user, $keyResult): bool
     {
-        // Load objective relationship nếu chưa có
-        if (!$keyResult->relationLoaded('objective')) {
-            $keyResult->load('objective');
-        }
-
-        // Admin có quyền check-in cho tất cả
-        if ($user->isAdmin()) {
-            return true;
-        }
-
+        // CHỈ người sở hữu Key Result mới có quyền check-in
         // Người sở hữu Key Result có thể check-in
-        if ($keyResult->objective && $keyResult->objective->user_id == $user->user_id) {
+        if ($keyResult->user_id == $user->user_id) {
             return true;
         }
 
-        // Manager/Member chỉ có thể check-in trong phòng ban của mình (trừ cá nhân)
-        if ($user->department_id && $keyResult->objective && $keyResult->objective->department_id) {
-            if ($keyResult->objective->department_id == $user->department_id && 
-                $keyResult->objective->level !== 'person') {
-                return true;
-            }
-        }
-
+        // Tất cả các trường hợp khác đều không có quyền check-in
         return false;
     }
 
