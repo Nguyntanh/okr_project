@@ -21,7 +21,11 @@ function SidebarItem({ icon, label, href, collapsed }) {
 function DashboardSidebar({ open, user }) {
     const collapsed = !open;
     const isAdmin = user?.is_admin === true;
-    const isMember = user?.role?.role_name?.toLowerCase() === 'member';
+    const isCeo = user?.is_ceo === true;
+    const roleName = user?.role?.role_name?.toLowerCase() || '';
+    const isManager = roleName === 'manager';
+    const isMember = roleName === 'member';
+    const canSeeReports = isAdmin || isCeo || isManager;
     return (
         <aside
             className={`${
@@ -154,8 +158,8 @@ function DashboardSidebar({ open, user }) {
                         }
                     />
                 )}
-                {/* Báo cáo - chỉ hiển thị cho Admin */}
-                {isAdmin && (
+                {/* Báo cáo - hiển thị cho Admin, CEO, Manager */}
+                {canSeeReports && (
                     <SidebarItem
                         collapsed={collapsed}
                         href="/reports"

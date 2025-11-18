@@ -22,6 +22,7 @@
                     avatar: u.avatar_url || null,
                     role: u.role ? { role_name: u.role.role_name, level: u.role.level } : null,
                     is_admin: <?php echo json_encode(auth()->check() && auth()->user()->isAdmin(), 15, 512) ?>,
+                    is_ceo: <?php echo json_encode(auth()->check() && auth()->user()->isCeo(), 15, 512) ?>,
                 };
             } else {
                 window.__USER__ = null;

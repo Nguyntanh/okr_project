@@ -31,6 +31,7 @@ export default function UserTableRow({
 }) {
     const rname = (user.role?.role_name || "").toLowerCase();
     const isAdmin = rname === "admin" || user.email === "okr.admin@company.com";
+    const isCeo = rname === "ceo";
     const hasPendingChanges =
         pendingChanges[user.user_id] &&
         Object.keys(pendingChanges[user.user_id]).length > 0;
@@ -44,6 +45,8 @@ export default function UserTableRow({
         switch (roleLower) {
             case "admin":
                 return "Quản trị viên";
+            case "ceo":
+                return "CEO";
             case "manager":
                 return "Quản lý";
             case "member":
@@ -64,8 +67,8 @@ export default function UserTableRow({
                 return "Công ty";
             case "unit":
                 return "Phòng ban";
-            case "team":
-                return "Nhóm";
+            case "person":
+                return "Cá nhân";
             default:
                 return level; // Hiển thị nguyên gốc nếu không nhận diện được
         }
@@ -81,8 +84,8 @@ export default function UserTableRow({
             return "red"; // Cấp công ty - màu đỏ (cao nhất)
         } else if (levelLower === "unit") {
             return "amber"; // Cấp Phòng ban - màu vàng cam
-        } else if (levelLower === "team") {
-            return "blue"; // Cấp nhóm - màu xanh dương
+        } else if (levelLower === "person") {
+            return "emerald";
         }
 
         return "indigo"; // Màu mặc định cho các cấp độ khác
@@ -119,8 +122,9 @@ export default function UserTableRow({
             <td className="px-3 py-2">
                 {isAdmin ? (
                     <Badge color="indigo">ADMIN</Badge>
-                ) : (user.role?.role_name || "").toLowerCase() ===
-                "member" ? (
+                ) : isCeo ? (
+                    <Badge color="red">CEO</Badge>
+                ) : (user.role?.role_name || "").toLowerCase() === "member" ? (
                     <Badge color="amber">Thành viên</Badge>
                 ) : (
                     <Badge color="blue">Quản lý</Badge>
@@ -138,8 +142,8 @@ export default function UserTableRow({
             <td className="px-3 py-2">
                 <button
                     onClick={() => {
-                        if (isAdmin) {
-                            // Admin không thể thay đổi trạng thái của mình
+                        if (isAdmin || isCeo) {
+                            // Admin/CEO không thể thay đổi trạng thái của mình
                             return;
                         }
                         toggleStatus();
@@ -148,7 +152,7 @@ export default function UserTableRow({
                         user.status === "active"
                             ? "bg-emerald-100 text-emerald-700"
                             : "bg-rose-100 text-rose-700"
-                    } ${isAdmin ? 'cursor-not-allowed opacity-75' : ''}`}
+                    } ${isAdmin || isCeo ? 'cursor-not-allowed opacity-75' : ''}`}
                 >
                     {user.status === "active" ? "KÍCH HOẠT" : "VÔ HIỆU"}
                 </button>

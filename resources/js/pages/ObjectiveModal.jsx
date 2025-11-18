@@ -25,7 +25,7 @@ export default function ObjectiveModal({
                   key_results: [],
               }
             : editingObjective
-            ? { ...editingObjective, level: editingObjective.level || "team" } // Default level
+            ? { ...editingObjective, level: editingObjective.level || "unit" } // Default level
             : {}
     );
     const [allowedLevels, setAllowedLevels] = useState([]);
@@ -51,7 +51,7 @@ export default function ObjectiveModal({
         if (editingObjective?.objective_id) {
             setCreateForm({
                 ...editingObjective,
-                level: editingObjective.level || "team",
+                level: editingObjective.level || "unit",
             });
             setLinkForm((prev) => ({
                 ...prev,
@@ -85,7 +85,7 @@ export default function ObjectiveModal({
             const token = document
                 .querySelector('meta[name="csrf-token"]')
                 .getAttribute("content");
-            const sourceLevel = editingObjective.level || "team";
+            const sourceLevel = editingObjective.level || "unit";
             const url = `/my-links/available-targets?source_level=${sourceLevel}`;
             console.log("📡 FETCHING:", url);
             const res = await fetch(url, {
@@ -260,14 +260,14 @@ export default function ObjectiveModal({
 
     const handleCreateObjective = async (e) => {
         if (e && typeof e.preventDefault === "function") e.preventDefault();
-        // CHỈ validate department_id cho level unit hoặc team
+        // CHỈ validate department_id cho level Phòng ban
         if (
-            ["unit", "team"].includes(createForm.level) &&
+            ["unit"].includes(createForm.level) &&
             !createForm.department_id
         ) {
             setToast({
                 type: "error",
-                message: "Phải chọn phòng ban cho level unit hoặc team",
+                message: "Phải chọn phòng ban cho level Phòng ban",
             });
             return;
         }
@@ -329,7 +329,7 @@ export default function ObjectiveModal({
             const body = {
                 obj_title: createForm.obj_title,
                 description: createForm.description,
-                level: createForm.level || "team",
+                level: createForm.level || "unit",
                 status: createForm.status,
                 cycle_id: createForm.cycle_id,
                 department_id: createForm.department_id || null,
@@ -540,7 +540,7 @@ export default function ObjectiveModal({
                             </select>
                         </div>
                         {/* === HIỂN THỊ PHÒNG BAN CHỈ KHI CẦN === */}
-                        {["unit", "team"].includes(createForm.level) && (
+                        {["unit"].includes(createForm.level) && (
                             <div>
                                 <label className="mb-1 block text-xs font-semibold text-slate-600">
                                     Phòng ban

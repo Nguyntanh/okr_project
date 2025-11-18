@@ -36,10 +36,10 @@ class LinkController extends Controller
     public function getAvailableTargets(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'source_level' => 'required|in:person,team,unit,company',
+            'source_level' => 'required|in:person,unit,company',
         ]);
 
-        $levels = ['person' => 1, 'team' => 2, 'unit' => 3, 'company' => 4];
+        $levels = ['person' => 1, 'unit' => 2, 'company' => 3];
         $sourceLevel = $levels[$validated['source_level']];
 
         $higherLevels = array_filter($levels, fn($val) => $val > $sourceLevel);
@@ -87,7 +87,7 @@ class LinkController extends Controller
         $target = KeyResult::findOrFail($validated['target_kr_id']);
         $targetLevel = $target->objective->level;
 
-        $levels = ['person' => 1, 'team' => 2, 'unit' => 3, 'company' => 4];
+        $levels = ['person' => 1, 'unit' => 2, 'company' => 3];
         if ($levels[$targetLevel] <= $levels[$sourceLevel]) {
             return response()->json(['success' => false, 'message' => 'Key Result đích phải có cấp độ cao hơn Objective nguồn.'], 422);
         }

@@ -19,38 +19,32 @@ User::truncate();
 echo "🗑️  Xóa tất cả roles...\n";
 Role::truncate();
 
-// 3. Tạo lại 5 roles theo đúng cấu trúc trong ảnh
-echo "➕ Tạo lại 5 roles theo cấu trúc trong ảnh...\n";
+// 3. Tạo lại roles theo đúng cấu trúc mới
+echo "➕ Tạo lại roles theo cấu trúc mới...\n";
 
 $roles = [
     [
         'role_name' => 'admin',
         'description' => 'Quản trị viên hệ thống',
         'level' => 'company',
-        'allowed_levels' => json_encode(['company', 'unit', 'team', 'person']),
+        'allowed_levels' => json_encode(['company', 'unit', 'person']),
+    ],
+    [
+        'role_name' => 'ceo',
+        'description' => 'Tổng giám đốc điều hành',
+        'level' => 'company',
+        'allowed_levels' => json_encode(['company', 'unit', 'person']),
     ],
     [
         'role_name' => 'manager',
         'description' => 'Quản lý cấp đơn vị',
         'level' => 'unit',
-        'allowed_levels' => json_encode(['unit', 'team', 'person']),
-    ],
-    [
-        'role_name' => 'manager',
-        'description' => 'Quản lý cấp đội nhóm',
-        'level' => 'team',
-        'allowed_levels' => json_encode(['team', 'person']),
+        'allowed_levels' => json_encode(['unit', 'person']),
     ],
     [
         'role_name' => 'member',
         'description' => 'Thành viên cấp đơn vị',
         'level' => 'unit',
-        'allowed_levels' => json_encode(['person']),
-    ],
-    [
-        'role_name' => 'member',
-        'description' => 'Thành viên cấp nhóm',
-        'level' => 'team',
         'allowed_levels' => json_encode(['person']),
     ],
 ];
@@ -91,7 +85,7 @@ echo "\n✅ Hoàn thành! Kiểm tra kết quả:\n\n";
 
 // Hiển thị kết quả
 $allRoles = Role::orderBy('role_id')->get();
-echo "📋 Danh sách roles (5 roles):\n";
+echo "📋 Danh sách roles:\n";
 echo str_repeat("-", 80) . "\n";
 printf("%-8s %-12s %-30s %-12s %-20s\n", "ID", "Role Name", "Description", "Level", "Allowed Levels");
 echo str_repeat("-", 80) . "\n";

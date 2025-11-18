@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
-class ManagerOnly
+class AdminOrCeo
 {
     /**
      * Handle an incoming request.
@@ -16,17 +16,16 @@ class ManagerOnly
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // Kiểm tra đăng nhập
         if (!Auth::check()) {
             return redirect()->route('login')->withErrors('Bạn cần đăng nhập để truy cập trang này.');
         }
 
-        // Kiểm tra quyền Admin hoặc Manager
         $user = Auth::user();
-        if (!$user->isAdmin() && !$user->isManager() && !$user->isCeo()) {
-            abort(403, 'Bạn không có quyền truy cập trang này. Chỉ Admin, CEO và Manager mới có thể truy cập.');
+        if (!$user->isAdmin() && !$user->isCeo()) {
+            abort(403, 'Bạn không có quyền truy cập trang này. Chỉ Admin hoặc CEO mới có thể truy cập.');
         }
 
         return $next($request);
     }
 }
+

@@ -36,6 +36,14 @@ class Role extends Model
     }
 
     /**
+     * Kiểm tra role có phải CEO không
+     */
+    public function isCeo()
+    {
+        return strtolower($this->role_name) === 'ceo';
+    }
+
+    /**
      * Kiểm tra xem role có phải Unit Manager không
      */
     public function isDeptManager()
@@ -66,7 +74,7 @@ class Role extends Model
      */
     public function canCreateCompanyOKR()
     {
-        return $this->isAdmin() || $this->isManager();
+        return $this->isAdmin() || $this->isCeo() || $this->isManager();
     }
 
     /**

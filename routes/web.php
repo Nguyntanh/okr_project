@@ -241,7 +241,7 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     });
 
     // Reports API (Admin only)
-    Route::prefix('api/reports')->middleware(['auth', \App\Http\Middleware\AdminOnly::class])->group(function () {
+    Route::prefix('api/reports')->middleware(['auth', \App\Http\Middleware\AdminOrCeo::class])->group(function () {
         Route::get('/company-overview', [\App\Http\Controllers\ReportController::class, 'companyOverview'])
             ->name('api.reports.company-overview');
         Route::get('/okr-company', [\App\Http\Controllers\ReportController::class, 'companyOkrReport'])
@@ -252,10 +252,10 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
 
     // Frontend page route for Reports (SPA)
     Route::get('/reports/company-overview', function() { return view('app'); })
-        ->middleware(['auth', \App\Http\Middleware\AdminOnly::class])
+        ->middleware(['auth', \App\Http\Middleware\AdminOrCeo::class])
         ->name('reports.company-overview');
     Route::get('/reports/okr-company', function() { return view('app'); })
-        ->middleware(['auth', \App\Http\Middleware\AdminOnly::class])
+        ->middleware(['auth', \App\Http\Middleware\AdminOrCeo::class])
         ->name('reports.okr-company');
 
     // OKR Assignments

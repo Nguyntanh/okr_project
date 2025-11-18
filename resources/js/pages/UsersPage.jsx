@@ -20,7 +20,6 @@ export default function UsersPage() {
     const [pendingChanges, setPendingChanges] = useState({});
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [showInviteModal, setShowInviteModal] = useState(false);
-    const [teamId, setTeamId] = useState("");
     const [showFilterDropdown, setShowFilterDropdown] = useState(false);
 
     // Function để lưu tất cả thay đổi
@@ -149,20 +148,18 @@ export default function UsersPage() {
         setRole("");
         setDepartmentId("");
         setStatus("");
-        setTeamId("");
     };
 
     // Handler khi thay đổi cấp độ - reset các bộ lọc liên quan
     const handleLevelChange = (newLevel) => {
         setLevel(newLevel);
-        // Reset departmentId và teamId khi thay đổi cấp độ
+        // Reset departmentId khi thay đổi cấp độ
         setDepartmentId("");
-        setTeamId("");
     };
 
     // Kiểm tra có filter nào đang active không
     const hasActiveFilters =
-        (q && q.trim()) || level || role || departmentId || status || teamId;
+        (q && q.trim()) || level || role || departmentId || status;
 
     // Logic filter users
     const filtered = users.filter((u) => {
@@ -179,16 +176,13 @@ export default function UsersPage() {
             u.email === "okr.admin@company.com";
         const matchesDept =
             !departmentId || String(u.department_id) === String(departmentId);
-        const matchesTeam =
-            !teamId || String(u.department_id) === String(teamId);
         return (
             !isAdmin &&
             matchesQ &&
             matchesRole &&
             matchesStatus &&
             matchesDept &&
-            matchesLevel &&
-            matchesTeam
+            matchesLevel
         );
     });
 
@@ -262,13 +256,9 @@ export default function UsersPage() {
                                 <span>Bộ lọc</span>
                                 {hasActiveFilters && (
                                     <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-semibold leading-none text-white bg-blue-600 rounded-full">
-                                        {[
-                                            level,
-                                            role,
-                                            departmentId,
-                                            teamId,
-                                            status,
-                                        ].filter(Boolean).length}
+                                        {[level, role, departmentId, status]
+                                            .filter(Boolean)
+                                            .length}
                                     </span>
                                 )}
                                 <svg
@@ -329,8 +319,9 @@ export default function UsersPage() {
                                                         placeholder="Chọn cấp độ"
                                                         options={[
                                                             { value: "", label: "Tất cả" },
+                                                            { value: "company", label: "Công ty" },
                                                             { value: "unit", label: "Phòng ban" },
-                                                            { value: "team", label: "Nhóm" },
+                                                            { value: "person", label: "Cá nhân" },
                                                         ]}
                                                     />
                                                 </div>
@@ -362,36 +353,6 @@ export default function UsersPage() {
                                                     </div>
                                                 )}
 
-                                                {/* Đội nhóm - chỉ hiển thị khi level = "team" */}
-                                                {level === "team" && (
-                                                    <div>
-                                                        <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                                                            Đội nhóm
-                                                        </label>
-                                                        <Select
-                                                            value={teamId}
-                                                            onChange={setTeamId}
-                                                            placeholder="Chọn đội nhóm"
-                                                            options={[
-                                                                { value: "", label: "Tất cả" },
-                                                                ...departments
-                                                                    .filter(
-                                                                        (d) =>
-                                                                            d.type === "đội nhóm" &&
-                                                                            (!departmentId ||
-                                                                                d.parent_department_id ===
-                                                                                    (departmentId
-                                                                                        ? parseInt(departmentId)
-                                                                                        : null))
-                                                                    )
-                                                                    .map((d) => ({
-                                                                        value: String(d.department_id),
-                                                                        label: d.d_name,
-                                                                    })),
-                                                            ]}
-                                                        />
-                                                    </div>
-                                                )}
 
                                                 {/* Vai trò */}
                                                 <div>
@@ -404,6 +365,7 @@ export default function UsersPage() {
                                                         placeholder="Chọn vai trò"
                                                         options={[
                                                             { value: "", label: "Tất cả" },
+                                                            { value: "ceo", label: "CEO" },
                                                             { value: "manager", label: "Quản lý" },
                                                             { value: "member", label: "Thành viên" },
                                                         ]}
