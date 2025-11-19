@@ -220,12 +220,18 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
             ->name('my-key-results.archive');
         Route::post('/{objectiveId}/{keyResultId}/unarchive', [MyKeyResultController::class, 'unarchive'])
             ->name('my-key-results.unarchive');
-            Route::post('/{keyResultId}/assign', [MyKeyResultController::class, 'assign'])
+            Route::post('/{objectiveId}/{keyResultId}/assign', [MyKeyResultController::class, 'assign'])
             ->name('my-key-results.assign');
         Route::delete('/{id}', [MyKeyResultController::class, 'destroy'])  
             ->middleware('auth')
             ->name('my-key-result.destroy');
     });
+
+    // Company OKR Routes
+    Route::get('/company-okrs', [App\Http\Controllers\CompanyOkrController::class, 'index'])
+        ->name('company.okrs');
+    Route::get('/company-okrs/{id}', [App\Http\Controllers\CompanyOkrController::class, 'show'])
+        ->name('company.okrs.show');
 
     // Check-in Routes
     Route::prefix('check-in')->middleware('auth')->group(function () {
@@ -240,8 +246,8 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/{objectiveId}/{krId}/history', [CheckInController::class, 'getHistory'])->name('api.check-in.history');
     });
 
-    // Reports API (Admin only)
-    Route::prefix('api/reports')->middleware(['auth', \App\Http\Middleware\AdminOnly::class])->group(function () {
+    // Reports API (Admin hoặc CEO)
+    Route::prefix('api/reports')->middleware(['auth', \App\Http\Middleware\AdminOrCeo::class])->group(function () {
         Route::get('/company-overview', [\App\Http\Controllers\ReportController::class, 'companyOverview'])
             ->name('api.reports.company-overview');
         Route::get('/okr-company', [\App\Http\Controllers\ReportController::class, 'companyOkrReport'])
@@ -250,12 +256,12 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
             ->name('api.reports.okr-company.export.csv');
     });
 
-    // Frontend page route for Reports (SPA)
+    // Frontend page route for Reports (SPA) - Admin hoặc CEO
     Route::get('/reports/company-overview', function() { return view('app'); })
-        ->middleware(['auth', \App\Http\Middleware\AdminOnly::class])
+        ->middleware(['auth', \App\Http\Middleware\AdminOrCeo::class])
         ->name('reports.company-overview');
     Route::get('/reports/okr-company', function() { return view('app'); })
-        ->middleware(['auth', \App\Http\Middleware\AdminOnly::class])
+        ->middleware(['auth', \App\Http\Middleware\AdminOrCeo::class])
         ->name('reports.okr-company');
 
     // OKR Assignments
