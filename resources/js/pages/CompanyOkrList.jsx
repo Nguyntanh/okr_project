@@ -1,7 +1,6 @@
 // src/components/CompanyOkrList.jsx
 import React, { useState, useEffect, useCallback } from "react";
 import { CycleDropdown } from "../components/Dropdown";
-import Tabs from "../components/Tabs";
 import ToastNotification from "../components/ToastNotification";
 
 export default function CompanyOkrList() {
@@ -13,7 +12,9 @@ export default function CompanyOkrList() {
     const [cyclesList, setCyclesList] = useState([]);
     const [dropdownOpen, setDropdownOpen] = useState(false);
 
-    // Fetch cycles
+    // ============================================================
+    // LOGIC CHỌN QUÝ: LUÔN ƯU TIÊN HIỆN TẠI/GẦN NHẤT – KHÔNG Fallback CỨ VÀ MỚI!
+    // ============================================================
     useEffect(() => {
         (async () => {
             try {
@@ -21,35 +22,117 @@ export default function CompanyOkrList() {
                     headers: { Accept: "application/json" },
                 });
                 const json = await res.json();
-                if (Array.isArray(json.data)) setCyclesList(json.data);
-            } catch (err) {
-                setToast({
-                    type: "error",
-                    message: "Không tải được danh sách quý",
+
+                if (!Array.isArray(json.data) || json.data.length === 0) {
+                    setToast({
+                        type: "error",
+                        message: "Không có dữ liệu quý",
+                    });
+                    setLoading(false);
+                    return;
+                }
+
+                const cycles = json.data;
+                setCyclesList(cycles);
+
+                const now = new Date();
+                const currentQuarter = Math.ceil((now.getMonth() + 1) / 3);
+                const currentYear = now.getFullYear();
+
+                // 1. Tìm quý hiện tại chính xác (regex linh hoạt hơn)
+                let selected = cycles.find((c) => {
+                    // Thử nhiều regex để match: "Quý 4 năm 2025", "q4 2025", "Q4/2025", etc.
+                    const patterns = [
+                        /Quý\s*(\d+)\s*năm\s*(\d+)/i,
+                        /Q(\d+)\s*\/\s*(\d+)/i,
+                        /Quý\s*(\d+)\s*(\d+)/i, // Nếu thiếu "năm"
+                    ];
+                    for (const pattern of patterns) {
+                        const m = c.cycle_name.match(pattern);
+                        if (
+                            m &&
+                            +m[1] === currentQuarter &&
+                            +m[2] === currentYear
+                        ) {
+                            return true;
+                        }
+                    }
+                    return false;
                 });
+
+                // 2. Nếu không có → TÌM QUÝ GẦN NHẤT (KHÔNG Fallback cycles[0]!)
+                if (!selected) {
+                    selected = cycles.reduce((best, c) => {
+                        // Regex linh hoạt cho tất cả
+                        const patterns = [
+                            /Quý\s*(\d+)\s*năm\s*(\d+)/i,
+                            /Q(\d+)\s*\/\s*(\d+)/i,
+                            /Quý\s*(\d+)\s*(\d+)/i,
+                        ];
+                        let m = null;
+                        for (const pattern of patterns) {
+                            m = c.cycle_name.match(pattern);
+                            if (m) break;
+                        }
+                        if (!m) return best; // Bỏ qua nếu không match regex nào
+
+                        const q = +m[1];
+                        const y = +m[2];
+                        // Tính ngày đầu quý: tháng = (q-1)*3, ngày 1
+                        const cycleMonth = (q - 1) * 3; // 0-based
+                        const cycleDate = new Date(y, cycleMonth, 1);
+                        const diff = Math.abs(
+                            cycleDate.getTime() - now.getTime()
+                        );
+
+                        if (!best || diff < best.diff) {
+                            return { cycle: c, diff };
+                        }
+                        return best;
+                    }, null)?.cycle;
+
+                    // Nếu VẪN KHÔNG TÌM THẤY (tất cả không match regex) → chọn cycles[0] nhưng log lỗi
+                    if (!selected) {
+                        console.warn(
+                            "Không match regex nào cho cycles – fallback cycles[0]:",
+                            cycles[0]
+                        );
+                        selected = cycles[0];
+                        setToast({
+                            type: "warning",
+                            message:
+                                "Dữ liệu quý không chuẩn định dạng, đang dùng quý mặc định.",
+                        });
+                    }
+                }
+
+                setCycleFilter(selected.cycle_id);
+            } catch (err) {
+                console.error("Lỗi fetch cycles:", err);
+                setToast({ type: "error", message: "Lỗi tải danh sách quý" });
+                setLoading(false);
             }
         })();
     }, []);
 
-    // Tự động chọn quý hiện tại
+    // Xóa cycle_id trên URL khi vào trang
     useEffect(() => {
-        if (cycleFilter || cyclesList.length === 0) return;
+        const url = new URL(window.location);
+        if (url.searchParams.has("cycle_id")) {
+            url.searchParams.delete("cycle_id");
+            window.history.replaceState({}, "", url);
+        }
+    }, []);
 
-        const now = new Date();
-        const currentQuarter = Math.ceil((now.getMonth() + 1) / 3);
-        const currentYear = now.getFullYear();
-
-        const current = cyclesList.find((c) => {
-            const m = c.cycle_name.match(/Quý (\d+) năm (\d+)/);
-            return m && +m[1] === currentQuarter && +m[2] === currentYear;
-        });
-
-        if (current) setCycleFilter(current.cycle_id);
-    }, [cyclesList, cycleFilter]);
-
-    // Fetch company OKRs
+    // ============================================================
+    // LẤY DỮ LIỆU OKR CÔNG TY
+    // ============================================================
     const fetchCompanyOkrs = useCallback(async () => {
-        if (!cycleFilter) return;
+        if (!cycleFilter) {
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
         try {
             const params = new URLSearchParams({ cycle_id: cycleFilter });
@@ -57,16 +140,19 @@ export default function CompanyOkrList() {
                 headers: { Accept: "application/json" },
             });
             const json = await res.json();
+
             if (json.success) {
                 setItems(json.data || []);
             } else {
                 throw new Error(json.message || "Lỗi tải dữ liệu");
             }
         } catch (err) {
+            console.error("Lỗi fetch OKRs:", err);
             setToast({
                 type: "error",
                 message: err.message || "Không tải được OKR công ty",
             });
+            setItems([]);
         } finally {
             setLoading(false);
         }
@@ -76,9 +162,12 @@ export default function CompanyOkrList() {
         fetchCompanyOkrs();
     }, [fetchCompanyOkrs]);
 
-    // Helper
+    // ============================================================
+    // HELPER FUNCTIONS
+    // ============================================================
     const formatPercent = (v) =>
         Number.isFinite(+v) ? `${(+v).toFixed(1)}%` : "0%";
+
     const getStatusText = (s) => {
         switch ((s || "").toLowerCase()) {
             case "draft":
@@ -91,6 +180,7 @@ export default function CompanyOkrList() {
                 return s || "";
         }
     };
+
     const getUnitText = (u) => {
         switch ((u || "").toLowerCase()) {
             case "number":
@@ -107,14 +197,15 @@ export default function CompanyOkrList() {
         }
     };
 
-    // Tên quý hiện tại để hiển thị đẹp
     const currentCycleName =
         cyclesList.find((c) => c.cycle_id === cycleFilter)?.cycle_name ||
-        "Chọn quý";
+        "Đang tải quý...";
 
+    // ============================================================
+    // RENDER
+    // ============================================================
     return (
         <div className="mx-auto w-full max-w-6xl mt-8">
-            {/* Header – copy 100% từ ObjectiveList */}
             <div className="mb-4 flex w-full items-center justify-between">
                 <div className="flex items-center gap-4">
                     <CycleDropdown
@@ -128,7 +219,7 @@ export default function CompanyOkrList() {
                 </div>
             </div>
 
-            {/* Bảng – copy hoàn toàn từ ObjectiveList, chỉ đổi màu + bỏ hết hành động */}
+            {/* BẢNG OKR CÔNG TY */}
             <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
                 <table className="min-w-full divide-y divide-slate-200">
                     <thead className="bg-slate-50 text-left font-semibold text-slate-700">
@@ -182,7 +273,7 @@ export default function CompanyOkrList() {
                         ) : (
                             items.map((obj, index) => (
                                 <React.Fragment key={obj.objective_id}>
-                                    {/* Objective row – gradient tím giống trang công ty */}
+                                    {/* Objective Row */}
                                     <tr
                                         className={`bg-gradient-to-r from-indigo-50 to-purple-50 border-t-2 border-indigo-200 ${
                                             index > 0 ? "mt-4" : ""
@@ -232,7 +323,6 @@ export default function CompanyOkrList() {
                                                         </svg>
                                                     </button>
                                                 )}
-
                                                 <span className="font-semibold text-slate-900">
                                                     [
                                                     {obj.level === "company"
@@ -244,8 +334,6 @@ export default function CompanyOkrList() {
                                                 </span>
                                             </div>
                                         </td>
-
-                                        {/* Cột hành động – để trống */}
                                         <td className="px-3 py-3 text-center bg-gradient-to-r from-indigo-50 to-purple-50">
                                             —
                                         </td>
