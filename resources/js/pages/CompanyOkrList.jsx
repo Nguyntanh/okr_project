@@ -92,18 +92,18 @@ export default function CompanyOkrList() {
                     }, null)?.cycle;
 
                     // Nếu VẪN KHÔNG TÌM THẤY (tất cả không match regex) → chọn cycles[0] nhưng log lỗi
-                    // if (!selected) {
-                    //     console.warn(
-                    //         "Không match regex nào cho cycles – fallback cycles[0]:",
-                    //         cycles[0]
-                    //     );
-                    //     selected = cycles[0];
-                    //     setToast({
-                    //         type: "warning",
-                    //         message:
-                    //             "Dữ liệu quý không chuẩn định dạng, đang dùng quý mặc định.",
-                    //     });
-                    // }
+                    if (!selected) {
+                        console.warn(
+                            "Không match regex nào cho cycles – fallback cycles[0]:",
+                            cycles[0]
+                        );
+                        selected = cycles[0];
+                        setToast({
+                            type: "warning",
+                            message:
+                                "Dữ liệu quý không chuẩn định dạng, đang dùng quý mặc định.",
+                        });
+                    }
                 }
 
                 setCycleFilter(selected.cycle_id);
