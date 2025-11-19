@@ -14,14 +14,11 @@ class KeyResult extends Model
 
     public $timestamps = true;
     protected $primaryKey = 'kr_id';
-    public $incrementing = false;
-    protected $keyType = 'string';
 
     /**
      * The attributes that are mass assignable.
      */
     protected $fillable = [
-        'kr_id',
         'kr_title',
         'target_value',
         'current_value',

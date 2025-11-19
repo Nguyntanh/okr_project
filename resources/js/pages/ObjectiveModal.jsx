@@ -12,7 +12,6 @@ export default function ObjectiveModal({
     setToast,
     reloadData,
 }) {
-    console.log("🚨 FULL editingObjective:", editingObjective); // DEBUG
     const [createForm, setCreateForm] = useState(
         creatingObjective
             ? {
@@ -30,21 +29,6 @@ export default function ObjectiveModal({
     );
     const [allowedLevels, setAllowedLevels] = useState([]);
     const [currentUser, setCurrentUser] = useState(null);
-    const [availableTargets, setAvailableTargets] = useState([]);
-    const [linkForm, setLinkForm] = useState({
-        source_objective_id: editingObjective?.objective_id || "",
-        target_kr_id: "",
-        description: "",
-    });
-
-    // Log final state
-    useEffect(() => {
-        console.log(
-            "🎯 FINAL STATE:",
-            availableTargets.length,
-            availableTargets
-        );
-    }, [availableTargets]);
 
     // Update createForm and linkForm when editingObjective changes
     useEffect(() => {
@@ -53,10 +37,6 @@ export default function ObjectiveModal({
                 ...editingObjective,
                 level: editingObjective.level || "team",
             });
-            setLinkForm((prev) => ({
-                ...prev,
-                source_objective_id: editingObjective.objective_id,
-            }));
         }
     }, [editingObjective]);
 
@@ -74,46 +54,6 @@ export default function ObjectiveModal({
             });
         }
     }, [creatingObjective]);
-
-    // Fetch available targets
-    const fetchAvailableTargets = async () => {
-        if (!editingObjective?.objective_id) {
-            setAvailableTargets([]);
-            return;
-        }
-        try {
-            const token = document
-                .querySelector('meta[name="csrf-token"]')
-                .getAttribute("content");
-            const sourceLevel = editingObjective.level || "team";
-            const url = `/my-links/available-targets?source_level=${sourceLevel}`;
-            console.log("📡 FETCHING:", url);
-            const res = await fetch(url, {
-                headers: {
-                    "X-CSRF-TOKEN": token,
-                    Accept: "application/json",
-                },
-            });
-            const json = await res.json();
-            console.log("📦 DATA RECEIVED:", json);
-            if (res.ok && json.success) {
-                setAvailableTargets(json.data || []);
-            } else {
-                throw new Error(json.message || "Lỗi khi lấy Key Results đích");
-            }
-        } catch (err) {
-            console.error("❌ FETCH ERROR:", err);
-            setToast({
-                type: "error",
-                message: err.message || "Lỗi khi lấy Key Results đích",
-            });
-            setAvailableTargets([]);
-        }
-    };
-
-    useEffect(() => {
-        fetchAvailableTargets();
-    }, [editingObjective?.objective_id, setToast]);
 
     // Fetch allowed levels
     useEffect(() => {

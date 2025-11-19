@@ -118,7 +118,6 @@ class MyKeyResultController extends Controller
 
                 // === TẠO KEY RESULT ===
                 return KeyResult::create([
-                    'kr_id' => (string) \Str::uuid(),
                     'kr_title' => $validated['kr_title'],
                     'target_value' => $target,
                     'current_value' => $current,

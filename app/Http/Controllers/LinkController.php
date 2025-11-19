@@ -431,7 +431,11 @@ class LinkController extends Controller
         $query = OkrLink::query()
             ->where('source_type', $source instanceof Objective ? 'objective' : 'kr')
             ->where('target_type', $target instanceof Objective ? 'objective' : 'kr')
-            ->where('status', '!=', OkrLink::STATUS_CANCELLED);
+            ->whereNotIn('status', [
+                OkrLink::STATUS_CANCELLED,
+                OkrLink::STATUS_REJECTED,
+                OkrLink::STATUS_NEEDS_CHANGES,
+            ]);
 
         if ($source instanceof Objective) {
             $query->where('source_objective_id', $source->objective_id);

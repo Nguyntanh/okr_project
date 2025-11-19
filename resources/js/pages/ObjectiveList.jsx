@@ -50,13 +50,23 @@ export default function ObjectiveList({
     const linkLookup = useMemo(() => {
         const byObjective = {};
         const byKr = {};
+        const pickLatest = (existing, candidate) => {
+            if (!existing) return candidate;
+            const existingTime = new Date(existing.updated_at || existing.created_at || 0).getTime();
+            const candidateTime = new Date(candidate.updated_at || candidate.created_at || 0).getTime();
+            return candidateTime >= existingTime ? candidate : existing;
+        };
+
         if (Array.isArray(links)) {
             links.forEach((link) => {
-                if (link?.source_objective_id && !link?.source_kr_id) {
-                    byObjective[link.source_objective_id] = link;
+                if (link?.source_objective_id) {
+                    byObjective[link.source_objective_id] = pickLatest(
+                        byObjective[link.source_objective_id],
+                        link
+                    );
                 }
                 if (link?.source_kr_id) {
-                    byKr[link.source_kr_id] = link;
+                    byKr[link.source_kr_id] = pickLatest(byKr[link.source_kr_id], link);
                 }
             });
         }
@@ -93,7 +103,94 @@ export default function ObjectiveList({
         [onCancelLink]
     );
 
-    const renderLinkBadge = useCallback(() => null, []);
+    const renderLinkBadge = useCallback(
+        (link) => {
+            if (!link) return null;
+            const status = (link.status || "").toLowerCase();
+            const targetLabel = `${link.targetObjective?.obj_title || "Objective cấp cao"}${
+                link.targetKr?.kr_title ? ` › ${link.targetKr.kr_title}` : ""
+            }`;
+
+            const baseClass =
+                "mt-1 inline-flex max-w-full flex-wrap items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold leading-4";
+            const themes = {
+                pending: "bg-amber-100 text-amber-800",
+                needs_changes: "bg-orange-100 text-orange-700",
+                approved: "bg-emerald-100 text-emerald-800",
+                rejected: "bg-rose-100 text-rose-700",
+                cancelled: "bg-slate-100 text-slate-500",
+            };
+            const theme = themes[status] || "bg-slate-100 text-slate-600";
+
+            const buildActionButtons = () => (
+                <>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewLink(link);
+                        }}
+                        className="text-emerald-900 underline decoration-dotted underline-offset-2"
+                    >
+                        Xem
+                    </button>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleCancelFromSource(link);
+                        }}
+                        className="text-emerald-900 underline decoration-dotted underline-offset-2"
+                    >
+                        Hủy
+                    </button>
+                </>
+            );
+
+            if (status === "pending") {
+                return (
+                    <span className={`${baseClass} ${theme}`}>
+                        Đang chờ duyệt liên kết với: {targetLabel}
+                    </span>
+                );
+            }
+
+            if (status === "needs_changes") {
+                return (
+                    <span className={`${baseClass} ${theme}`}>
+                        Cần chỉnh sửa liên kết{link.decision_note ? ` • ${link.decision_note}` : ""}
+                    </span>
+                );
+            }
+
+            if (status === "approved") {
+                return (
+                    <span className={`${baseClass} ${theme}`}>
+                        <span>Đã liên kết với: {targetLabel}</span>
+                        {buildActionButtons()}
+                    </span>
+                );
+            }
+
+            if (status === "rejected") {
+                return (
+                    <span className={`${baseClass} ${theme}`}>
+                        Liên kết bị từ chối{link.decision_note ? ` • ${link.decision_note}` : ""}
+                    </span>
+                );
+            }
+
+            if (status === "cancelled") {
+                return (
+                    <span className={`${baseClass} ${theme}`}>
+                        Yêu cầu bị hủy
+                        {link.decision_note ? ` • ${link.decision_note}` : ""}
+                    </span>
+                );
+            }
+
+            return null;
+        },
+        [handleCancelFromSource, handleViewLink]
+    );
 
     const canCheckInKR = (kr, objective) => {
         return canCheckInKeyResult(currentUser, kr, objective);
