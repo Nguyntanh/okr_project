@@ -217,14 +217,8 @@ export default function CheckInModal({
             return;
         }
 
-        if (formData.check_in_type === 'quantity' && formData.progress_value < 0) {
+        if (formData.progress_value < 0) {
             setError('Giá trị tiến độ không thể âm');
-            setLoading(false);
-            return;
-        }
-
-        if (formData.check_in_type === 'percentage' && (formData.progress_percent < 0 || formData.progress_percent > 100)) {
-            setError('Phần trăm tiến độ phải từ 0% đến 100%');
             setLoading(false);
             return;
         }
@@ -298,27 +292,12 @@ export default function CheckInModal({
                     </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                            Key Result
-                        </label>
-                        <div className="p-3 bg-slate-50 rounded-lg text-slate-600 text-sm">
-                            {keyResult.kr_title}
-                        </div>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                            Loại cập nhật
-                        </label>
-                        <select
-                            value={formData.check_in_type}
-                            onChange={(e) => handleInputChange('check_in_type', e.target.value)}
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                            <option value="quantity">Giá trị định lượng</option>
-                            <option value="percentage">Phần trăm</option>
-                        </select>
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Key Result
+                    </label>
+                    <div className="p-3 bg-slate-50 rounded-lg text-slate-600 text-sm">
+                        {keyResult.kr_title}
                     </div>
                 </div>
 
@@ -326,7 +305,6 @@ export default function CheckInModal({
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">
                             Giá trị hiện tại
-                            <span className="text-xs text-blue-600 ml-1">(Auto-calculate %)</span>
                         </label>
                         <input
                             type="number"
@@ -386,35 +364,6 @@ export default function CheckInModal({
                         />
                     </div>
                 )}
-
-                <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Tiến độ (%)
-                        <span className="text-xs text-blue-600 ml-1">(Auto-calculate giá trị)</span>
-                    </label>
-                    <div className="space-y-2">
-                        {/* Slider */}
-                        <div className="flex items-center space-x-2">
-                            <input
-                                type="range"
-                                min="0"
-                                max="100"
-                                step="0.01"
-                                value={formData.progress_percent}
-                                onChange={(e) => handleInputChange('progress_percent', parseFloat(e.target.value))}
-                                className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
-                                style={{
-                                    background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${Math.min(100, Math.max(0, formData.progress_percent))}%, #e2e8f0 ${Math.min(100, Math.max(0, formData.progress_percent))}%, #e2e8f0 100%)`,
-                                    WebkitAppearance: 'none',
-                                    appearance: 'none'
-                                }}
-                            />
-                            <span className="text-sm font-medium text-slate-600 w-32">
-                                {Number(formData.progress_percent).toFixed(2)}%
-                            </span>
-                        </div>
-                    </div>
-                </div>
 
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
