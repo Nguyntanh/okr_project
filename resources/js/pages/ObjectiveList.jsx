@@ -59,12 +59,15 @@ export default function ObjectiveList({
 
         if (Array.isArray(links)) {
             links.forEach((link) => {
-                if (link?.source_objective_id) {
+                // Chỉ map vào byObjective nếu link được tạo trực tiếp từ Objective (không có source_kr_id)
+                // Nếu có source_kr_id, nghĩa là link được tạo từ KR, không nên hiển thị badge trên Objective cha
+                if (link?.source_objective_id && !link?.source_kr_id) {
                     byObjective[link.source_objective_id] = pickLatest(
                         byObjective[link.source_objective_id],
                         link
                     );
                 }
+                // Map vào byKr nếu link được tạo từ KR
                 if (link?.source_kr_id) {
                     byKr[link.source_kr_id] = pickLatest(byKr[link.source_kr_id], link);
                 }

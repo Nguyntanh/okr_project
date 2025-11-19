@@ -105,9 +105,17 @@ export default function LinkOkrModal({
     };
 
     const handleSelectTarget = (type, entity) => {
+        const id = type === "objective" ? entity.objective_id : entity.kr_id;
+        
+        if (!id) {
+            console.error("Missing ID for selected target:", { type, entity });
+            setError("Không thể xác định ID của OKR đã chọn. Vui lòng thử lại.");
+            return;
+        }
+
         setSelectedTarget({
             type,
-            id: entity[type === "objective" ? "objective_id" : "kr_id"],
+            id: id,
             label:
                 type === "objective"
                     ? entity.obj_title
@@ -116,6 +124,7 @@ export default function LinkOkrModal({
             status: entity.status,
             level: entity.level || entity.objective_level,
         });
+        setError(""); // Clear any previous errors
     };
 
     const handleSubmit = async () => {
@@ -124,12 +133,28 @@ export default function LinkOkrModal({
             return;
         }
 
+        if (!selectedTarget.id) {
+            setError("Không thể xác định ID của OKR đã chọn. Vui lòng chọn lại.");
+            return;
+        }
+
         try {
             setSubmitting(true);
+            setError("");
             const token = document
                 .querySelector('meta[name="csrf-token"]')
                 ?.getAttribute("content");
             if (!token) throw new Error("Không tìm thấy CSRF token");
+
+            // Ensure IDs are numbers if they're numeric strings
+            const targetId = selectedTarget.id ? (isNaN(selectedTarget.id) ? selectedTarget.id : Number(selectedTarget.id)) : null;
+            const srcId = sourceId ? (isNaN(sourceId) ? sourceId : Number(sourceId)) : null;
+
+            if (!targetId) {
+                setError("Không thể xác định ID của OKR đã chọn. Vui lòng chọn lại.");
+                setSubmitting(false);
+                return;
+            }
 
             const res = await fetch("/my-links/store", {
                 method: "POST",
@@ -140,9 +165,9 @@ export default function LinkOkrModal({
                 },
                 body: JSON.stringify({
                     source_type: sourceType,
-                    source_id: sourceId,
+                    source_id: srcId,
                     target_type: selectedTarget.type,
-                    target_id: selectedTarget.id,
+                    target_id: targetId,
                     note,
                 }),
             });
@@ -332,47 +357,49 @@ export default function LinkOkrModal({
                                                 Key Results
                                             </p>
                                             <div className="space-y-2">
-                                                {objective.key_results.map((kr) => {
-                                                    const isSelected =
-                                                        selectedTarget?.id === kr.kr_id &&
-                                                        selectedTarget?.type === "kr";
-                                                    return (
-                                                        <div
-                                                            key={kr.kr_id}
-                                                            className={`rounded-lg border px-3 py-2 text-sm ${
-                                                                isSelected
-                                                                    ? "border-indigo-500 bg-white"
-                                                                    : "border-transparent"
-                                                            } flex items-center justify-between gap-3`}
-                                                        >
-                                                            <div>
-                                                                <p className="font-semibold text-slate-800">
-                                                                    {kr.kr_title}
-                                                                </p>
-                                                                <p className="text-xs text-slate-500">
-                                                                    Trạng thái: {kr.status || "Không rõ"} • Tiến độ{" "}
-                                                                    {Number(kr.progress_percent || 0).toFixed(0)}%
-                                                                </p>
-                                                            </div>
-                                                            <button
-                                                                onClick={() =>
-                                                                    handleSelectTarget("kr", {
-                                                                        ...kr,
-                                                                        obj_title: objective.obj_title,
-                                                                        level: objective.level,
-                                                                    })
-                                                                }
-                                                                className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                                                {objective.key_results
+                                                    .filter((kr) => kr.kr_id != null) // Filter out KRs without ID
+                                                    .map((kr) => {
+                                                        const isSelected =
+                                                            selectedTarget?.id === kr.kr_id &&
+                                                            selectedTarget?.type === "kr";
+                                                        return (
+                                                            <div
+                                                                key={kr.kr_id}
+                                                                className={`rounded-lg border px-3 py-2 text-sm ${
                                                                     isSelected
-                                                                        ? "border-indigo-500 bg-indigo-500 text-white"
-                                                                        : "border-slate-300 text-slate-700 hover:border-indigo-500 hover:text-indigo-600"
-                                                                }`}
+                                                                        ? "border-indigo-500 bg-white"
+                                                                        : "border-transparent"
+                                                                } flex items-center justify-between gap-3`}
                                                             >
-                                                                Chọn KR
-                                                            </button>
-                                                        </div>
-                                                    );
-                                                })}
+                                                                <div>
+                                                                    <p className="font-semibold text-slate-800">
+                                                                        {kr.kr_title}
+                                                                    </p>
+                                                                    <p className="text-xs text-slate-500">
+                                                                        Trạng thái: {kr.status || "Không rõ"} • Tiến độ{" "}
+                                                                        {Number(kr.progress_percent || 0).toFixed(0)}%
+                                                                    </p>
+                                                                </div>
+                                                                <button
+                                                                    onClick={() =>
+                                                                        handleSelectTarget("kr", {
+                                                                            ...kr,
+                                                                            obj_title: objective.obj_title,
+                                                                            level: objective.level,
+                                                                        })
+                                                                    }
+                                                                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                                                                        isSelected
+                                                                            ? "border-indigo-500 bg-indigo-500 text-white"
+                                                                            : "border-slate-300 text-slate-700 hover:border-indigo-500 hover:text-indigo-600"
+                                                                    }`}
+                                                                >
+                                                                    Chọn KR
+                                                                </button>
+                                                            </div>
+                                                        );
+                                                    })}
                                             </div>
                                         </div>
                                     )}
