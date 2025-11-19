@@ -12,6 +12,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('okr_links', function (Blueprint $table) {
+            if (Schema::hasColumn('okr_links', 'description')) {
+                $table->dropColumn('description');
+            }
+
             if (Schema::hasColumn('okr_links', 'source_objective_id')) {
                 $table->unsignedBigInteger('source_objective_id')->nullable()->change();
             }
@@ -39,7 +43,7 @@ return new class extends Migration
             if (!Schema::hasColumn('okr_links', 'status')) {
                 $table->enum('status', ['pending', 'approved', 'rejected', 'needs_changes', 'cancelled'])
                     ->default('pending')
-                    ->after('description');
+                    ->after('target_type');
             }
 
             if (!Schema::hasColumn('okr_links', 'requested_by')) {
@@ -67,7 +71,7 @@ return new class extends Migration
             }
 
             if (!Schema::hasColumn('okr_links', 'request_note')) {
-                $table->string('request_note', 255)->nullable()->after('description');
+                $table->string('request_note', 255)->nullable()->after('status');
             }
 
             if (!Schema::hasColumn('okr_links', 'decision_note')) {
@@ -139,6 +143,12 @@ return new class extends Migration
 
             if (Schema::hasColumn('okr_links', 'source_type')) {
                 $table->dropColumn('source_type');
+            }
+        });
+
+        Schema::table('okr_links', function (Blueprint $table) {
+            if (!Schema::hasColumn('okr_links', 'description')) {
+                $table->string('description', 255)->nullable()->after('target_kr_id');
             }
         });
 

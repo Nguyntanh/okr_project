@@ -22,7 +22,6 @@ class OkrLink extends Model
         'source_kr_id',
         'target_objective_id',
         'target_kr_id',
-        'description',
         'source_type',
         'target_type',
         'status',

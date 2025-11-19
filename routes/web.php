@@ -13,6 +13,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\CheckInController;
 use App\Http\Controllers\OkrAssignmentController;
+use App\Http\Controllers\NotificationController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\File;
 use App\Http\Controllers\LinkController;
@@ -107,6 +108,13 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         return view('app');
     })->middleware('auth')->name('change.password.form');
     Route::post('/change-password', [App\Http\Controllers\AuthController::class, 'changePassword'])->middleware('auth')->name('change.password');
+
+    // Notifications
+    Route::middleware('auth')->group(function () {
+        Route::get('/api/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+        Route::post('/api/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAllRead');
+        Route::post('/api/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.markAsRead');
+    });
 
             // Routes cho User Management (chỉ Admin)
             Route::middleware(['auth', 'admin'])->group(function () {

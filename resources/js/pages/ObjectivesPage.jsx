@@ -9,6 +9,26 @@ import ErrorBoundary from "../components/ErrorBoundary";
 import LinkOkrModal from "../components/LinkOkrModal.jsx";
 import LinkRequestsPanel from "../components/LinkRequestsPanel";
 
+const pickRelation = (link, camel, snake) =>
+    (link && link[camel]) || (link && link[snake]) || null;
+
+const normalizeLinkData = (link) => {
+    if (!link || typeof link !== "object") return link;
+    return {
+        ...link,
+        sourceObjective: pickRelation(link, "sourceObjective", "source_objective"),
+        sourceKr: pickRelation(link, "sourceKr", "source_kr"),
+        targetObjective: pickRelation(link, "targetObjective", "target_objective"),
+        targetKr: pickRelation(link, "targetKr", "target_kr"),
+        requester: pickRelation(link, "requester", "requester"),
+        targetOwner: pickRelation(link, "targetOwner", "target_owner"),
+        approver: pickRelation(link, "approver", "approver"),
+    };
+};
+
+const normalizeLinksList = (list) =>
+    Array.isArray(list) ? list.map((item) => normalizeLinkData(item)) : [];
+
 export default function ObjectivesPage() {
     const [items, setItems] = useState([]);
     const [departments, setDepartments] = useState([]);
@@ -156,9 +176,9 @@ export default function ObjectivesPage() {
                 return { data: { outgoing: [], incoming: [], children: [] } };
             });
             if (resLinks.ok && linksJson.success !== false) {
-                setLinks(linksJson.data?.outgoing || []);
-                setIncomingLinks(linksJson.data?.incoming || []);
-                setChildLinks(linksJson.data?.children || []);
+                setLinks(normalizeLinksList(linksJson.data?.outgoing || []));
+                setIncomingLinks(normalizeLinksList(linksJson.data?.incoming || []));
+                setChildLinks(normalizeLinksList(linksJson.data?.children || []));
             } else {
                 console.warn("Không thể tải dữ liệu liên kết");
                 setLinks([]);
@@ -200,9 +220,9 @@ export default function ObjectivesPage() {
             });
             const json = await res.json();
             if (res.ok && json.success !== false) {
-                setLinks(json.data?.outgoing || []);
-                setIncomingLinks(json.data?.incoming || []);
-                setChildLinks(json.data?.children || []);
+                setLinks(normalizeLinksList(json.data?.outgoing || []));
+                setIncomingLinks(normalizeLinksList(json.data?.incoming || []));
+                setChildLinks(normalizeLinksList(json.data?.children || []));
             }
         } catch (err) {
             console.error("Refresh links error:", err);

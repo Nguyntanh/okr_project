@@ -34,7 +34,6 @@ export default function LinkOkrModal({
     const [error, setError] = useState("");
     const [selectedTarget, setSelectedTarget] = useState(null);
     const [submitting, setSubmitting] = useState(false);
-    const [description, setDescription] = useState("");
     const [note, setNote] = useState("");
 
     const sourceLevel = useMemo(() => {
@@ -90,7 +89,6 @@ export default function LinkOkrModal({
         if (open) {
             setPage(1);
             setSelectedTarget(null);
-            setDescription("");
             setNote("");
         }
     }, [open]);
@@ -145,7 +143,6 @@ export default function LinkOkrModal({
                     source_id: sourceId,
                     target_type: selectedTarget.type,
                     target_id: selectedTarget.id,
-                    description,
                     note,
                 }),
             });
@@ -201,7 +198,7 @@ export default function LinkOkrModal({
                     </button>
                 </div>
 
-                <div className="flex flex-col gap-5 px-6 py-5 overflow-y-auto max-h-[calc(90vh-220px)]">
+                <div className="flex flex-col gap-5 px-6 py-5 overflow-y-auto max-h-[calc(90vh-260px)]">
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <p className="text-sm font-semibold text-slate-700">Bộ lọc liên kết</p>
@@ -263,31 +260,17 @@ export default function LinkOkrModal({
                                 </div>
                             </form>
                         </div>
-                        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-                            <div>
-                                <label className="text-xs font-medium text-slate-500">
-                                    Ghi chú mô tả (tùy chọn)
-                                </label>
-                                <textarea
-                                    value={description}
-                                    onChange={(e) => setDescription(e.target.value)}
-                                    rows={3}
-                                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                                    placeholder="Mô tả lý do bạn muốn liên kết..."
-                                />
-                            </div>
-                            <div>
-                                <label className="text-xs font-medium text-slate-500">
-                                    Gửi ghi chú tới chủ OKR cấp cao
-                                </label>
-                                <textarea
-                                    value={note}
-                                    onChange={(e) => setNote(e.target.value)}
-                                    rows={3}
-                                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                                    placeholder="Ví dụ: Chúng tôi sẽ đóng góp vào mục tiêu tăng doanh thu..."
-                                />
-                            </div>
+                        <div className="mt-4">
+                            <label className="text-xs font-medium text-slate-500">
+                                Thông điệp gửi chủ OKR cấp cao
+                            </label>
+                            <textarea
+                                value={note}
+                                onChange={(e) => setNote(e.target.value)}
+                                rows={3}
+                                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                                placeholder="Ví dụ: Chúng tôi sẽ đóng góp vào mục tiêu tăng doanh thu..."
+                            />
                         </div>
                     </div>
 
