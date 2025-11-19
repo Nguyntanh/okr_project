@@ -487,14 +487,14 @@ export default function DashboardLayout({ children, user }) {
                                                 : "text-slate-700 hover:bg-slate-50"
                                         }`}
                                                     >
-                                                        Mục tiêu cá nhân
+                                                        Mục tiêu của tôi
                                                     </a>
                                                     <a
                                                         href="/company-okrs"
                                                         className={`block rounded-lg px-3 py-2.5 text-[15px] font-medium transition-all
                                         ${
                                             isActive("/company-okrs")
-                                                ? "bg-purple-50 text-purple-700 font-bold shadow-sm"
+                                                ? "bg-blue-50 text-blue-700 font-bold shadow-sm"
                                                 : "text-slate-700 hover:bg-slate-50"
                                         }`}
                                                     >
