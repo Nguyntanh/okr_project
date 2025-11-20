@@ -6,6 +6,7 @@ import ConfirmationModal from "../components/ConfirmationModal";
 import ToastNotification from "../components/ToastNotification";
 import AssignKeyResultModal from "../components/AssignKeyResultModal";
 import ObjectiveArchive from "./ObjectiveArchive";
+import { LuAlignCenterHorizontal } from "react-icons/lu";
 
 export default function ObjectiveList({
     items,
@@ -939,16 +940,17 @@ export default function ObjectiveList({
                                         obj.key_results?.map((kr) => {
                                             const isLinkedKR = kr.isLinked;
                                             return (
-                                            <tr key={kr.kr_id} className={isLinkedKR ? "bg-indigo-50/50" : ""}>
+                                            <tr key={kr.kr_id}>
                                                 <td className="px-8 py-3 border-r border-slate-200">
                                                     <div className="flex flex-col gap-1">
                                                         <div className="flex items-center gap-2">
                                                             {isLinkedKR && (
-                                                                <span className="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
-                                                                    Liên kết
-                                                                </span>
+                                                                <LuAlignCenterHorizontal
+                                                                    className="h-4 w-4 text-indigo-600 flex-shrink-0"
+                                                                    title="Đã liên kết với OKR đích"
+                                                                />
                                                             )}
-                                                            <span className={`font-medium ${isLinkedKR ? 'text-indigo-900' : 'text-slate-900'}`}>
+                                                            <span className="font-medium text-slate-900">
                                                                 {kr.kr_title}
                                                             </span>
                                                         </div>

@@ -45,18 +45,7 @@ export default function LinkRequestsPanel({
         closeActionModal();
     };
 
-    const handleCancelChild = (linkId, label) => {
-        const confirmUnlink = window.confirm(
-            `Bạn có chắc chắn muốn hủy liên kết với "${label}"?`
-        );
-        if (!confirmUnlink) return;
-        const keepOwnership = window.confirm(
-            "OKR này đang sở hữu OKR con. Giữ quyền sở hữu cho OKR cấp cao?"
-        );
-        onCancel?.(linkId, "", keepOwnership);
-    };
-
-    if (!incoming.length && !children.length) {
+    if (!incoming.length) {
         return null;
     }
 
@@ -138,64 +127,6 @@ export default function LinkRequestsPanel({
                                             className="rounded-full border border-rose-300 px-4 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50"
                                         >
                                             Từ chối
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </section>
-            )}
-
-            {children.length > 0 && (
-                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div className="mb-4">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            OKR con đã liên kết
-                        </p>
-                        <h3 className="text-lg font-bold text-slate-900">
-                            {children.length} OKR đang thuộc quyền sở hữu của bạn
-                        </h3>
-                    </div>
-
-                    <div className="space-y-3">
-                        {children.map((link) => (
-                            <div
-                                key={link.link_id}
-                                className="rounded-xl border border-slate-100 bg-slate-50 p-4"
-                            >
-                                <div className="flex flex-wrap items-start justify-between gap-3">
-                                    <div className="max-w-2xl">
-                                        <p className="text-xs uppercase tracking-wide text-slate-400">
-                                            OKR con
-                                        </p>
-                                        <p className="text-sm font-semibold text-slate-900">
-                                            {link.sourceObjective?.obj_title || "Objective"}{" "}
-                                            {link.sourceKr && (
-                                                <span className="text-slate-500">
-                                                    › {link.sourceKr.kr_title}
-                                                </span>
-                                            )}
-                                        </p>
-                                        <p className="text-xs text-slate-500">
-                                            Liên kết tới: {link.targetObjective?.obj_title || "Objective cao hơn"}
-                                            {link.targetKr && (
-                                                <span> › {link.targetKr.kr_title}</span>
-                                            )}
-                                        </p>
-                                    </div>
-                                    <div className="flex flex-wrap gap-2">
-                                        <button
-                                            onClick={() =>
-                                                handleCancelChild(
-                                                    link.link_id,
-                                                    link.sourceObjective?.obj_title ||
-                                                        link.sourceKr?.kr_title
-                                                )
-                                            }
-                                            className="rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-white"
-                                        >
-                                            Hủy liên kết
                                         </button>
                                     </div>
                                 </div>
