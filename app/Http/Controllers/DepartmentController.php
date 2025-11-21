@@ -14,7 +14,7 @@ use App\Models\Role;
 class DepartmentController extends Controller
 {
     /**
-     * Hiển thị danh sách phòng ban và đội nhóm.
+     * Hiển thị danh sách tất cả các đơn vị (phòng ban + đội nhóm)
      */
     public function index(Request $request): JsonResponse|View
     {
@@ -22,9 +22,7 @@ class DepartmentController extends Controller
 
         $departments = $query->with([
             'parentDepartment',
-            'users' => function ($query) {
-                $query->select('user_id', 'full_name', 'email', 'department_id');
-            }
+            'users' => fn($q) => $q->select('user_id', 'full_name', 'email', 'department_id')
         ])
             ->orderBy('created_at', 'asc')
             ->get();
@@ -37,184 +35,200 @@ class DepartmentController extends Controller
     }
 
     /**
-     * Hiển thị form tạo phòng ban hoặc đội nhóm.
+     * Form tạo mới đơn vị
      */
     public function create(): View
     {
-        $departments = Department::where('type', 'phòng ban')->get(); // Lấy danh sách phòng ban cho parent_department_id
-        return view('app', compact('departments'));
+        // Chỉ lấy các phòng ban gốc (parent_id = null) làm cha cho đội nhóm mới
+        $parentDepartments = Department::whereNull('parent_department_id')->get();
+        return view('app', compact('parentDepartments'));
     }
 
     /**
-     * Lưu phòng ban hoặc đội nhóm mới.
+     * Lưu đơn vị mới
      */
     public function store(Request $request): JsonResponse|RedirectResponse
     {
-        $user = Auth::user();
-        
-
         $validated = $request->validate([
-            'd_name' => 'required|string|max:255',
-            'd_description' => 'nullable|string|max:255',
+            'd_name'        => 'required|string|max:255',
+            'd_description' => 'nullable|string|max:1000',
             'parent_department_id' => [
                 'nullable',
                 'exists:departments,department_id',
+                // Nếu có parent → đây là đội nhóm, không có parent → phòng ban gốc
                 function ($attribute, $value, $fail) use ($request) {
-                    if ($request->input('type') === 'đội nhóm' && !$value) {
-                        $fail('Đội nhóm phải thuộc một phòng ban.');
-                    }
-                    if ($request->input('type') === 'phòng ban' && $value) {
-                        $fail('Phòng ban không thể có phòng ban cha.');
+                    // Ngăn việc tạo vòng lặp (cha của chính nó) – sẽ kiểm tra kỹ hơn ở update
+                    if ($value && $request->parent_department_id == $value) {
+                        $fail('Không thể chọn chính nó làm đơn vị cha.');
                     }
                 },
             ],
-            'email' => 'nullable|email|max:255',
         ]);
 
+        // Tạo mới
         $department = Department::create($validated);
 
+        $unitType = $department->parent_department_id ? 'đội nhóm' : 'phòng ban';
+
         if ($request->wantsJson()) {
-            return response()->json(['success' => true, 'message' => 'Tạo ' . $validated['type'] . ' thành công!', 'data' => $department]);
+            return response()->json([
+                'success' => true,
+                'message' => "Tạo $unitType thành công!",
+                'data'    => $department
+            ]);
         }
 
-        return redirect()->route('departments.index')->with('success', 'Tạo ' . $validated['type'] . ' thành công!');
+        return redirect()->route('departments.index')
+                         ->with('success', "Tạo $unitType thành công!");
     }
 
     /**
-     * Hiển thị chi tiết phòng ban hoặc đội nhóm.
+     * Chi tiết đơn vị
      */
     public function show(Department $department): JsonResponse|View
     {
+        $department->load(['parentDepartment']);
+
         if (request()->wantsJson()) {
-            return response()->json(['success' => true, 'data' => $department->load('parentDepartment')]);
+            return response()->json(['success' => true, 'data' => $department]);
         }
 
         return view('app');
     }
 
     /**
-     * Hiển thị form chỉnh sửa phòng ban hoặc đội nhóm.
+     * Form chỉnh sửa
      */
     public function edit(Department $department): View
     {
-        $departments = Department::where('type', 'phòng ban')->where('department_id', '!=', $department->department_id)->get();
-        return view('app', compact('department', 'departments'));
+        // Các phòng ban gốc có thể chọn làm cha (trừ chính nó và con cháu của nó)
+        $possibleParents = Department::whereNull('parent_department_id')
+            ->where('department_id', '!=', $department->department_id)
+            ->get();
+
+        return view('app', compact('department', 'possibleParents'));
     }
 
     /**
-     * Cập nhật phòng ban hoặc đội nhóm.
+     * Cập nhật đơn vị
      */
     public function update(Request $request, Department $department): JsonResponse|RedirectResponse
     {
         $validated = $request->validate([
-            'd_name' => 'required|string|max:255',
-            'd_description' => 'nullable|string|max:255',
+            'd_name'        => 'required|string|max:255',
+            'd_description' => 'nullable|string|max:1000',
             'parent_department_id' => [
                 'nullable',
                 'exists:departments,department_id',
                 function ($attribute, $value, $fail) use ($department) {
-                    if ($value == $department->department_id) {
-                        $fail('Phòng ban cha không thể là chính nó.');
+                    if ($value && $value == $department->department_id) {
+                        $fail('Đơn vị cha không thể là chính nó.');
+                    }
+
+                    // Ngăn tạo vòng lặp (ví dụ A → B → A)
+                    if ($value) {
+                        $child = Department::find($value);
+                        while ($child) {
+                            if ($child->department_id == $department->department_id) {
+                                $fail('Không thể chọn đơn vị con làm đơn vị cha (tạo vòng lặp).');
+                                break;
+                            }
+                            $child = $child->parentDepartment;
+                        }
                     }
                 },
             ],
         ]);
 
+        $oldParent = $department->parent_department_id;
         $department->update($validated);
 
+        $unitType = $department->parent_department_id ? 'đội nhóm' : 'phòng ban';
+
         if ($request->wantsJson()) {
-            return response()->json(['success' => true, 'message' => 'Cập nhật phòng ban thành công!', 'data' => $department]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Cập nhật thành công!',
+                'data'    => $department
+            ]);
         }
 
-        return redirect()->route('departments.index')->with('success', 'Cập nhật phòng ban thành công!');
+        return redirect()->route('departments.index')
+                         ->with('success', 'Cập nhật thành công!');
     }
 
     /**
-     * Xóa phòng ban hoặc đội nhóm.
+     * Xóa đơn vị
      */
     public function destroy(Department $department): JsonResponse|RedirectResponse
     {
-        // Kiểm tra xem phòng ban có đội nhóm con hoặc người dùng không
-        if ($department->type === 'phòng ban' && Department::where('parent_department_id', $department->department_id)->exists()) {
-            if (request()->wantsJson()) {
-                return response()->json(['success' => false, 'message' => 'Không thể xóa phòng ban vì có đội nhóm thuộc về nó.'], 422);
-            }
-            return redirect()->route('departments.index')->withErrors(['error' => 'Không thể xóa phòng ban vì có đội nhóm thuộc về nó.']);
-        }
 
+        // Không cho xóa nếu còn người dùng
         if ($department->users()->exists()) {
+            $message = 'Không thể xóa vì vẫn còn nhân viên thuộc đơn vị này.';
             if (request()->wantsJson()) {
-                return response()->json(['success' => false, 'message' => 'Không thể xóa phòng ban vì có người dùng thuộc về nó.'], 422);
+                return response()->json(['success' => false, 'message' => $message], 422);
             }
-            return redirect()->route('departments.index')->withErrors(['error' => 'Không thể xóa phòng ban vì có người dùng thuộc về nó.']);
+            return redirect()->route('departments.index')->withErrors($message);
         }
 
-        $type = $department->type;
+        $unitName = $department->parent_department_id ? 'đội nhóm' : 'phòng ban';
         $department->delete();
 
         if (request()->wantsJson()) {
-            return response()->json(['success' => true, 'message' => 'Xóa ' . $type . ' thành công!']);
+            return response()->json(['success' => true, 'message' => "Xóa $unitName thành công!"]);
         }
 
-        return redirect()->route('departments.index')->with('success', 'Xóa ' . $type . ' thành công!');
+        return redirect()->route('departments.index')
+                         ->with('success', "Xóa $unitName thành công!");
     }
 
     /**
-     * Hiển thị form gán người dùng cho phòng ban.
+     * Form gán người dùng vào đơn vị
      */
     public function assignUsers(Department $department): View
     {
-        $users = User::all(); // Lấy tất cả người dùng
+        $users = User::all();
         return view('app', compact('department', 'users'));
     }
 
     /**
-     * Gán người dùng cho phòng ban.
+     * Thực hiện gán người dùng + vai trò
      */
     public function storeAssignUsers(Request $request, Department $department): JsonResponse|RedirectResponse
     {
         if (!Auth::user()->canManageUsers() && !Auth::user()->isManager()) {
-            if ($request->wantsJson()) {
-                return response()->json(['success' => false, 'message' => 'Bạn không có quyền gán người dùng.'], 403);
-            }
-            return redirect()->back()->withErrors('Bạn không có quyền gán người dùng.');
+            $msg = 'Bạn không có quyền gán người dùng.';
+            return $request->wantsJson()
+                ? response()->json(['success' => false, 'message' => $msg], 403)
+                : redirect()->back()->withErrors($msg);
         }
 
         $validated = $request->validate([
             'user_ids' => 'required|array',
             'user_ids.*' => 'exists:users,user_id',
-            'role' => 'required|string|in:manager,member,Manager,Member',
+            'role'     => 'required|in:manager,member,Manager,Member',
         ]);
 
-        // === TỰ ĐỘNG XÁC ĐỊNH ROLE THEO LOẠI ĐƠN VỊ ===
-        $level = $department->type === 'phòng ban' ? 'unit' : 'team';
-        $roleNameInput = strtolower(trim($validated['role']));
+        // Xác định level dựa trên đơn vị hiện tại
+        $level = $department->parent_department_id === null ? 'unit' : 'team';
+        $roleName = strtolower(trim($validated['role']));
 
-        $role = Role::whereRaw('LOWER(role_name) = ?', [$roleNameInput])
+        $role = Role::whereRaw('LOWER(role_name) = ?', [$roleName])
                     ->where('level', $level)
-                    ->first();
+                    ->firstOrFail();
 
-        if (!$role) {
-            $errorMsg = "Không tìm thấy vai trò '{$validated['role']}' cho " . 
-                        ($level === 'unit' ? 'phòng ban' : 'đội nhóm');
-            
-            if ($request->wantsJson()) {
-                return response()->json(['success' => false, 'message' => $errorMsg], 422);
-            }
-            return redirect()->back()->withErrors($errorMsg);
-        }
-
-        $updateData = [
-            'department_id' => $department->department_id,
-            'role_id'       => $role->role_id
-        ];
-
-        User::whereIn('user_id', $validated['user_ids'])->update($updateData);
+        User::whereIn('user_id', $validated['user_ids'])
+            ->update([
+                'department_id' => $department->department_id,
+                'role_id'       => $role->role_id,
+            ]);
 
         if ($request->wantsJson()) {
             return response()->json(['success' => true, 'message' => 'Gán người dùng và vai trò thành công!']);
         }
 
-        return redirect()->route('departments.index')->with('success', 'Gán người dùng và vai trò thành công!');
+        return redirect()->route('departments.index')
+                         ->with('success', 'Gán người dùng và vai trò thành công!');
     }
 }

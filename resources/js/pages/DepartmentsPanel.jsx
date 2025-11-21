@@ -158,6 +158,60 @@ function DepartmentFormModal({
                         disabled={!currentPermission}
                     />
                 </div>
+                {mode === "create" && (
+                    <div>
+                        <label className="mb-1 block text-sm font-semibold text-slate-700">
+                            Phòng ban cha
+                        </label>
+                        <select
+                            value={parentDepartmentId || ""}
+                            onChange={(e) =>
+                                setParentDepartmentId(e.target.value || null)
+                            }
+                            className={`w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 ${
+                                !currentPermission
+                                    ? "bg-gray-100 cursor-not-allowed"
+                                    : ""
+                            }`}
+                            disabled={!currentPermission}
+                        >
+                            <option value="">
+                                Không có (làm phòng ban gốc)
+                            </option>
+                            {departments
+                                .filter(
+                                    (dep) =>
+                                        // Chỉ lấy phòng ban gốc làm cha
+                                        dep.parent_department_id === null &&
+                                        // Khi sửa: không cho chọn chính nó
+                                        (!initialData ||
+                                            dep.department_id !==
+                                                initialData.department_id)
+                                )
+                                .map((dep) => (
+                                    <option
+                                        key={dep.department_id}
+                                        value={dep.department_id}
+                                    >
+                                        {dep.d_name}
+                                    </option>
+                                ))}
+                        </select>
+                        {mode === "edit" &&
+                            initialData?.parent_department_id && (
+                                <p className="text-xs text-slate-500 mt-1">
+                                    Hiện tại thuộc:{" "}
+                                    {
+                                        departments.find(
+                                            (d) =>
+                                                d.department_id ===
+                                                initialData.parent_department_id
+                                        )?.d_name
+                                    }
+                                </p>
+                            )}
+                    </div>
+                )}
                 <div className="flex justify-between gap-3 pt-2">
                     <div className="flex gap-3">
                         {mode === "edit" && onDelete && currentPermission && (
