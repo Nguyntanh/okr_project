@@ -18,12 +18,7 @@ class DepartmentController extends Controller
      */
     public function index(Request $request): JsonResponse|View
     {
-        $type = $request->query('type');
         $query = Department::query();
-
-        if ($type && in_array($type, ['phòng ban', 'đội nhóm'])) {
-            $query->where('type', $type);
-        }
 
         $departments = $query->with([
             'parentDepartment',
@@ -61,7 +56,6 @@ class DepartmentController extends Controller
         $validated = $request->validate([
             'd_name' => 'required|string|max:255',
             'd_description' => 'nullable|string|max:255',
-            'type' => 'required|in:phòng ban,đội nhóm',
             'parent_department_id' => [
                 'nullable',
                 'exists:departments,department_id',
@@ -115,18 +109,10 @@ class DepartmentController extends Controller
         $validated = $request->validate([
             'd_name' => 'required|string|max:255',
             'd_description' => 'nullable|string|max:255',
-            'type' => 'required|in:phòng ban,đội nhóm',
             'parent_department_id' => [
                 'nullable',
                 'exists:departments,department_id',
-                function ($attribute, $value, $fail) use ($request, $department) {
-                    if ($request->input('type') === 'đội nhóm' && !$value) {
-                        $fail('Đội nhóm phải thuộc một phòng ban.');
-                    }
-                    if ($request->input('type') === 'phòng ban' && $value) {
-                        $fail('Phòng ban không thể có phòng ban cha.');
-                    }
-                    // Ngăn đội nhóm là cha của chính nó
+                function ($attribute, $value, $fail) use ($department) {
                     if ($value == $department->department_id) {
                         $fail('Phòng ban cha không thể là chính nó.');
                     }
@@ -137,10 +123,10 @@ class DepartmentController extends Controller
         $department->update($validated);
 
         if ($request->wantsJson()) {
-            return response()->json(['success' => true, 'message' => 'Cập nhật ' . $validated['type'] . ' thành công!', 'data' => $department]);
+            return response()->json(['success' => true, 'message' => 'Cập nhật phòng ban thành công!', 'data' => $department]);
         }
 
-        return redirect()->route('departments.index')->with('success', 'Cập nhật ' . $validated['type'] . ' thành công!');
+        return redirect()->route('departments.index')->with('success', 'Cập nhật phòng ban thành công!');
     }
 
     /**
