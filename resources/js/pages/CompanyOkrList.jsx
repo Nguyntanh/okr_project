@@ -41,10 +41,11 @@ export default function CompanyOkrList() {
 
                 // 1. Tìm quý hiện tại chính xác (regex linh hoạt hơn)
                 let selected = cycles.find((c) => {
-                    // Thử nhiều regex để match: "Quý 4 năm 2025", "q4 2025", "Q4/2025", etc.
+                    // Thử nhiều regex để match: "Quý 4 năm 2025", "q4 2025", "Q4/2025", "Q4 2025", etc.
                     const patterns = [
                         /Quý\s*(\d+)\s*năm\s*(\d+)/i,
                         /Q(\d+)\s*\/\s*(\d+)/i,
+                        /Q(\d+)\s+(\d+)/i, // Match "Q4 2025" (có khoảng trắng, không có dấu /)
                         /Quý\s*(\d+)\s*(\d+)/i, // Nếu thiếu "năm"
                     ];
                     for (const pattern of patterns) {
@@ -67,6 +68,7 @@ export default function CompanyOkrList() {
                         const patterns = [
                             /Quý\s*(\d+)\s*năm\s*(\d+)/i,
                             /Q(\d+)\s*\/\s*(\d+)/i,
+                            /Q(\d+)\s+(\d+)/i, // Match "Q4 2025" (có khoảng trắng, không có dấu /)
                             /Quý\s*(\d+)\s*(\d+)/i,
                         ];
                         let m = null;
@@ -92,21 +94,29 @@ export default function CompanyOkrList() {
                     }, null)?.cycle;
 
                     // Nếu VẪN KHÔNG TÌM THẤY (tất cả không match regex) → chọn cycles[0] nhưng log lỗi
-                    // if (!selected) {
-                    //     console.warn(
-                    //         "Không match regex nào cho cycles – fallback cycles[0]:",
-                    //         cycles[0]
-                    //     );
-                    //     selected = cycles[0];
-                    //     setToast({
-                    //         type: "warning",
-                    //         message:
-                    //             "Dữ liệu quý không chuẩn định dạng, đang dùng quý mặc định.",
-                    //     });
-                    // }
+                    if (!selected) {
+                        console.warn(
+                            "Không match regex nào cho cycles – fallback cycles[0]:",
+                            cycles[0]
+                        );
+                        selected = cycles[0];
+                        setToast({
+                            type: "warning",
+                            message:
+                                "Dữ liệu quý không chuẩn định dạng, đang dùng quý mặc định.",
+                        });
+                    }
                 }
 
-                setCycleFilter(selected.cycle_id);
+                if (selected && selected.cycle_id) {
+                    setCycleFilter(selected.cycle_id);
+                } else {
+                    console.error("Không thể xác định cycle_id từ selected:", selected);
+                    setToast({ 
+                        type: "error", 
+                        message: "Không thể xác định quý để hiển thị. Vui lòng chọn quý thủ công." 
+                    });
+                }
             } catch (err) {
                 console.error("Lỗi fetch cycles:", err);
                 setToast({ type: "error", message: "Lỗi tải danh sách quý" });
