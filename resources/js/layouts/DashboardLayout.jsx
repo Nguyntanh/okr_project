@@ -586,7 +586,7 @@ export default function DashboardLayout({ children, user }) {
             {/* Sidebar */}
             <div
                 className={`${
-                    sidebarOpen ? "w-64" : "w-20"
+                    sidebarOpen ? "w-67" : "w-20"
                 } bg-white border-r border-gray-200 min-h-screen fixed left-0 top-0 z-10 transition-all duration-300`}
             >
                 <div className={`p-6 ${!sidebarOpen ? "px-3" : ""}`}>
@@ -963,7 +963,7 @@ export default function DashboardLayout({ children, user }) {
             {/* Header */}
             <div
                 className={`${
-                    sidebarOpen ? "ml-64" : "ml-20"
+                    sidebarOpen ? "ml-67" : "ml-20"
                 } bg-white border-b border-gray-200 px-6 py-4 transition-all duration-300`}
             >
                 <div className="flex items-center justify-between">
@@ -1068,7 +1068,7 @@ export default function DashboardLayout({ children, user }) {
             {/* Main Content */}
             <div
                 className={`${
-                    sidebarOpen ? "ml-64" : "ml-20"
+                    sidebarOpen ? "ml-67" : "ml-20"
                 } transition-all duration-300`}
             >
                 {children}
