@@ -11,6 +11,8 @@ export default function SignupPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false);
     const [showAllPasswords, setShowAllPasswords] = useState(false);
+    const [passwordFieldReady, setPasswordFieldReady] = useState(false);
+    const [passwordConfirmationFieldReady, setPasswordConfirmationFieldReady] = useState(false);
     
     // Password requirements checklist
     const [passwordRequirements, setPasswordRequirements] = useState({
@@ -217,7 +219,10 @@ export default function SignupPage() {
                                 id="full_name"
                                 name="full_name"
                                 type="text"
-                                autoComplete="name"
+                                autoComplete="off"
+                                autoCorrect="off"
+                                autoCapitalize="off"
+                                spellCheck="false"
                                 required
                                 value={fullName}
                                 onChange={(e) => {
@@ -270,7 +275,10 @@ export default function SignupPage() {
                                 id="email"
                                 name="email"
                                 type="email"
-                                autoComplete="email"
+                                autoComplete="off"
+                                autoCorrect="off"
+                                autoCapitalize="off"
+                                spellCheck="false"
                                 required
                                 value={email}
                                 onChange={(e) => {
@@ -320,12 +328,39 @@ export default function SignupPage() {
                                 Mật khẩu
                             </label>
                             <div className="relative">
+                                {/* Fake input để đánh lừa browser */}
+                                <input
+                                    type="password"
+                                    name="fake-password"
+                                    autoComplete="new-password"
+                                    style={{
+                                        position: 'absolute',
+                                        left: '-9999px',
+                                        opacity: 0,
+                                        pointerEvents: 'none',
+                                    }}
+                                    tabIndex={-1}
+                                    readOnly
+                                />
                                 <input
                                     id="password"
                                     name="password"
-                                    type={showAllPasswords || showPassword ? "text" : "password"}
+                                    type={showAllPasswords || showPassword ? "text" : (passwordFieldReady ? "password" : "text")}
                                     autoComplete="off"
+                                    autoCorrect="off"
+                                    autoCapitalize="off"
+                                    spellCheck="false"
                                     data-form-type="other"
+                                    data-lpignore="true"
+                                    data-1p-ignore="true"
+                                    readOnly={!passwordFieldReady}
+                                    onFocus={(e) => {
+                                        if (!passwordFieldReady) {
+                                            setPasswordFieldReady(true);
+                                            e.target.removeAttribute('readonly');
+                                            e.target.type = showAllPasswords || showPassword ? "text" : "password";
+                                        }
+                                    }}
                                     required
                                     value={password}
                                     onChange={(e) => {
@@ -343,7 +378,7 @@ export default function SignupPage() {
                                         }
                                     }}
                                     style={{
-                                        WebkitTextSecurity: (showAllPasswords || showPassword) ? 'none' : 'disc',
+                                        WebkitTextSecurity: (showAllPasswords || showPassword) ? 'none' : (passwordFieldReady ? 'disc' : 'none'),
                                     }}
                                     className={`w-full px-4 py-3 pr-12 rounded-lg border ${
                                         errors.password
@@ -519,12 +554,39 @@ export default function SignupPage() {
                                 Xác nhận mật khẩu
                             </label>
                             <div className="relative">
+                                {/* Fake input để đánh lừa browser */}
+                                <input
+                                    type="password"
+                                    name="fake-password-confirmation"
+                                    autoComplete="new-password"
+                                    style={{
+                                        position: 'absolute',
+                                        left: '-9999px',
+                                        opacity: 0,
+                                        pointerEvents: 'none',
+                                    }}
+                                    tabIndex={-1}
+                                    readOnly
+                                />
                                 <input
                                     id="password_confirmation"
                                     name="password_confirmation"
-                                    type={showAllPasswords || showPasswordConfirmation ? "text" : "password"}
+                                    type={showAllPasswords || showPasswordConfirmation ? "text" : (passwordConfirmationFieldReady ? "password" : "text")}
                                     autoComplete="off"
+                                    autoCorrect="off"
+                                    autoCapitalize="off"
+                                    spellCheck="false"
                                     data-form-type="other"
+                                    data-lpignore="true"
+                                    data-1p-ignore="true"
+                                    readOnly={!passwordConfirmationFieldReady}
+                                    onFocus={(e) => {
+                                        if (!passwordConfirmationFieldReady) {
+                                            setPasswordConfirmationFieldReady(true);
+                                            e.target.removeAttribute('readonly');
+                                            e.target.type = showAllPasswords || showPasswordConfirmation ? "text" : "password";
+                                        }
+                                    }}
                                     required
                                     value={passwordConfirmation}
                                     onChange={(e) => {
@@ -539,7 +601,7 @@ export default function SignupPage() {
                                         }
                                     }}
                                     style={{
-                                        WebkitTextSecurity: (showAllPasswords || showPasswordConfirmation) ? 'none' : 'disc',
+                                        WebkitTextSecurity: (showAllPasswords || showPasswordConfirmation) ? 'none' : (passwordConfirmationFieldReady ? 'disc' : 'none'),
                                     }}
                                     className={`w-full px-4 py-3 pr-12 rounded-lg border ${
                                         errors.password_confirmation

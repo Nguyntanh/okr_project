@@ -16,6 +16,51 @@ export default function LoginPage() {
         }
     }, []);
 
+    // Ẩn browser autofill icons
+    useEffect(() => {
+        const style = document.createElement('style');
+        style.textContent = `
+            /* Chrome, Safari, Edge */
+            input#password::-webkit-credentials-auto-fill-button,
+            input#password::-webkit-strong-password-auto-fill-button {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+                position: absolute !important;
+                right: -9999px !important;
+                width: 0 !important;
+                height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            
+            /* Firefox */
+            input#password::-moz-credentials-auto-fill-button {
+                display: none !important;
+            }
+            
+            /* General - Ẩn tất cả autofill icons */
+            input[type="password"]::-webkit-credentials-auto-fill-button,
+            input[type="password"]::-webkit-strong-password-auto-fill-button {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+                position: absolute !important;
+                right: -9999px !important;
+                width: 0 !important;
+                height: 0 !important;
+            }
+        `;
+        document.head.appendChild(style);
+        return () => {
+            if (document.head.contains(style)) {
+                document.head.removeChild(style);
+            }
+        };
+    }, []);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setErrors({});
@@ -165,7 +210,13 @@ export default function LoginPage() {
                                     id="password"
                                     name="password"
                                     type={showPassword ? "text" : "password"}
-                                    autoComplete="current-password"
+                                    autoComplete="off"
+                                    autoCorrect="off"
+                                    autoCapitalize="off"
+                                    spellCheck="false"
+                                    data-form-type="other"
+                                    data-lpignore="true"
+                                    data-1p-ignore="true"
                                     required
                                     value={password}
                                     onChange={(e) => {
@@ -183,13 +234,21 @@ export default function LoginPage() {
                                         errors.password
                                             ? "border-red-300 focus:border-red-500 focus:ring-red-500"
                                             : "border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                                    } placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 transition-all duration-200`}
+                                    } placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 transition-all duration-200 bg-white`}
                                     placeholder="Nhập mật khẩu của bạn"
                                 />
                                 <button
                                     type="button"
-                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
-                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute top-0 bottom-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors z-20 pointer-events-auto"
+                                    style={{
+                                        background: 'transparent',
+                                        marginRight: '1px',
+                                    }}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setShowPassword(!showPassword);
+                                    }}
                                     tabIndex={-1}
                                 >
                                     {showPassword ? (

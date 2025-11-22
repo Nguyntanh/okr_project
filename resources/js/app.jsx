@@ -14,6 +14,7 @@ import { GradientText } from "./components/ui";
 import CompanyOkrList from "./pages/CompanyOkrList";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 
 function NavBar({ activeTab, onChangeTab }) {
     const go = (tab) => {
@@ -393,6 +394,11 @@ export default function App() {
     // Render signup page
     if (p === "/signup" || p.startsWith("/signup")) {
         return <SignupPage />;
+    }
+    
+    // Render forgot password page
+    if (p === "/forgot-password" || p.startsWith("/forgot-password")) {
+        return <ForgotPasswordPage />;
     }
     
     const isAdminArea =
