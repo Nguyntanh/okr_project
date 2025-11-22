@@ -235,10 +235,20 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
             ->name('my-key-result.destroy');
     });
 
-    // Company OKR Routes
+    // Company OKR Routes - yêu cầu đăng nhập
     Route::get('/company-okrs', [App\Http\Controllers\CompanyOkrController::class, 'index'])
+        ->middleware('auth')
         ->name('company.okrs');
+    // Route cụ thể phải đặt trước route có parameter
+    Route::get('/company-okrs/tree-view', function () {
+        return view('app');
+    })->middleware('auth')
+        ->name('company.okrs.tree-view');
+    Route::get('/api/company-okrs/tree-view', [App\Http\Controllers\CompanyOkrController::class, 'treeView'])
+        ->middleware('auth')
+        ->name('api.company.okrs.tree-view');
     Route::get('/company-okrs/{id}', [App\Http\Controllers\CompanyOkrController::class, 'show'])
+        ->middleware('auth')
         ->name('company.okrs.show');
 
     // Check-in Routes

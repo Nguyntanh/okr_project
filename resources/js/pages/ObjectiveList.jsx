@@ -62,6 +62,15 @@ export default function ObjectiveList({
 
         if (Array.isArray(links)) {
             links.forEach((link) => {
+                // Loại bỏ link có target đã bị archived
+                const targetArchived = 
+                    (link.targetObjective && (link.targetObjective.archived_at || link.targetObjective.archivedAt)) ||
+                    (link.targetKr && (link.targetKr.archived_at || link.targetKr.archivedAt));
+                
+                if (targetArchived) {
+                    return; // Bỏ qua link này
+                }
+                
                 // Chỉ map vào byObjective nếu link được tạo trực tiếp từ Objective (không có source_kr_id)
                 // Nếu có source_kr_id, nghĩa là link được tạo từ KR, không nên hiển thị badge trên Objective cha
                 if (link?.source_objective_id && !link?.source_kr_id) {
@@ -79,30 +88,59 @@ export default function ObjectiveList({
         return { byObjective, byKr };
     }, [links]);
 
-    // Chuyển đổi childLinks thành virtual Key Results để hiển thị như KRs con
+    // Chuyển đổi childLinks thành virtual Key Results và thêm O cấp dưới liên kết với KR
     const itemsWithLinkedChildren = useMemo(() => {
         if (!Array.isArray(childLinks) || childLinks.length === 0) {
             return items;
         }
 
         return items.map((obj) => {
-            // Tìm các childLinks trỏ tới Objective này
+            // Tìm các childLinks trỏ tới Objective này (O->O)
             const linkedChildren = childLinks.filter((link) => {
+                // Loại bỏ link có target đã bị archived
+                const targetArchived = 
+                    (link.targetObjective && (link.targetObjective.archived_at || link.targetObjective.archivedAt)) ||
+                    (link.targetKr && (link.targetKr.archived_at || link.targetKr.archivedAt));
+                
+                if (targetArchived) {
+                    return false;
+                }
+                
                 const targetObjectiveId = link.targetObjective?.objective_id || link.target_objective_id;
                 const targetKrId = link.targetKr?.kr_id || link.target_kr_id;
                 
-                // Nếu link trỏ tới Objective này (không phải KR)
+                // Nếu link trỏ tới Objective này (không phải KR) - O->O
                 if (targetObjectiveId === obj.objective_id && !targetKrId) {
                     return true;
                 }
                 return false;
             });
 
-            if (linkedChildren.length === 0) {
-                return obj;
-            }
+            // Tìm các childLinks trỏ tới các KR của Objective này (O->KR)
+            const krLinkedObjectives = {};
+            childLinks.forEach((link) => {
+                // Loại bỏ link có target đã bị archived
+                const targetArchived = 
+                    (link.targetObjective && (link.targetObjective.archived_at || link.targetObjective.archivedAt)) ||
+                    (link.targetKr && (link.targetKr.archived_at || link.targetKr.archivedAt));
+                
+                if (targetArchived) {
+                    return;
+                }
+                
+                const targetKrId = link.targetKr?.kr_id || link.target_kr_id;
+                const targetObjectiveId = link.targetObjective?.objective_id || link.target_objective_id;
+                
+                // Nếu link trỏ tới KR của Objective này (O->KR)
+                if (targetKrId && targetObjectiveId === obj.objective_id) {
+                    if (!krLinkedObjectives[targetKrId]) {
+                        krLinkedObjectives[targetKrId] = [];
+                    }
+                    krLinkedObjectives[targetKrId].push(link);
+                }
+            });
 
-            // Chuyển đổi childLinks thành virtual Key Results
+            // Chuyển đổi childLinks thành virtual Key Results (O->O)
             const virtualKRs = linkedChildren.map((link) => {
                 const sourceObjective = link.sourceObjective || link.source_objective;
                 const sourceKr = link.sourceKr || link.source_kr;
@@ -112,7 +150,10 @@ export default function ObjectiveList({
                     sourceObjective?.user ||
                     null;
 
-                // Tạo virtual KR từ link
+                // Lấy key_results từ sourceObjective (có thể là keyResults hoặc key_results)
+                const keyResults = sourceObjective?.keyResults || sourceObjective?.key_results || [];
+
+                // Tạo virtual KR từ link - include key_results để có thể hiển thị trong dropdown
                 return {
                     kr_id: `linked_${link.link_id}`, // ID giả để phân biệt
                     kr_title: sourceKr
@@ -123,11 +164,64 @@ export default function ObjectiveList({
                     unit: sourceKr?.unit || "number",
                     status: sourceKr?.status || sourceObjective?.status || "active",
                     weight: sourceKr?.weight || 0,
-                    progress_percent: sourceKr?.progress_percent || 0,
+                    progress_percent: sourceKr?.progress_percent || sourceObjective?.progress_percent || 0,
                     assigned_to: sourceKr?.assigned_to || sourceObjective?.user_id || null,
                     assigned_user: ownerUser,
                     isLinked: true, // Flag để phân biệt với KR thật
+                    isLinkedObjective: true, // Flag để phân biệt O->O với O->KR
                     link: link, // Lưu link để có thể hủy liên kết
+                    key_results: keyResults.map((kr) => ({
+                        kr_id: kr.kr_id,
+                        kr_title: kr.kr_title,
+                        target_value: kr.target_value,
+                        current_value: kr.current_value,
+                        unit: kr.unit,
+                        status: kr.status,
+                        progress_percent: kr.progress_percent,
+                        assigned_to: kr.assigned_to,
+                        assigned_user: kr.assigned_user || kr.assignedUser || kr.assignedUser,
+                    })), // Include key_results để hiển thị trong dropdown
+                };
+            });
+
+            // Thêm linkedObjectives vào các KR (O->KR)
+            const updatedKeyResults = (obj.key_results || []).map((kr) => {
+                const linkedObjs = krLinkedObjectives[kr.kr_id] || [];
+                if (linkedObjs.length === 0) {
+                    return kr;
+                }
+                
+                // Thêm các O cấp dưới liên kết vào KR
+                return {
+                    ...kr,
+                    linked_objectives: linkedObjs.map((link) => {
+                        const sourceObjective = link.sourceObjective || link.source_objective;
+                        // Lấy keyResults từ sourceObjective (có thể là keyResults hoặc key_results)
+                        const keyResults = sourceObjective?.keyResults || sourceObjective?.key_results || [];
+                        return {
+                            objective_id: sourceObjective?.objective_id,
+                            obj_title: sourceObjective?.obj_title || "Linked Objective",
+                            description: sourceObjective?.description,
+                            status: sourceObjective?.status,
+                            progress_percent: sourceObjective?.progress_percent || 0,
+                            level: sourceObjective?.level,
+                            user_id: sourceObjective?.user_id,
+                            user: sourceObjective?.user,
+                            key_results: keyResults.map((kr) => ({
+                                kr_id: kr.kr_id,
+                                kr_title: kr.kr_title,
+                                target_value: kr.target_value,
+                                current_value: kr.current_value,
+                                unit: kr.unit,
+                                status: kr.status,
+                                progress_percent: kr.progress_percent,
+                                assigned_to: kr.assigned_to,
+                                assigned_user: kr.assigned_user || kr.assignedUser || kr.assignedUser,
+                            })),
+                            is_linked: true,
+                            link: link,
+                        };
+                    }),
                 };
             });
 
@@ -135,7 +229,7 @@ export default function ObjectiveList({
             return {
                 ...obj,
                 key_results: [
-                    ...(obj.key_results || []),
+                    ...updatedKeyResults,
                     ...virtualKRs,
                 ],
             };
@@ -164,6 +258,17 @@ export default function ObjectiveList({
     const renderLinkBadge = useCallback(
         (link) => {
             if (!link) return null;
+            
+            // Kiểm tra xem target có bị archived không
+            const targetArchived = 
+                (link.targetObjective && (link.targetObjective.archived_at || link.targetObjective.archivedAt)) ||
+                (link.targetKr && (link.targetKr.archived_at || link.targetKr.archivedAt));
+            
+            // Nếu target đã bị archived, không hiển thị badge
+            if (targetArchived) {
+                return null;
+            }
+            
             const status = (link.status || "").toLowerCase();
             const targetLabel = `${link.targetObjective?.obj_title || "Objective cấp cao"}${
                 link.targetKr?.kr_title ? ` › ${link.targetKr.kr_title}` : ""
@@ -835,48 +940,51 @@ export default function ObjectiveList({
                                         >
                                             <div className="flex items-center justify-between w-full">
                                                 <div className="flex items-center gap-1">
-                                                    {obj.key_results &&
-                                                        obj.key_results.length >
-                                                            0 && (
-                                                            <button
-                                                                onClick={() =>
-                                                                    setOpenObj(
-                                                                        (
-                                                                            prev
-                                                                        ) => ({
-                                                                            ...prev,
-                                                                            [obj.objective_id]:
-                                                                                !prev[
-                                                                                    obj
-                                                                                        .objective_id
-                                                                                ],
-                                                                        })
-                                                                    )
-                                                                }
-                                                                className="p-2 rounded-lg hover:bg-slate-100 transition-all duration-200 group"
-                                                                title="Đóng/mở Key Results"
-                                                            >
-                                                                <svg
-                                                                    xmlns="http://www.w3.org/2000/svg"
-                                                                    viewBox="0 0 20 20"
-                                                                    fill="currentColor"
-                                                                    className={`w-4 h-4 text-slate-500 group-hover:text-slate-700 transition-transform duration-200 ${
-                                                                        openObj[
-                                                                            obj
-                                                                                .objective_id
-                                                                        ]
-                                                                            ? "rotate-90"
-                                                                            : ""
-                                                                    }`}
+                                                    {/* Luôn dành chỗ cho button chevron để alignment đều */}
+                                                    <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                                                        {obj.key_results &&
+                                                            obj.key_results.length >
+                                                                0 && (
+                                                                <button
+                                                                    onClick={() =>
+                                                                        setOpenObj(
+                                                                            (
+                                                                                prev
+                                                                            ) => ({
+                                                                                ...prev,
+                                                                                [obj.objective_id]:
+                                                                                    !prev[
+                                                                                        obj
+                                                                                            .objective_id
+                                                                                    ],
+                                                                            })
+                                                                        )
+                                                                    }
+                                                                    className="p-2 rounded-lg hover:bg-slate-100 transition-all duration-200 group"
+                                                                    title="Đóng/mở Key Results"
                                                                 >
-                                                                    <path
-                                                                        fillRule="evenodd"
-                                                                        d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                                                                        clipRule="evenodd"
-                                                                    />
-                                                                </svg>
-                                                            </button>
-                                                        )}
+                                                                    <svg
+                                                                        xmlns="http://www.w3.org/2000/svg"
+                                                                        viewBox="0 0 20 20"
+                                                                        fill="currentColor"
+                                                                        className={`w-4 h-4 text-slate-500 group-hover:text-slate-700 transition-transform duration-200 ${
+                                                                            openObj[
+                                                                                obj
+                                                                                    .objective_id
+                                                                            ]
+                                                                                ? "rotate-90"
+                                                                                : ""
+                                                                        }`}
+                                                                    >
+                                                                        <path
+                                                                            fillRule="evenodd"
+                                                                            d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                                                                            clipRule="evenodd"
+                                                                        />
+                                                                    </svg>
+                                                                </button>
+                                                            )}
+                                                    </div>
 
                                                     <span className="font-semibold text-slate-900 truncate">
                                                         {obj.obj_title}
@@ -1006,174 +1114,250 @@ export default function ObjectiveList({
                                     {openObj[obj.objective_id] &&
                                         obj.key_results?.map((kr) => {
                                             const isLinkedKR = kr.isLinked;
+                                            const isLinkedObjective = kr.isLinkedObjective; // O->O link
+                                            const hasLinkedObjectives = kr.linked_objectives && kr.linked_objectives.length > 0;
+                                            const krExpanded = openObj[`kr_${kr.kr_id}`];
                                             return (
-                                            <tr key={kr.kr_id}>
-                                                <td className="px-8 py-3 border-r border-slate-200">
-                                                    <div className="flex flex-col gap-1">
-                                                        <div className="flex items-center gap-2">
-                                                            {isLinkedKR && (
-                                                                <LuAlignCenterHorizontal
-                                                                    className="h-4 w-4 text-indigo-600 flex-shrink-0"
-                                                                    title="Đã liên kết với OKR đích"
-                                                                />
-                                                            )}
-                                                            <span className="font-medium text-slate-900">
-                                                                {kr.kr_title}
-                                                            </span>
-                                                        </div>
-                                                        {!isLinkedKR && renderLinkBadge(linkLookup.byKr[kr.kr_id])}
-                                                    </div>
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {kr.assigned_to ||
-                                                    kr.assigned_user ||
-                                                    kr.assignedUser ||
-                                                    kr.assignee ? (
-                                                        (() => {
-                                                            const info = getAssigneeInfo(kr);
-                                                            const displayName = info.name || "";
-                                                            const avatarSrc = info.avatar;
-                                                            const initial =
-                                                                displayName?.trim()?.charAt(0)?.toUpperCase() ||
-                                                                (kr.assigned_to
-                                                                    ? String(kr.assigned_to).charAt(0).toUpperCase()
-                                                                    : "?");
-                                                            return (
-                                                                <div
-                                                                    className="flex items-center justify-center gap-2"
-                                                                    onMouseEnter={(e) => handleAssigneeHover(e, info)}
-                                                                    onMouseLeave={() => setAssigneeTooltip(null)}
-                                                                >
-                                                                    {avatarSrc ? (
-                                                                        <img
-                                                                            src={avatarSrc}
-                                                                            alt={displayName}
-                                                                            className="h-7 w-7 rounded-full object-cover ring-1 ring-slate-200"
-                                                                        />
-                                                                    ) : (
-                                                                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-[11px] font-semibold text-slate-700">
-                                                                            {initial}
-                                                                        </div>
+                                            <React.Fragment key={kr.kr_id}>
+                                            <tr className={isLinkedObjective ? "bg-white" : ""}>
+                                                {isLinkedObjective ? (
+                                                    <>
+                                                        {/* O->O: Merge 7 cột (Tiêu đề + 6 cột sau, không bao gồm Hành động) */}
+                                                        <td colSpan={7} className="px-12 py-3 border-r border-slate-200">
+                                                            <div className="flex items-center justify-between w-full">
+                                                                <div className="flex items-center gap-2">
+                                                                    {/* Chevron button để expand/collapse KR nguồn */}
+                                                                    <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
+                                                                        {kr.key_results && kr.key_results.length > 0 && (
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setOpenObj((prev) => ({
+                                                                                        ...prev,
+                                                                                        [`linked_obj_kr_${kr.kr_id}`]: !prev[`linked_obj_kr_${kr.kr_id}`],
+                                                                                    }));
+                                                                                }}
+                                                                                className="flex-shrink-0 p-0.5 hover:bg-slate-100 rounded"
+                                                                                title={openObj[`linked_obj_kr_${kr.kr_id}`] ? "Thu gọn" : "Mở rộng"}
+                                                                            >
+                                                                                <svg
+                                                                                    className={`h-4 w-4 text-slate-600 transition-transform ${openObj[`linked_obj_kr_${kr.kr_id}`] ? 'rotate-90' : ''}`}
+                                                                                    fill="none"
+                                                                                    stroke="currentColor"
+                                                                                    viewBox="0 0 24 24"
+                                                                                >
+                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                                                </svg>
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                    <LuAlignCenterHorizontal className="h-4 w-4 text-blue-500 flex-shrink-0" title="OKR được liên kết" />
+                                                                    <span className="font-medium text-slate-900">
+                                                                        {kr.kr_title}
+                                                                    </span>
+                                                                    {kr.key_results && kr.key_results.length > 0 && (
+                                                                        <span className="text-xs text-slate-500">
+                                                                            ({kr.key_results.length} KR)
+                                                                        </span>
                                                                     )}
-                                                                    <span className="max-w-[120px] truncate text-sm text-slate-700">
-                                                                        {displayName || kr.assigned_to}
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        {/* Cột Hành động riêng cho O->O */}
+                                                        <td className="px-3 py-3 text-center">
+                                                            <div className="flex items-center justify-center gap-1">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (window.confirm(`Bạn có chắc chắn muốn hủy liên kết với "${kr.kr_title}"?`)) {
+                                                                            const keepOwnership = window.confirm(
+                                                                                "OKR này đang sở hữu OKR con. Giữ quyền sở hữu cho OKR cấp cao?"
+                                                                            );
+                                                                            if (onCancelLink && kr.link) {
+                                                                                onCancelLink(kr.link.link_id, "", keepOwnership);
+                                                                            }
+                                                                        }
+                                                                    }}
+                                                                    className="p-1 text-rose-600 hover:bg-rose-50 rounded"
+                                                                    title="Hủy liên kết"
+                                                                >
+                                                                    <svg
+                                                                        className="h-4 w-4"
+                                                                        fill="none"
+                                                                        viewBox="0 0 24 24"
+                                                                        stroke="currentColor"
+                                                                    >
+                                                                        <path
+                                                                            strokeLinecap="round"
+                                                                            strokeLinejoin="round"
+                                                                            strokeWidth={2}
+                                                                            d="M6 18L18 6M6 6l12 12"
+                                                                        />
+                                                                    </svg>
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <td className="px-8 py-3 border-r border-slate-200">
+                                                            <div className="flex flex-col gap-1">
+                                                                <div className="flex items-center gap-2">
+                                                                    {/* Luôn dành chỗ cho icon chevron để alignment đều */}
+                                                                    <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
+                                                                        {hasLinkedObjectives && (
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setOpenObj((prev) => ({
+                                                                                        ...prev,
+                                                                                        [`kr_${kr.kr_id}`]: !prev[`kr_${kr.kr_id}`],
+                                                                                    }));
+                                                                                }}
+                                                                                className="flex-shrink-0 p-0.5 hover:bg-slate-100 rounded"
+                                                                                title={krExpanded ? "Thu gọn" : "Mở rộng"}
+                                                                            >
+                                                                                <svg
+                                                                                    className={`h-4 w-4 text-slate-600 transition-transform ${krExpanded ? 'rotate-90' : ''}`}
+                                                                                    fill="none"
+                                                                                    stroke="currentColor"
+                                                                                    viewBox="0 0 24 24"
+                                                                                >
+                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                                                </svg>
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                    {isLinkedKR && (
+                                                                        <LuAlignCenterHorizontal
+                                                                            className="h-4 w-4 text-blue-500 flex-shrink-0"
+                                                                            title="OKR được liên kết"
+                                                                        />
+                                                                    )}
+                                                                    <span className="font-medium text-slate-900">
+                                                                        {kr.kr_title}
                                                                     </span>
                                                                 </div>
-                                                            );
-                                                        })()
-                                                    ) : (
-                                                        <span className="text-slate-400 text-xs">
-                                                            Chưa giao
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    <span
-                                                        className={`inline-flex items-center rounded-md px-2 py-1 text-[11px] font-semibold ${
-                                                            (
-                                                                kr.status || ""
-                                                            ).toUpperCase() ===
-                                                            "COMPLETED"
-                                                                ? "bg-emerald-100 text-emerald-700"
-                                                                : (
-                                                                      kr.status ||
-                                                                      ""
-                                                                  ).toUpperCase() ===
-                                                                  "ACTIVE"
-                                                                ? "bg-blue-100 text-blue-700"
-                                                                : "bg-slate-100 text-slate-700"
-                                                        }`}
-                                                    >
-                                                        {getStatusText(
-                                                            kr.status
-                                                        )}
-                                                    </span>
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {getUnitText(kr.unit)}
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {kr.current_value ?? ""}
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {kr.target_value ?? ""}
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {formatPercent(
-                                                        kr.progress_percent
-                                                    )}
-                                                </td>
-                                                <td className="px-3 py-3 text-center">
-                                                    <div className="flex items-center justify-center gap-1">
-                                                        {isLinkedKR ? (
-                                                            // Virtual KR - chỉ hiển thị nút hủy liên kết
-                                                            <button
-                                                                onClick={() => {
-                                                                    if (window.confirm(`Bạn có chắc chắn muốn hủy liên kết với "${kr.kr_title}"?`)) {
-                                                                        const keepOwnership = window.confirm(
-                                                                            "OKR này đang sở hữu OKR con. Giữ quyền sở hữu cho OKR cấp cao?"
-                                                                        );
-                                                                        if (onCancelLink && kr.link) {
-                                                                            onCancelLink(kr.link.link_id, "", keepOwnership);
-                                                                        }
-                                                                    }
-                                                                }}
-                                                                className="p-1 text-rose-600 hover:bg-rose-50 rounded"
-                                                                title="Hủy liên kết"
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-3 py-3 text-center border-r border-slate-200">
+                                                            {kr.assigned_to ||
+                                                            kr.assigned_user ||
+                                                            kr.assignedUser ||
+                                                            kr.assignee ? (
+                                                                (() => {
+                                                                    const info = getAssigneeInfo(kr);
+                                                                    const displayName = info.name || "";
+                                                                    const avatarSrc = info.avatar;
+                                                                    const initial =
+                                                                        displayName?.trim()?.charAt(0)?.toUpperCase() ||
+                                                                        (kr.assigned_to
+                                                                            ? String(kr.assigned_to).charAt(0).toUpperCase()
+                                                                            : "?");
+                                                                    return (
+                                                                        <div
+                                                                            className="flex items-center justify-center gap-2"
+                                                                            onMouseEnter={(e) => handleAssigneeHover(e, info)}
+                                                                            onMouseLeave={() => setAssigneeTooltip(null)}
+                                                                        >
+                                                                            {avatarSrc ? (
+                                                                                <img
+                                                                                    src={avatarSrc}
+                                                                                    alt={displayName}
+                                                                                    className="h-7 w-7 rounded-full object-cover ring-1 ring-slate-200"
+                                                                                />
+                                                                            ) : (
+                                                                                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-[11px] font-semibold text-slate-700">
+                                                                                    {initial}
+                                                                                </div>
+                                                                            )}
+                                                                            <span className="max-w-[120px] truncate text-sm text-slate-700">
+                                                                                {displayName || kr.assigned_to}
+                                                                            </span>
+                                                                        </div>
+                                                                    );
+                                                                })()
+                                                            ) : (
+                                                                <span className="text-slate-400 text-xs">
+                                                                    Chưa giao
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-3 py-3 text-center border-r border-slate-200">
+                                                            <span
+                                                                className={`inline-flex items-center rounded-md px-2 py-1 text-[11px] font-semibold ${
+                                                                    (
+                                                                        kr.status || ""
+                                                                    ).toUpperCase() ===
+                                                                    "COMPLETED"
+                                                                        ? "bg-emerald-100 text-emerald-700"
+                                                                        : (
+                                                                              kr.status ||
+                                                                              ""
+                                                                          ).toUpperCase() ===
+                                                                          "ACTIVE"
+                                                                        ? "bg-blue-100 text-blue-700"
+                                                                        : "bg-slate-100 text-slate-700"
+                                                                }`}
                                                             >
-                                                                <svg
-                                                                    className="h-4 w-4"
-                                                                    fill="none"
-                                                                    viewBox="0 0 24 24"
-                                                                    stroke="currentColor"
+                                                                {getStatusText(
+                                                                    kr.status
+                                                                )}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-3 py-3 text-center border-r border-slate-200">
+                                                            {getUnitText(kr.unit)}
+                                                        </td>
+                                                        <td className="px-3 py-3 text-center border-r border-slate-200">
+                                                            {kr.current_value ?? ""}
+                                                        </td>
+                                                        <td className="px-3 py-3 text-center border-r border-slate-200">
+                                                            {kr.target_value ?? ""}
+                                                        </td>
+                                                    </>
+                                                )}
+                                                {!isLinkedObjective && (
+                                                    <td className="px-3 py-3 text-center border-r border-slate-200">
+                                                        {formatPercent(
+                                                            kr.progress_percent
+                                                        )}
+                                                    </td>
+                                                )}
+                                                {!isLinkedObjective && (
+                                                    <td className="px-3 py-3 text-center">
+                                                        <div className="flex items-center justify-center gap-1">
+                                                            {isLinkedKR ? (
+                                                                // Virtual KR (O->KR) - chỉ hiển thị nút hủy liên kết
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (window.confirm(`Bạn có chắc chắn muốn hủy liên kết với "${kr.kr_title}"?`)) {
+                                                                            const keepOwnership = window.confirm(
+                                                                                "OKR này đang sở hữu OKR con. Giữ quyền sở hữu cho OKR cấp cao?"
+                                                                            );
+                                                                            if (onCancelLink && kr.link) {
+                                                                                onCancelLink(kr.link.link_id, "", keepOwnership);
+                                                                            }
+                                                                        }
+                                                                    }}
+                                                                    className="p-1 text-rose-600 hover:bg-rose-50 rounded"
+                                                                    title="Hủy liên kết"
                                                                 >
-                                                                    <path
-                                                                        strokeLinecap="round"
-                                                                        strokeLinejoin="round"
-                                                                        strokeWidth={2}
-                                                                        d="M6 18L18 6M6 6l12 12"
-                                                                    />
-                                                                </svg>
-                                                            </button>
-                                                        ) : (
+                                                                    <svg
+                                                                        className="h-4 w-4"
+                                                                        fill="none"
+                                                                        viewBox="0 0 24 24"
+                                                                        stroke="currentColor"
+                                                                    >
+                                                                        <path
+                                                                            strokeLinecap="round"
+                                                                            strokeLinejoin="round"
+                                                                            strokeWidth={2}
+                                                                            d="M6 18L18 6M6 6l12 12"
+                                                                        />
+                                                                    </svg>
+                                                                </button>
+                                                            ) : (
                                                             // KR thật - hiển thị các nút bình thường
                                                             <>
-                                                                {onOpenLinkModal && (
-                                                                    <button
-                                                                        onClick={() =>
-                                                                            onOpenLinkModal({
-                                                                                sourceType: "kr",
-                                                                                source: {
-                                                                                    ...kr,
-                                                                                    objective_id:
-                                                                                        obj.objective_id,
-                                                                                    objective_level:
-                                                                                        obj.level,
-                                                                                    obj_title:
-                                                                                        obj.obj_title,
-                                                                                },
-                                                                            })
-                                                                        }
-                                                                        className="p-1 text-indigo-600 hover:bg-indigo-50 rounded"
-                                                                        title="Liên kết OKR cấp cao"
-                                                                    >
-                                                                        <svg
-                                                                            className="h-4 w-4"
-                                                                            fill="none"
-                                                                            viewBox="0 0 24 24"
-                                                                            stroke="currentColor"
-                                                                        >
-                                                                            <path
-                                                                                strokeLinecap="round"
-                                                                                strokeLinejoin="round"
-                                                                                strokeWidth={
-                                                                                    2
-                                                                                }
-                                                                                d="M13.828 10.172a4 4 0 010 5.656l-1.414 1.414a4 4 0 01-5.656-5.656l1.414-1.414M10.172 13.828a4 4 0 010-5.656l1.414-1.414a4 4 0 015.656 5.656l-1.414 1.414"
-                                                                            />
-                                                                        </svg>
-                                                                    </button>
-                                                                )}
                                                                 <button
                                                                     onClick={() =>
                                                                         setEditingKR(kr)
@@ -1421,10 +1605,271 @@ export default function ObjectiveList({
                                                                     </svg>
                                                                 </button>
                                                             </>
-                                                        )}
-                                                    </div>
-                                                </td>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                )}
                                             </tr>
+                                            {/* Hiển thị KR nguồn của O->O link khi expand */}
+                                            {isLinkedObjective && kr.key_results && kr.key_results.length > 0 && openObj[`linked_obj_kr_${kr.kr_id}`] && (
+                                                <>
+                                                    {kr.key_results.map((sourceKr) => {
+                                                        const krUser = sourceKr.assigned_user || sourceKr.assignedUser || null;
+                                                        const krDisplayName = krUser?.full_name || krUser?.fullName || krUser?.name || krUser?.username || krUser?.email || sourceKr.assigned_to || "Chưa giao";
+                                                        const krAvatarSrc = krUser?.avatar_url || krUser?.avatar || krUser?.profile_photo_url || krUser?.profile_photo_path || krUser?.photo_url || null;
+                                                        const krInitial = krDisplayName?.trim()?.charAt(0)?.toUpperCase() || "?";
+
+                                                        return (
+                                                            <tr key={`source_kr_${sourceKr.kr_id}_${kr.kr_id}`} className="bg-white">
+                                                                <td className="px-16 py-3 border-r border-slate-200">
+                                                                    <div className="flex flex-col gap-1">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="font-medium text-slate-700 text-sm">
+                                                                                {sourceKr.kr_title}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                                                    {krUser || sourceKr.assigned_to ? (
+                                                                        <div
+                                                                            className="flex items-center justify-center gap-2"
+                                                                            onMouseEnter={(e) => {
+                                                                                if (krUser) {
+                                                                                    const info = {
+                                                                                        name: krDisplayName,
+                                                                                        avatar: krAvatarSrc,
+                                                                                        department: krUser?.department?.d_name || krUser?.department?.name || krUser?.department_name || krUser?.department || null,
+                                                                                        email: krUser?.email || "",
+                                                                                    };
+                                                                                    handleAssigneeHover(e, info);
+                                                                                }
+                                                                            }}
+                                                                            onMouseLeave={() => setAssigneeTooltip(null)}
+                                                                        >
+                                                                            {krAvatarSrc ? (
+                                                                                <img
+                                                                                    src={krAvatarSrc}
+                                                                                    alt={krDisplayName}
+                                                                                    className="h-7 w-7 rounded-full object-cover ring-1 ring-slate-200"
+                                                                                />
+                                                                            ) : (
+                                                                                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-[11px] font-semibold text-slate-700">
+                                                                                    {krInitial}
+                                                                                </div>
+                                                                            )}
+                                                                            <span className="max-w-[120px] truncate text-sm text-slate-700">
+                                                                                {krDisplayName}
+                                                                            </span>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <span className="text-slate-400 text-xs">
+                                                                            Chưa giao
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                                                    <span className={`inline-flex items-center rounded-md px-2 py-1 text-[11px] font-semibold ${
+                                                                        (sourceKr.status || "").toUpperCase() === "COMPLETED"
+                                                                            ? "bg-emerald-100 text-emerald-700"
+                                                                            : (sourceKr.status || "").toUpperCase() === "ACTIVE"
+                                                                            ? "bg-blue-100 text-blue-700"
+                                                                            : "bg-slate-100 text-slate-700"
+                                                                    }`}>
+                                                                        {getStatusText(sourceKr.status)}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                                                    {getUnitText(sourceKr.unit)}
+                                                                </td>
+                                                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                                                    {sourceKr.current_value ?? ""}
+                                                                </td>
+                                                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                                                    {sourceKr.target_value ?? ""}
+                                                                </td>
+                                                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                                                    {formatPercent(sourceKr.progress_percent)}
+                                                                </td>
+                                                                <td className="px-3 py-3 text-center">
+                                                                    {/* Không có action cho KR nguồn */}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </>
+                                            )}
+                                            {/* Hiển thị các O cấp dưới liên kết với KR này (O->KR) - chỉ khi expand */}
+                                            {hasLinkedObjectives && krExpanded && (
+                                                <>
+                                                    {kr.linked_objectives.map((linkedObj) => {
+                                                        // Lấy thông tin user từ linkedObj
+                                                        const user = linkedObj.user || null;
+                                                        const displayName = user?.full_name || user?.fullName || user?.name || user?.username || user?.email || linkedObj.user_id || "Chưa giao";
+                                                        const avatarSrc = user?.avatar_url || user?.avatar || user?.profile_photo_url || user?.profile_photo_path || user?.photo_url || null;
+                                                        const initial = displayName?.trim()?.charAt(0)?.toUpperCase() || "?";
+                                                        const hasKeyResults = linkedObj.key_results && linkedObj.key_results.length > 0;
+                                                        const linkedObjExpanded = openObj[`linked_obj_${linkedObj.objective_id}_${kr.kr_id}`];
+
+                                                        return (
+                                                            <React.Fragment key={`linked_obj_${linkedObj.objective_id}_${kr.kr_id}`}>
+                                                            <tr className="bg-white">
+                                                                <td colSpan={7} className="px-12 py-3 border-r border-slate-200">
+                                                                    <div className="flex items-center justify-between w-full">
+                                                                        <div className="flex items-center gap-2">
+                                                                            {/* Luôn dành chỗ cho icon chevron để alignment đều */}
+                                                                            <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
+                                                                                {hasKeyResults && (
+                                                                                    <button
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            setOpenObj((prev) => ({
+                                                                                                ...prev,
+                                                                                                [`linked_obj_${linkedObj.objective_id}_${kr.kr_id}`]: !prev[`linked_obj_${linkedObj.objective_id}_${kr.kr_id}`],
+                                                                                            }));
+                                                                                        }}
+                                                                                        className="flex-shrink-0 p-0.5 hover:bg-slate-100 rounded"
+                                                                                        title={linkedObjExpanded ? "Thu gọn" : "Mở rộng"}
+                                                                                    >
+                                                                                        <svg
+                                                                                            className={`h-4 w-4 text-slate-600 transition-transform ${linkedObjExpanded ? 'rotate-90' : ''}`}
+                                                                                            fill="none"
+                                                                                            stroke="currentColor"
+                                                                                            viewBox="0 0 24 24"
+                                                                                        >
+                                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                                                        </svg>
+                                                                                    </button>
+                                                                                )}
+                                                                            </div>
+                                                                            <LuAlignCenterHorizontal className="h-4 w-4 text-blue-500 flex-shrink-0" title="OKR được liên kết" />
+                                                                            <span className="font-medium text-slate-900">
+                                                                                {linkedObj.obj_title}
+                                                                            </span>
+                                                                            {hasKeyResults && (
+                                                                                <span className="text-xs text-slate-500">
+                                                                                    ({linkedObj.key_results.length} KR)
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-3 py-3 text-center">
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            if (window.confirm(`Bạn có chắc chắn muốn hủy liên kết với "${linkedObj.obj_title}"?`)) {
+                                                                                const keepOwnership = window.confirm(
+                                                                                    "OKR này đang sở hữu OKR con. Giữ quyền sở hữu cho OKR cấp cao?"
+                                                                                );
+                                                                                if (onCancelLink && linkedObj.link) {
+                                                                                    onCancelLink(linkedObj.link.link_id, "", keepOwnership);
+                                                                                }
+                                                                            }
+                                                                        }}
+                                                                        className="p-1 text-rose-600 hover:bg-rose-50 rounded"
+                                                                        title="Hủy liên kết"
+                                                                    >
+                                                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                        </svg>
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                            {/* Hiển thị KR của O nguồn khi expand */}
+                                                            {hasKeyResults && linkedObjExpanded && (
+                                                                <>
+                                                                    {linkedObj.key_results.map((linkedKr) => {
+                                                                        const krUser = linkedKr.assigned_user || linkedKr.assignedUser || null;
+                                                                        const krDisplayName = krUser?.full_name || krUser?.fullName || krUser?.name || krUser?.username || krUser?.email || linkedKr.assigned_to || "Chưa giao";
+                                                                        const krAvatarSrc = krUser?.avatar_url || krUser?.avatar || krUser?.profile_photo_url || krUser?.profile_photo_path || krUser?.photo_url || null;
+                                                                        const krInitial = krDisplayName?.trim()?.charAt(0)?.toUpperCase() || "?";
+
+                                                                        return (
+                                                                            <tr key={`linked_kr_${linkedKr.kr_id}_${linkedObj.objective_id}`} className="bg-white">
+                                                                                <td className="px-16 py-3 border-r border-slate-200">
+                                                                                    <div className="flex flex-col gap-1">
+                                                                                        <div className="flex items-center gap-2">
+                                                                                            <span className="font-medium text-slate-700 text-sm">
+                                                                                                {linkedKr.kr_title}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </td>
+                                                                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                                                                    {krUser || linkedKr.assigned_to ? (
+                                                                                        <div
+                                                                                            className="flex items-center justify-center gap-2"
+                                                                                            onMouseEnter={(e) => {
+                                                                                                if (krUser) {
+                                                                                                    const info = {
+                                                                                                        name: krDisplayName,
+                                                                                                        avatar: krAvatarSrc,
+                                                                                                        department: krUser?.department?.d_name || krUser?.department?.name || krUser?.department_name || krUser?.department || null,
+                                                                                                        email: krUser?.email || "",
+                                                                                                    };
+                                                                                                    handleAssigneeHover(e, info);
+                                                                                                }
+                                                                                            }}
+                                                                                            onMouseLeave={() => setAssigneeTooltip(null)}
+                                                                                        >
+                                                                                            {krAvatarSrc ? (
+                                                                                                <img
+                                                                                                    src={krAvatarSrc}
+                                                                                                    alt={krDisplayName}
+                                                                                                    className="h-7 w-7 rounded-full object-cover ring-1 ring-slate-200"
+                                                                                                />
+                                                                                            ) : (
+                                                                                                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-[11px] font-semibold text-slate-700">
+                                                                                                    {krInitial}
+                                                                                                </div>
+                                                                                            )}
+                                                                                            <span className="max-w-[120px] truncate text-sm text-slate-700">
+                                                                                                {krDisplayName}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <span className="text-slate-400 text-xs">
+                                                                                            Chưa giao
+                                                                                        </span>
+                                                                                    )}
+                                                                                </td>
+                                                                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                                                                    <span className={`inline-flex items-center rounded-md px-2 py-1 text-[11px] font-semibold ${
+                                                                                        (linkedKr.status || "").toUpperCase() === "COMPLETED"
+                                                                                            ? "bg-emerald-100 text-emerald-700"
+                                                                                            : (linkedKr.status || "").toUpperCase() === "ACTIVE"
+                                                                                            ? "bg-blue-100 text-blue-700"
+                                                                                            : "bg-slate-100 text-slate-700"
+                                                                                    }`}>
+                                                                                        {getStatusText(linkedKr.status)}
+                                                                                    </span>
+                                                                                </td>
+                                                                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                                                                    {getUnitText(linkedKr.unit)}
+                                                                                </td>
+                                                                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                                                                    {linkedKr.current_value ?? ""}
+                                                                                </td>
+                                                                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                                                                    {linkedKr.target_value ?? ""} {linkedKr.unit ? (linkedKr.unit === "percent" ? "%" : linkedKr.unit === "completion" ? "" : "") : ""}
+                                                                                </td>
+                                                                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                                                                    {formatPercent(linkedKr.progress_percent || 0)}
+                                                                                </td>
+                                                                                <td className="px-3 py-3 text-center">
+                                                                                    {/* Không có action cho KR của O nguồn */}
+                                                                                </td>
+                                                                            </tr>
+                                                                        );
+                                                                    })}
+                                                                </>
+                                                            )}
+                                                            </React.Fragment>
+                                                        );
+                                                    })}
+                                                </>
+                                            )}
+                                            </React.Fragment>
                                             );
                                         })}
                                 </React.Fragment>

@@ -35,20 +35,53 @@ class LinkController extends Controller
         $outgoing = OkrLink::with($this->defaultRelations())
             ->ownedBy($user->user_id)
             ->orderByDesc('created_at')
-            ->get();
+            ->get()
+            ->filter(function ($link) {
+                // Loại bỏ link có target đã bị archived
+                if ($link->targetObjective && $link->targetObjective->archived_at) {
+                    return false;
+                }
+                if ($link->targetKr && $link->targetKr->archived_at) {
+                    return false;
+                }
+                return true;
+            })
+            ->values();
 
         $incoming = OkrLink::with($this->defaultRelations())
             ->targetedTo($user->user_id)
             ->whereIn('status', [OkrLink::STATUS_PENDING, OkrLink::STATUS_NEEDS_CHANGES])
             ->orderBy('status')
             ->orderByDesc('created_at')
-            ->get();
+            ->get()
+            ->filter(function ($link) {
+                // Loại bỏ link có target đã bị archived
+                if ($link->targetObjective && $link->targetObjective->archived_at) {
+                    return false;
+                }
+                if ($link->targetKr && $link->targetKr->archived_at) {
+                    return false;
+                }
+                return true;
+            })
+            ->values();
 
         $children = OkrLink::with($this->defaultRelations())
             ->targetedTo($user->user_id)
             ->status(OkrLink::STATUS_APPROVED)
             ->orderByDesc('ownership_transferred_at')
-            ->get();
+            ->get()
+            ->filter(function ($link) {
+                // Loại bỏ link có target đã bị archived
+                if ($link->targetObjective && $link->targetObjective->archived_at) {
+                    return false;
+                }
+                if ($link->targetKr && $link->targetKr->archived_at) {
+                    return false;
+                }
+                return true;
+            })
+            ->values();
 
         return response()->json([
             'success' => true,
@@ -374,6 +407,7 @@ class LinkController extends Controller
     {
         return [
             'sourceObjective.user.department',
+            'sourceObjective.keyResults' => fn($q) => $q->with('assignedUser')->whereNull('archived_at'),
             'sourceKr.assignedUser.department',
             'targetObjective.user.department',
             'targetKr.assignedUser.department',
