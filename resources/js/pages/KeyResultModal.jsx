@@ -16,7 +16,7 @@ export default function KeyResultModal({
         target_value: 0,
         current_value: 0,
         unit: "",
-        status: "",
+        status: "draft",
         cycle_id: "", // Sẽ được gán tự động
         department_id: "",
     });
@@ -37,7 +37,7 @@ export default function KeyResultModal({
                 target_value: 0,
                 current_value: 0,
                 unit: "",
-                status: "",
+                status: "draft",
                 cycle_id: creatingFor.cycle_id || "",
                 department_id: creatingFor.department_id || "",
             });
@@ -253,18 +253,24 @@ export default function KeyResultModal({
                             <label className="mb-1 block text-xs font-semibold text-slate-600">
                                 Trạng thái
                             </label>
-                            <select
-                                value={form.status}
-                                onChange={(e) =>
-                                    handleChange("status", e.target.value)
-                                }
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            >
-                                <option value="">-- chọn trạng thái --</option>
-                                <option value="draft">Bản nháp</option>
-                                <option value="active">Đang thực hiện</option>
-                                <option value="completed">Hoàn thành</option>
-                            </select>
+                            {creatingFor ? (
+                                <div className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                                    Bản nháp
+                                </div>
+                            ) : (
+                                <select
+                                    value={form.status}
+                                    onChange={(e) =>
+                                        handleChange("status", e.target.value)
+                                    }
+                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                >
+                                    <option value="">-- chọn trạng thái --</option>
+                                    <option value="draft">Bản nháp</option>
+                                    <option value="active">Đang thực hiện</option>
+                                    <option value="completed">Hoàn thành</option>
+                                </select>
+                            )}
                         </div>
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-600">
@@ -300,23 +306,6 @@ export default function KeyResultModal({
                                 step="0.01"
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                                 required
-                            />
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Thực tế
-                            </label>
-                            <input
-                                value={form.current_value}
-                                onChange={(e) =>
-                                    handleChange(
-                                        "current_value",
-                                        e.target.value
-                                    )
-                                }
-                                type="number"
-                                step="0.01"
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                             />
                         </div>
                     </div>

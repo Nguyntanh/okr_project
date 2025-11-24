@@ -297,15 +297,34 @@ export default function ObjectivesPage() {
 
     const handleCheckInSuccess = (keyResultData) => {
         if (keyResultData && keyResultData.kr_id) {
-            // Cập nhật Key Result trong danh sách
-            setItems((prev) =>
-                prev.map((obj) => ({
-                    ...obj,
-                    key_results: (obj.key_results || []).map((kr) =>
-                        kr.kr_id === keyResultData.kr_id ? { ...kr, ...keyResultData } : kr
-                    ),
-                }))
-            );
+            setItems((prevItems) => {
+                return prevItems.map((obj) => {
+                    if (obj.objective_id === checkInModal.keyResult?.objective_id) {
+                        let newObjectiveStatus = obj.status;
+                        if (newObjectiveStatus === "draft") {
+                            newObjectiveStatus = "active";
+                        }
+
+                        const updatedKeyResults = (obj.key_results || []).map((kr) => {
+                            if (kr.kr_id === keyResultData.kr_id) {
+                                let newKRStatus = keyResultData.status;
+                                if (newKRStatus === "draft") {
+                                    newKRStatus = "active";
+                                }
+                                return { ...kr, ...keyResultData, status: newKRStatus };
+                            }
+                            return kr;
+                        });
+
+                        return {
+                            ...obj,
+                            status: newObjectiveStatus,
+                            key_results: updatedKeyResults,
+                        };
+                    }
+                    return obj;
+                });
+            });
         }
         
         // Hiển thị thông báo thành công
