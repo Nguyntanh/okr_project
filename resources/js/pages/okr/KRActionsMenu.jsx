@@ -5,6 +5,7 @@ export default function KRActionsMenu({
     kr,
     objective,
     setEditingKR,
+    handleArchiveKR,
     canCheckIn,
     openCheckInModal,
     openCheckInHistory,
@@ -119,6 +120,20 @@ export default function KRActionsMenu({
                             Lịch sử Check-in
                         </button>
                     )}
+                    <div className="my-1 h-px bg-slate-100"></div>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleArchiveKR(objective.objective_id, kr.kr_id);
+                            setOpenObj((prev) => ({
+                                ...prev,
+                                [menuKey]: false,
+                            }));
+                        }}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-rose-600 hover:bg-rose-50"
+                    >
+                        Lưu trữ
+                    </button>
                 </div>
             )}
         </div>

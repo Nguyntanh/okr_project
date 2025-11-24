@@ -43,6 +43,9 @@ export default function ObjectiveList({
     setItems,
     onOpenLinkModal,
     onCancelLink,
+    handleAssignKR,
+    handleArchive,
+    handleArchiveKR,
 }) {
     const [toast, setToast] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
@@ -147,20 +150,35 @@ export default function ObjectiveList({
     }, [items, childLinks]);
 
     // === RELOAD BOTH TABS ===
-    const reloadBothTabs = useCallback(
-        async (token) => {
-            /* giữ nguyên */
-        },
-        [cycleFilter, showArchived, setItems]
-    );
+    const reloadBothTabs = useCallback(async () => {
+        setLoading(true);
+        setLoadingArchived(true);
 
-    // === ARCHIVE HANDLERS ===
-    const handleArchive = async (id) => {
-        /* giữ nguyên logic */
-    };
-    const handleAssignKR = async () => {
-        /* giữ nguyên logic */
-    };
+        const fetchActive = fetch(
+            `/my-objectives?cycle_id=${cycleFilter || ""}`
+        )
+            .then((res) => res.json())
+            .then((json) => {
+                if (json.success) {
+                    setItems(json.data.data);
+                }
+            });
+
+        const fetchArchived = fetch(
+            `/my-objectives?cycle_id=${cycleFilter || ""}&archived=1`
+        )
+            .then((res) => res.json())
+            .then((json) => {
+                if (json.success) {
+                    setArchivedItems(json.data.data);
+                }
+            });
+
+        await Promise.all([fetchActive, fetchArchived]);
+
+        setLoading(false);
+        setLoadingArchived(false);
+    }, [cycleFilter]);
 
     // === CLICK OUTSIDE TO CLOSE MENUS ===
     useEffect(() => {
@@ -174,7 +192,28 @@ export default function ObjectiveList({
 
     // === LOAD ARCHIVED ===
     useEffect(() => {
-        /* giữ nguyên */
+        if (showArchived) {
+            const loadArchived = async () => {
+                setLoadingArchived(true);
+                try {
+                    const response = await fetch(
+                        `/my-objectives?cycle_id=${
+                            cycleFilter || ""
+                        }&archived=1`
+                    );
+                    const json = await response.json();
+                    if (json.success) {
+                        setArchivedItems(json.data.data || []);
+                    }
+                } catch (error) {
+                    console.error("Failed to load archived items:", error);
+                    setArchivedItems([]);
+                } finally {
+                    setLoadingArchived(false);
+                }
+            };
+            loadArchived();
+        }
     }, [showArchived, cycleFilter]);
 
     return (
@@ -271,6 +310,7 @@ export default function ObjectiveList({
                                     setCreatingFor={setCreatingFor}
                                     onOpenLinkModal={onOpenLinkModal}
                                     handleArchive={handleArchive}
+                                    handleArchiveKR={handleArchiveKR}
                                     archiving={archiving}
                                     currentUser={currentUser}
                                     openCheckInModal={openCheckInModal}

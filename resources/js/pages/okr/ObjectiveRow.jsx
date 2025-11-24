@@ -13,6 +13,7 @@ export default function ObjectiveRow({
     setCreatingFor,
     onOpenLinkModal,
     handleArchive,
+    handleArchiveKR,
     archiving,
     menuRefs,
     onCancelLink,
@@ -184,6 +185,7 @@ export default function ObjectiveRow({
                         openObj={openObj}
                         setOpenObj={setOpenObj}
                         setEditingKR={setEditingKR}
+                        handleArchiveKR={handleArchiveKR}
                         canCheckInKR={canCheckInKR} // truyền tiếp xuống
                         openCheckInModal={openCheckInModal}
                         openCheckInHistory={openCheckInHistory}

@@ -11,6 +11,7 @@ export default function KeyResultRow({
     openObj,
     setOpenObj,
     setEditingKR,
+    handleArchiveKR,
     canCheckInKR,
     onCancelLink,
     setAssignModal,
@@ -265,6 +266,7 @@ export default function KeyResultRow({
                             kr={kr}
                             objective={objective}
                             setEditingKR={setEditingKR}
+                            handleArchiveKR={handleArchiveKR}
                             canCheckIn={canCheckInKR(kr)}
                             openCheckInModal={openCheckInModal}
                             openCheckInHistory={openCheckInHistory}
