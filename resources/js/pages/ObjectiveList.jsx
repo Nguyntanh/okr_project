@@ -869,7 +869,7 @@ export default function ObjectiveList({
                                                                 {openObj[
                                                                     `menu_${kr.kr_id}`
                                                                 ] && (
-                                                                    <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-[9999] py-1">
+                                                                    <div className="absolute right-full top-0 mr-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-[9999] py-1">
                                                                         {/* Giao việc */}
                                                                         <button
                                                                             onClick={(

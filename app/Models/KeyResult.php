@@ -87,7 +87,9 @@ class KeyResult extends Model
 
     public function latestCheckIn()
     {
-        return $this->hasOne(CheckIn::class, 'kr_id', 'kr_id')->latestOfMany();
+        return $this->hasOne(CheckIn::class, 'kr_id', 'kr_id')
+            ->orderBy('check_in_id', 'desc')
+            ->limit(1);
     }
 
     /**

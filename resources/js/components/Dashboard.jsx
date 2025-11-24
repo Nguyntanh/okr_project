@@ -30,13 +30,13 @@ export default function Dashboard() {
     const [showFilters, setShowFilters] = useState(false);
     const [checkInHistory, setCheckInHistory] = useState({ open: false, keyResult: null });
     const [activeTab, setActiveTab] = useState('my'); // 'my', 'department', 'company'
-    const [teamTrendRange, setTeamTrendRange] = useState("month"); // 'day' | 'week' | 'month'
-    const teamTrendOptions = [
+    const [trendRange, setTrendRange] = useState("month"); // 'day' | 'week' | 'month' - dùng chung cho tất cả tab
+    const trendOptions = [
         { value: "day", label: "Ngày" },
         { value: "week", label: "Tuần" },
         { value: "month", label: "Tháng" },
     ];
-    const teamTrendLabelMap = {
+    const trendLabelMap = {
         day: "ngày",
         week: "tuần",
         month: "tháng",
@@ -497,12 +497,25 @@ export default function Dashboard() {
     const { myOKRs, departmentOKRs, companyOKRs } = useMemo(() => {
         const allItems = Array.isArray(items) ? items : [];
         
+        // OKR cá nhân: chỉ hiển thị OKR của chính user đó
+        const myOKRsFiltered = allItems.filter(item => {
+            if (item.level !== 'person') return false;
+            // Chỉ hiển thị OKR của chính user
+            if (currentUser) {
+                const itemUserId = item.user_id || item.user?.user_id || item.owner?.user_id;
+                const currentUserId = currentUser.user_id || currentUser.id;
+                return String(itemUserId) === String(currentUserId);
+            }
+            return false;
+        });
+        
         return {
-            myOKRs: allItems.filter(item => item.level === 'person'),
+            myOKRs: myOKRsFiltered,
+            // OKR phòng ban và công ty: hiển thị tất cả cho mọi role
             departmentOKRs: allItems.filter(item => item.level === 'unit'),
             companyOKRs: allItems.filter(item => item.level === 'company')
         };
-    }, [items]);
+    }, [items, currentUser]);
 
     const personalSummary = useMemo(() => buildSummary(myOKRs), [myOKRs]);
     const teamSummary = useMemo(() => buildSummary(departmentOKRs), [departmentOKRs]);
@@ -566,13 +579,13 @@ export default function Dashboard() {
         return Math.ceil(((target - yearStart) / (1000 * 60 * 60 * 24) + 1) / 7);
     };
 
-    const getTrendBucket = (rawDate) => {
+    const getTrendBucket = (rawDate, range = trendRange) => {
         if (!rawDate) return null;
         const date = new Date(rawDate);
         if (Number.isNaN(date.getTime())) return null;
         date.setHours(0, 0, 0, 0);
 
-        if (teamTrendRange === "day") {
+        if (range === "day") {
             const key = date.toISOString().slice(0, 10);
             const label = date.toLocaleDateString("vi-VN", {
                 day: "2-digit",
@@ -581,7 +594,7 @@ export default function Dashboard() {
             return { key, label, time: date.getTime() };
         }
 
-        if (teamTrendRange === "week") {
+        if (range === "week") {
             const weekStart = new Date(date);
             const diff = (weekStart.getDay() + 6) % 7; // Monday = 0
             weekStart.setDate(weekStart.getDate() - diff);
@@ -602,8 +615,9 @@ export default function Dashboard() {
         return { key, label, time: monthStart.getTime() };
     };
 
-    const teamTrendData = useMemo(() => {
-        if (!departmentOKRs || departmentOKRs.length === 0) return [];
+    // Helper function để tính trend data từ list OKRs
+    const calculateTrendData = (okrList, range) => {
+        if (!okrList || okrList.length === 0) return [];
 
         const clampProgress = (value) =>
             Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
@@ -611,7 +625,7 @@ export default function Dashboard() {
 
         const addSample = (rawDate, rawProgress) => {
             if (rawDate === null || rawDate === undefined) return;
-            const bucketInfo = getTrendBucket(rawDate);
+            const bucketInfo = getTrendBucket(rawDate, range);
             if (!bucketInfo) return;
             const progressValue = clampProgress(Number(rawProgress));
             const bucket = buckets.get(bucketInfo.key) || {
@@ -627,7 +641,7 @@ export default function Dashboard() {
             buckets.set(bucketInfo.key, bucket);
         };
 
-        departmentOKRs.forEach((objective) => {
+        okrList.forEach((objective) => {
             const objectiveProgress = calculateObjectiveProgress(objective);
             const baselineDate =
                 objective.updated_at ||
@@ -683,7 +697,20 @@ export default function Dashboard() {
                 bucket: bucket.label,
                 avgProgress: bucket.count ? bucket.sum / bucket.count : 0,
             }));
-    }, [departmentOKRs, teamTrendRange]);
+    };
+
+    // Trend data cho từng tab
+    const personalTrendData = useMemo(() => {
+        return calculateTrendData(myOKRs, trendRange);
+    }, [myOKRs, trendRange]);
+
+    const teamTrendData = useMemo(() => {
+        return calculateTrendData(departmentOKRs, trendRange);
+    }, [departmentOKRs, trendRange]);
+
+    const companyTrendData = useMemo(() => {
+        return calculateTrendData(companyOKRs, trendRange);
+    }, [companyOKRs, trendRange]);
 
     const SummaryCard = ({
         title,
@@ -925,10 +952,21 @@ export default function Dashboard() {
 
             // Filter by active tab
             if (activeTab === 'my') {
-                result = result.filter(item => item.level === 'person');
+                // Tab "My OKR": chỉ hiển thị OKR cá nhân của chính user
+                result = result.filter(item => {
+                    if (item.level !== 'person') return false;
+                    if (currentUser) {
+                        const itemUserId = item.user_id || item.user?.user_id || item.owner?.user_id;
+                        const currentUserId = currentUser.user_id || currentUser.id;
+                        return String(itemUserId) === String(currentUserId);
+                    }
+                    return false;
+                });
             } else if (activeTab === 'department') {
+                // Tab "OKR Phòng ban": hiển thị tất cả OKR phòng ban cho mọi role
                 result = result.filter(item => item.level === 'unit');
             } else if (activeTab === 'company') {
+                // Tab "OKR Công ty": hiển thị tất cả OKR công ty cho mọi role
                 result = result.filter(item => item.level === 'company');
             }
 
@@ -950,10 +988,14 @@ export default function Dashboard() {
                 );
             }
 
-            if (currentFilters.myOKROnly && currentUser) {
-                result = result.filter(item => 
-                    String(item.user_id) === String(currentUser.user_id || currentUser.id)
-                );
+            // Filter myOKROnly không cần thiết cho tab "my" vì đã filter theo user rồi
+            // Nhưng vẫn giữ cho các tab khác nếu cần
+            if (currentFilters.myOKROnly && currentUser && activeTab !== 'my') {
+                result = result.filter(item => {
+                    const itemUserId = item.user_id || item.user?.user_id || item.owner?.user_id;
+                    const currentUserId = currentUser.user_id || currentUser.id;
+                    return String(itemUserId) === String(currentUserId);
+                });
             }
 
             // No sorting as requested; keep server order
@@ -1417,35 +1459,25 @@ export default function Dashboard() {
                     </div>
                 )}
 
-                {/* Chart Section - khác nhau theo tab */}
+                {/* Chart Section - LineChart cho tất cả các tab */}
                 {activeTab === 'my' && (
-                    <div className="mb-8">
-                        <BarChart
-                            data={personalBarData}
-                            title="Tiến độ OKR cá nhân"
-                            xAxisLabel="OKR"
-                            yAxisLabel="Phần trăm hoàn thành"
-                        />
-                    </div>
-                )}
-                {activeTab === 'department' && (
                     <section className="mb-8">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <h3 className="text-lg font-semibold text-slate-900">
-                                    Xu hướng tiến độ OKR team
+                                    Xu hướng tiến độ OKR cá nhân
                                 </h3>
                                 <p className="text-sm text-slate-500">
-                                    Theo dõi tiến độ trung bình theo {teamTrendLabelMap[teamTrendRange]}.
+                                    Theo dõi tiến độ trung bình theo {trendLabelMap[trendRange]}.
                                 </p>
                             </div>
                             <div className="flex items-center rounded-full bg-slate-100 p-1 text-sm font-medium text-slate-600">
-                                {teamTrendOptions.map((option) => (
+                                {trendOptions.map((option) => (
                                     <button
                                         key={option.value}
-                                        onClick={() => setTeamTrendRange(option.value)}
+                                        onClick={() => setTrendRange(option.value)}
                                         className={`rounded-full px-3 py-1.5 transition ${
-                                            teamTrendRange === option.value
+                                            trendRange === option.value
                                                 ? "bg-white text-slate-900 shadow-sm"
                                                 : "text-slate-500 hover:text-slate-700"
                                         }`}
@@ -1456,13 +1488,58 @@ export default function Dashboard() {
                             </div>
                         </div>
                         <div className="mt-4">
-                        <LineChart
-                            data={teamTrendData}
-                                label={`Xu hướng tiến độ (${teamTrendLabelMap[teamTrendRange]})`}
-                            color="#3b82f6"
+                            <LineChart
+                                data={personalTrendData}
+                                label={`Xu hướng tiến độ (${trendLabelMap[trendRange]})`}
+                                color="#3b82f6"
                                 width={900}
                                 height={300}
-                                xAxisLabel={`Thời gian (${teamTrendLabelMap[teamTrendRange]})`}
+                                xAxisLabel={`Thời gian (${trendLabelMap[trendRange]})`}
+                                yAxisLabel="Phần trăm hoàn thành"
+                            />
+                            {personalTrendData.length === 0 && (
+                                <p className="mt-3 text-center text-sm text-slate-500">
+                                    Chưa có dữ liệu check-in cho khoảng thời gian này.
+                                </p>
+                            )}
+                        </div>
+                    </section>
+                )}
+                {activeTab === 'department' && (
+                    <section className="mb-8">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <h3 className="text-lg font-semibold text-slate-900">
+                                    Xu hướng tiến độ OKR team
+                                </h3>
+                                <p className="text-sm text-slate-500">
+                                    Theo dõi tiến độ trung bình theo {trendLabelMap[trendRange]}.
+                                </p>
+                            </div>
+                            <div className="flex items-center rounded-full bg-slate-100 p-1 text-sm font-medium text-slate-600">
+                                {trendOptions.map((option) => (
+                                    <button
+                                        key={option.value}
+                                        onClick={() => setTrendRange(option.value)}
+                                        className={`rounded-full px-3 py-1.5 transition ${
+                                            trendRange === option.value
+                                                ? "bg-white text-slate-900 shadow-sm"
+                                                : "text-slate-500 hover:text-slate-700"
+                                        }`}
+                                    >
+                                        {option.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="mt-4">
+                            <LineChart
+                                data={teamTrendData}
+                                label={`Xu hướng tiến độ (${trendLabelMap[trendRange]})`}
+                                color="#3b82f6"
+                                width={900}
+                                height={300}
+                                xAxisLabel={`Thời gian (${trendLabelMap[trendRange]})`}
                                 yAxisLabel="Phần trăm hoàn thành"
                             />
                             {teamTrendData.length === 0 && (
@@ -1470,7 +1547,52 @@ export default function Dashboard() {
                                     Chưa có dữ liệu check-in cho khoảng thời gian này.
                                 </p>
                             )}
-                    </div>
+                        </div>
+                    </section>
+                )}
+                {activeTab === 'company' && (
+                    <section className="mb-8">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <h3 className="text-lg font-semibold text-slate-900">
+                                    Xu hướng tiến độ OKR công ty
+                                </h3>
+                                <p className="text-sm text-slate-500">
+                                    Theo dõi tiến độ trung bình theo {trendLabelMap[trendRange]}.
+                                </p>
+                            </div>
+                            <div className="flex items-center rounded-full bg-slate-100 p-1 text-sm font-medium text-slate-600">
+                                {trendOptions.map((option) => (
+                                    <button
+                                        key={option.value}
+                                        onClick={() => setTrendRange(option.value)}
+                                        className={`rounded-full px-3 py-1.5 transition ${
+                                            trendRange === option.value
+                                                ? "bg-white text-slate-900 shadow-sm"
+                                                : "text-slate-500 hover:text-slate-700"
+                                        }`}
+                                    >
+                                        {option.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="mt-4">
+                            <LineChart
+                                data={companyTrendData}
+                                label={`Xu hướng tiến độ (${trendLabelMap[trendRange]})`}
+                                color="#3b82f6"
+                                width={900}
+                                height={300}
+                                xAxisLabel={`Thời gian (${trendLabelMap[trendRange]})`}
+                                yAxisLabel="Phần trăm hoàn thành"
+                            />
+                            {companyTrendData.length === 0 && (
+                                <p className="mt-3 text-center text-sm text-slate-500">
+                                    Chưa có dữ liệu check-in cho khoảng thời gian này.
+                                </p>
+                            )}
+                        </div>
                     </section>
                 )}
                 {filteredItems.length === 0 && !error && (

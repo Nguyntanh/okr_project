@@ -36,6 +36,8 @@ function DashboardSidebar({ open, user }) {
     const collapsed = !open;
     const isAdmin = user?.is_admin === true;
     const isMember = user?.role?.role_name?.toLowerCase() === "member";
+    const isManager = user?.role?.role_name?.toLowerCase() === "manager";
+    const canSeeReports = isAdmin || user?.role?.role_name?.toLowerCase() === "ceo" || isManager;
     return (
         <aside
             className={`${
@@ -183,12 +185,31 @@ function DashboardSidebar({ open, user }) {
                         }
                     />
                 )}
-                {/* Báo cáo - hiển thị cho Admin, CEO, Manager */}
-                {canSeeReports && (
+                {/* Báo cáo quản lý phòng ban - chỉ Manager */}
+                {isManager && !isAdmin && (
                     <SidebarItem
                         collapsed={collapsed}
-                        href="/reports"
+                        href="/reports/manager"
                         label="Báo cáo"
+                        icon={
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-6 w-6"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                                <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+                            </svg>
+                        }
+                    />
+                )}
+                {/* Báo cáo - hiển thị cho Admin, CEO */}
+                {canSeeReports && isAdmin && (
+                    <SidebarItem
+                        collapsed={collapsed}
+                        href="/reports/company-overview"
+                        label="Báo cáo công ty"
                         icon={
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
@@ -470,7 +491,7 @@ export default function DashboardLayout({ children, user }) {
                                                         >
                                                             <path
                                                                 fillRule="evenodd"
-                                                                d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75 75 0 01.02-1.06z"
+                                                                d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z"
                                                                 clipRule="evenodd"
                                                             />
                                                         </svg>
@@ -540,12 +561,32 @@ export default function DashboardLayout({ children, user }) {
                                         )}
                                     </div>
 
+                                    {/* Báo cáo quản lý phòng ban - chỉ Manager */}
+                                    {user?.role?.role_name?.toLowerCase() === "manager" && !user?.is_admin && (
+                                        <SidebarItem
+                                            collapsed={!sidebarOpen}
+                                            href="/reports/manager"
+                                            label="Báo cáo phòng ban"
+                                            icon={
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    className="h-6 w-6"
+                                                    viewBox="0 0 24 24"
+                                                    fill="currentColor"
+                                                >
+                                                    <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                                                    <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+                                                </svg>
+                                            }
+                                            isActive={isActive("/reports/manager")}
+                                        />
+                                    )}
                                     {/* Báo cáo - chỉ Admin */}
                                     {user?.is_admin && (
                                         <SidebarItem
                                             collapsed={!sidebarOpen}
                                             href="/reports/company-overview"
-                                            label="Báo cáo"
+                                            label="Báo cáo công ty"
                                             icon={
                                                 <svg
                                                     xmlns="http://www.w3.org/2000/svg"
@@ -556,7 +597,7 @@ export default function DashboardLayout({ children, user }) {
                                                     <path d="M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7-10h4v24h-4V-3z" />
                                                 </svg>
                                             }
-                                            isActive={isActive("/reports")}
+                                            isActive={isActive("/reports/company-overview")}
                                         />
                                     )}
 
@@ -617,7 +658,7 @@ export default function DashboardLayout({ children, user }) {
                                                             >
                                                                 <path
                                                                     fillRule="evenodd"
-                                                                    d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75 75 0 01.02-1.06z"
+                                                                    d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z"
                                                                     clipRule="evenodd"
                                                                 />
                                                             </svg>

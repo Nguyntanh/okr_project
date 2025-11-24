@@ -92,9 +92,19 @@ class MyObjectiveController extends Controller
             if ($currentCycle) $currentCycleName = $currentCycle->cycle_name;
         }
 
-        $query = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role'])
-            // ->with('assignedUser')
-            ->where('user_id', $user->user_id);
+        // Nếu là dashboard, load tất cả OKR (cá nhân, phòng ban, công ty) cho mọi role
+        $isDashboard = $request->boolean('dashboard') || $request->has('dashboard');
+        
+        $query = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role', 'user'])
+            ->whereNull('archived_at');
+
+        if ($isDashboard) {
+            // Dashboard: hiển thị tất cả OKR (cá nhân, phòng ban, công ty) cho mọi role
+            // Không filter theo user_id
+        } else {
+            // Trang my-objectives: chỉ hiển thị OKR của user
+            $query->where('user_id', $user->user_id);
+        }
 
         if ($request->has('archived') && $request->archived == '1') {
             $query->whereNotNull('archived_at')
@@ -105,19 +115,26 @@ class MyObjectiveController extends Controller
             $query->whereNull('archived_at');
         }
 
-
         if ($request->filled('cycle_id')) {
             $query->where('cycle_id', $request->cycle_id);
+        }
+        
+        // Filter my_okr nếu có (chỉ cho dashboard)
+        if ($isDashboard && $request->boolean('my_okr')) {
+            $query->where('user_id', $user->user_id);
         }
 
         if ($request->boolean('include_archived_kr')) {
             $query->with(['keyResults' => function ($q) {
-    $q->with('assignedUser');}]);
+                $q->with('assignedUser');
+            }]);
         } else {
             $query->with(['keyResults' => fn($q) => $q->with('assignedUser')->whereNull('archived_at')]);
         }
 
-        $objectives = $query->paginate(10);
+        // Dashboard có thể cần per_page lớn hơn
+        $perPage = $isDashboard ? ($request->integer('per_page') ?: 1000) : 10;
+        $objectives = $query->orderBy('created_at', 'desc')->paginate($perPage);
 
         if ($request->expectsJson()) {
             return response()->json([

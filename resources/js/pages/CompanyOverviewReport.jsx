@@ -37,6 +37,11 @@ export default function CompanyOverviewReport() {
         risks: [],
     });
     const [currentCycleMeta, setCurrentCycleMeta] = useState(null);
+    const [okrsByDepartment, setOkrsByDepartment] = useState([]);
+    const [loadingOkrs, setLoadingOkrs] = useState(false);
+    const [selectedDepartment, setSelectedDepartment] = useState('');
+    const [expandedDepts, setExpandedDepts] = useState({});
+    const [exporting, setExporting] = useState(false);
 
     const TrendIcon = ({ delta }) => {
         if (delta === null || delta === undefined) return <span className="text-slate-400">—</span>;
@@ -78,17 +83,23 @@ export default function CompanyOverviewReport() {
                 if (listCycles.length) {
                     const now = new Date();
                     const parse = (s) => (s ? new Date(s) : null);
-                    const current = listCycles.find(c => {
-                        const start = parse(c.start_date || c.startDate);
+                    // Ưu tiên cycle đã kết thúc (báo cáo cuối kỳ)
+                    const endedCycles = listCycles.filter(c => {
                         const end = parse(c.end_date || c.endDate);
-                        return start && end && start <= now && now <= end;
-                    }) || listCycles[0];
-                    setFilters(f => ({ ...f, cycleId: current.cycle_id || current.cycleId }));
+                        return end && end < now;
+                    }).sort((a, b) => {
+                        const endA = parse(a.end_date || a.endDate);
+                        const endB = parse(b.end_date || b.endDate);
+                        return endB - endA; // Mới nhất trước
+                    });
+                    
+                    const selected = endedCycles.length > 0 ? endedCycles[0] : listCycles[0];
+                    setFilters(f => ({ ...f, cycleId: selected.cycle_id || selected.cycleId }));
                     setCurrentCycleMeta({
-                        id: current.cycle_id || current.cycleId,
-                        name: current.cycle_name || current.cycleName,
-                        start: current.start_date || current.startDate,
-                        end: current.end_date || current.endDate,
+                        id: selected.cycle_id || selected.cycleId,
+                        name: selected.cycle_name || selected.cycleName,
+                        start: selected.start_date || selected.startDate,
+                        end: selected.end_date || selected.endDate,
                     });
                 }
             } catch (e) { /* ignore */ }
@@ -133,23 +144,31 @@ export default function CompanyOverviewReport() {
         })();
     }, [filters.cycleId, filters.departmentId, filters.status, filters.ownerId]);
 
-    // Realtime auto-refresh every 15s
+    // Load OKR theo từng phòng ban
     useEffect(() => {
         if (!filters.cycleId) return;
-        const timer = setInterval(() => {
-            const params = new URLSearchParams();
-            if (filters.cycleId) params.set('cycle_id', filters.cycleId);
-            if (filters.departmentId) params.set('department_id', filters.departmentId);
-            if (filters.status) params.set('status', filters.status);
-            if (filters.ownerId) params.set('owner_id', filters.ownerId);
-            const url = `/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`;
-            fetch(url, { headers: { Accept: 'application/json', 'Cache-Control': 'no-store' }})
-                .then(r => r.json().then(j => ({ ok: r.ok, j })))
-                .then(({ ok, j }) => { if (ok && j.success) setReport(j.data); })
-                .catch(() => {});
-        }, 15000);
-        return () => clearInterval(timer);
-    }, [filters.cycleId, filters.departmentId, filters.status, filters.ownerId]);
+        setLoadingOkrs(true);
+        (async () => {
+            try {
+                const params = new URLSearchParams();
+                params.set('cycle_id', filters.cycleId);
+                if (selectedDepartment) params.set('department_id', selectedDepartment);
+                const res = await fetch(`/api/reports/okr-company/by-department?${params.toString()}`, {
+                    headers: { Accept: 'application/json' }
+                });
+                const json = await res.json();
+                if (res.ok && json.success) {
+                    setOkrsByDepartment(json.data || []);
+                }
+            } catch (e) {
+                console.error('Error loading OKRs by department:', e);
+            } finally {
+                setLoadingOkrs(false);
+            }
+        })();
+    }, [filters.cycleId, selectedDepartment]);
+
+    // Báo cáo cuối kỳ - không auto-refresh
 
     const pieData = useMemo(() => {
         const counts = report?.overall?.statusCounts || {};
@@ -226,33 +245,133 @@ export default function CompanyOverviewReport() {
         }));
     };
 
+    const handleExport = async () => {
+        setExporting(true);
+        try {
+            const params = new URLSearchParams();
+            if (filters.cycleId) params.set('cycle_id', filters.cycleId);
+            if (filters.departmentId) params.set('department_id', filters.departmentId);
+            if (filters.status) params.set('status', filters.status);
+            if (filters.ownerId) params.set('owner_id', filters.ownerId);
+            
+            const url = `/api/reports/okr-company/export.pdf?${params.toString()}`;
+            
+            // Download PDF file first
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Export failed');
+            
+            const blob = await response.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            const fileName = `bao_cao_okr_${currentCycleMeta?.name || new Date().toISOString().split('T')[0]}.pdf`;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(downloadUrl);
+            
+            // After download, open in new window if needed
+            setTimeout(() => {
+                window.open(url, '_blank');
+            }, 500);
+        } catch (e) {
+            console.error('Export failed:', e);
+            alert('Xuất báo cáo thất bại');
+        } finally {
+            setExporting(false);
+        }
+    };
+
+    const toggleDeptExpand = (deptId) => {
+        setExpandedDepts(prev => ({
+            ...prev,
+            [deptId]: !prev[deptId],
+        }));
+    };
+
+    const getStatusBadge = (status) => {
+        const statusMap = {
+            completed: { label: 'Hoàn thành', color: 'bg-emerald-100 text-emerald-700' },
+            in_progress: { label: 'Đang tiến hành', color: 'bg-blue-100 text-blue-700' },
+            at_risk: { label: 'Có rủi ro', color: 'bg-amber-100 text-amber-700' },
+            not_started: { label: 'Chưa bắt đầu', color: 'bg-slate-100 text-slate-700' },
+        };
+        const statusInfo = statusMap[status] || statusMap.not_started;
+        return (
+            <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${statusInfo.color}`}>
+                {statusInfo.label}
+            </span>
+        );
+    };
+
     return (
-        <div className="px-6 py-8">
-            <div className="mb-2 flex items-center justify-between">
-                <h1 className="text-2xl font-extrabold text-slate-900">Báo cáo tổng quan</h1>
-                <div className="relative inline-block">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M7 2a1 1 0 011 1v1h8V3a1 1 0 112 0v1h1a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h1V3a1 1 0 011-1zm13 9H4v7a1 1 0 001 1h14a1 1 0 001-1v-7zM6 6h12V5H6v1z" />
-                    </svg>
-                    <select
-                        value={filters.cycleId ?? ''}
-                        onChange={(e) => setFilters(f => ({...f, cycleId: e.target.value}))}
-                        className="w-56 appearance-none rounded-lg bg-white py-2 pl-10 pr-9 text-sm font-semibold text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-600"
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 px-6 py-8">
+            <div className="mb-6 flex items-start justify-between">
+                <h1 className="text-2xl font-extrabold text-slate-900">Báo cáo tổng quan công ty</h1>
+                <div className="flex flex-col gap-2">
+                    <button
+                        onClick={handleExport}
+                        disabled={exporting || loading}
+                        className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
-                        {cycles.map(c => (
-                            <option key={c.cycle_id || c.cycleId} value={c.cycle_id || c.cycleId}>
-                                {c.cycle_name || c.cycleName}
-                            </option>
-                        ))}
-                    </select>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-                    </svg>
+                        {exporting ? (
+                            <>
+                                <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Đang xuất...
+                            </>
+                        ) : (
+                            <>
+                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                                Xuất PDF
+                            </>
+                        )}
+                    </button>
+                    <div className="relative inline-block">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M7 2a1 1 0 011 1v1h8V3a1 1 0 112 0v1h1a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h1V3a1 1 0 011-1zm13 9H4v7a1 1 0 001 1h14a1 1 0 001-1v-7zM6 6h12V5H6v1z" />
+                        </svg>
+                        <select
+                            value={filters.cycleId ?? ''}
+                            onChange={(e) => setFilters(f => ({...f, cycleId: e.target.value}))}
+                            className="w-56 appearance-none rounded-lg bg-white py-2 pl-10 pr-9 text-sm font-semibold text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                        >
+                            {cycles.map(c => (
+                                <option key={c.cycle_id || c.cycleId} value={c.cycle_id || c.cycleId}>
+                                    {c.cycle_name || c.cycleName}
+                                </option>
+                            ))}
+                        </select>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                        </svg>
+                    </div>
                 </div>
             </div>
             {currentCycleMeta && (
-                <div className="mb-6 text-sm text-slate-600">
-                    Chu kỳ hiện tại: <span className="font-semibold text-slate-800">{currentCycleMeta.name}</span>
+                <div className="mb-6 flex items-center gap-4 text-sm">
+                    <div className="text-slate-600">
+                        Chu kỳ: <span className="font-semibold text-slate-800">{currentCycleMeta.name}</span>
+                    </div>
+                    {(() => {
+                        const endDate = currentCycleMeta.end ? new Date(currentCycleMeta.end) : null;
+                        const now = new Date();
+                        const isEnded = endDate && endDate < now;
+                        return isEnded ? (
+                            <span className="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-semibold text-indigo-700">
+                                Đã kết thúc
+                            </span>
+                        ) : (
+                            <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                                Đang diễn ra
+                            </span>
+                        );
+                    })()}
                 </div>
             )}
 
@@ -420,6 +539,96 @@ export default function CompanyOverviewReport() {
                                     ))}
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+
+                    {/* OKR theo từng phòng ban */}
+                    <div className="mt-6 rounded-xl border border-slate-200 bg-white">
+                        <div className="border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+                            <div className="text-sm font-semibold text-slate-700">OKR theo từng phòng ban</div>
+                            <select
+                                value={selectedDepartment}
+                                onChange={(e) => setSelectedDepartment(e.target.value)}
+                                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            >
+                                <option value="">Tất cả phòng ban</option>
+                                {departments.filter(d => d.department_id && (d.d_name || '').toLowerCase() !== 'công ty').map(d => (
+                                    <option key={d.department_id} value={d.department_id}>
+                                        {d.d_name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="p-6">
+                            {loadingOkrs ? (
+                                <div className="text-center py-8 text-slate-500">Đang tải...</div>
+                            ) : okrsByDepartment.length === 0 ? (
+                                <div className="text-center py-8 text-slate-500">Chưa có OKR nào</div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {okrsByDepartment.map((dept) => (
+                                        <div key={dept.department_id} className="border border-slate-200 rounded-lg overflow-hidden">
+                                            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-slate-200 p-4">
+                                                <div className="flex items-center justify-between">
+                                                    <h3 className="text-lg font-bold text-slate-900">{dept.department_name}</h3>
+                                                    <button
+                                                        onClick={() => toggleDeptExpand(dept.department_id)}
+                                                        className="p-1 rounded-lg hover:bg-white/50 transition-colors"
+                                                    >
+                                                        <svg
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                            className={`h-5 w-5 text-slate-600 transition-transform ${expandedDepts[dept.department_id] ? 'rotate-180' : ''}`}
+                                                            viewBox="0 0 20 20"
+                                                            fill="currentColor"
+                                                        >
+                                                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div className="mt-2 text-sm text-slate-600">
+                                                    Tổng số OKR: <strong>{dept.okrs.length}</strong>
+                                                </div>
+                                            </div>
+                                            {expandedDepts[dept.department_id] && (
+                                                <div className="p-4 space-y-4">
+                                                    {dept.okrs.map((okr) => (
+                                                        <div key={okr.objective_id} className="border border-slate-200 rounded-lg p-4">
+                                                            <div className="flex items-start justify-between mb-2">
+                                                                <div className="flex-1">
+                                                                    <h4 className="font-semibold text-slate-900">{okr.objective_title}</h4>
+                                                                    <div className="mt-1 flex items-center gap-4 text-xs text-slate-600">
+                                                                        <span>Người phụ trách: <strong>{okr.owner_name}</strong></span>
+                                                                        <span>•</span>
+                                                                        <span>Tiến độ: <strong>{okr.overall_progress.toFixed(1)}%</strong></span>
+                                                                    </div>
+                                                                </div>
+                                                                {getStatusBadge(okr.overall_status)}
+                                                            </div>
+                                                            <div className="mt-3">
+                                                                <div className="text-xs font-semibold text-slate-700 mb-2">Key Results:</div>
+                                                                <div className="space-y-2">
+                                                                    {okr.key_results.map((kr) => (
+                                                                        <div key={kr.kr_id} className="bg-slate-50 rounded p-2 text-xs">
+                                                                            <div className="flex items-center justify-between">
+                                                                                <span className="font-medium text-slate-900">{kr.kr_title}</span>
+                                                                                <span className="text-slate-600">{kr.progress_percent.toFixed(1)}%</span>
+                                                                            </div>
+                                                                            <div className="mt-1 text-slate-600">
+                                                                                {kr.current_value} / {kr.target_value} {kr.unit}
+                                                                                {kr.assignee && <span className="ml-2">• {kr.assignee.full_name}</span>}
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </>

@@ -328,29 +328,6 @@ class ReportController extends Controller
                 }, $agg['children']),
             ];
         }
-        foreach ($deptGrouped as $deptIdKey => $items) {
-            $deptIdInt = $deptIdKey ? (int) $deptIdKey : null;
-            $avg = (float) round(collect($items)->avg('progress') ?? 0, 2);
-            $count = collect($items)->count();
-            $on = collect($items)->where('status','on_track')->count();
-            $risk = collect($items)->where('status','at_risk')->count();
-            $off = collect($items)->where('status','off_track')->count();
-            $prevAvg = $deptIdInt && isset($prevCycleAvgByDept[$deptIdInt]) ? (float) $prevCycleAvgByDept[$deptIdInt] : null;
-            $trendDelta = $prevAvg !== null ? round($avg - $prevAvg, 2) : null;
-            $departments[] = [
-                'departmentId' => $deptIdInt,
-                'departmentName' => $deptIdInt ? ($deptNames[$deptIdInt] ?? 'N/A') : 'Công ty',
-                'count' => $count,
-                'averageProgress' => $avg,
-                'onTrack' => $on,
-                'atRisk' => $risk,
-                'offTrack' => $off,
-                'onTrackPct' => $count ? round($on * 100 / $count, 2) : 0,
-                'atRiskPct' => $count ? round($risk * 100 / $count, 2) : 0,
-                'offTrackPct' => $count ? round($off * 100 / $count, 2) : 0,
-                'trendDelta' => $trendDelta,
-            ];
-        }
 
         // Trend over time: weekly average progress_percent from check_ins grouped by KR of filtered objectives
         $trend = [];
@@ -443,6 +420,145 @@ class ReportController extends Controller
         $filename = 'okr_company_report_' . now()->format('Ymd_His') . '.csv';
         return response()->streamDownload($callback, $filename, [
             'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    /**
+     * Export PDF for OKR company report
+     */
+    public function exportCompanyOkrPdf(Request $request)
+    {
+        $cycleId = $request->integer('cycle_id');
+        $departmentId = $request->integer('department_id');
+        $status = $request->string('status');
+        $ownerId = $request->integer('owner_id');
+
+        // Get report data
+        $response = $this->companyOkrReport($request);
+        $payload = $response->getData(true);
+        
+        // Get cycle info
+        $cycle = $cycleId ? Cycle::find($cycleId) : null;
+        $cycleName = $cycle ? $cycle->cycle_name : 'Tất cả chu kỳ';
+
+        // Generate HTML for PDF
+        $html = view('reports.company-okr-pdf', [
+            'data' => $payload['data'],
+            'cycleName' => $cycleName,
+            'generatedAt' => now()->format('d/m/Y H:i'),
+        ])->render();
+
+        // For now, return HTML that can be printed to PDF by browser
+        // In production, you can use libraries like dompdf, tcpdf, or wkhtmltopdf
+        return response($html)
+            ->header('Content-Type', 'text/html; charset=UTF-8')
+            ->header('Content-Disposition', 'inline; filename="bao_cao_okr_' . now()->format('Ymd_His') . '.html"');
+    }
+
+    /**
+     * Lấy OKR chi tiết theo từng phòng ban cho báo cáo cuối kỳ
+     */
+    public function getOkrsByDepartment(Request $request)
+    {
+        $cycleId = $request->integer('cycle_id');
+        $departmentId = $request->integer('department_id');
+
+        $objectivesQuery = Objective::query()
+            ->with(['cycle', 'department', 'user'])
+            ->when($cycleId, fn($q) => $q->where('cycle_id', $cycleId))
+            ->when($departmentId, fn($q) => $q->where('department_id', $departmentId))
+            ->whereIn('level', ['company', 'unit']);
+
+        $objectives = $objectivesQuery->get();
+
+        // Load key results
+        $objectiveIds = $objectives->pluck('objective_id');
+        $keyResults = KeyResult::whereIn('objective_id', $objectiveIds)
+            ->whereNull('archived_at')
+            ->with(['assignedUser', 'assignee'])
+            ->get()
+            ->groupBy('objective_id');
+
+        // Group by department
+        $okrsByDepartment = $objectives->groupBy('department_id')->map(function($deptObjectives, $deptId) use ($keyResults) {
+            return $deptObjectives->map(function($obj) use ($keyResults) {
+                $krs = $keyResults->get($obj->objective_id, collect());
+                
+                // Tính tiến độ trung bình
+                $totalProgress = 0;
+                $krCount = $krs->count();
+                
+                foreach ($krs as $kr) {
+                    $progress = $kr->progress_percent ?? 0;
+                    if ($kr->target_value && $kr->target_value > 0) {
+                        $calculatedProgress = ($kr->current_value / $kr->target_value) * 100;
+                        $progress = $kr->progress_percent ?? min(100, max(0, $calculatedProgress));
+                    }
+                    $totalProgress += $progress;
+                }
+                
+                $avgProgress = $krCount > 0 ? round($totalProgress / $krCount, 2) : 0;
+                
+                // Xác định trạng thái
+                $overallStatus = 'not_started';
+                if ($avgProgress >= 100) {
+                    $overallStatus = 'completed';
+                } elseif ($avgProgress >= 70) {
+                    $overallStatus = 'in_progress';
+                } elseif ($avgProgress >= 40) {
+                    $overallStatus = 'at_risk';
+                } else {
+                    $overallStatus = 'at_risk';
+                }
+
+                return [
+                    'objective_id' => $obj->objective_id,
+                    'objective_title' => $obj->obj_title,
+                    'objective_description' => $obj->description,
+                    'owner_name' => $obj->user->full_name ?? 'N/A',
+                    'cycle_name' => $obj->cycle->cycle_name ?? 'N/A',
+                    'overall_progress' => $avgProgress,
+                    'overall_status' => $overallStatus,
+                    'key_results' => $krs->map(function($kr) {
+                        $krProgress = $kr->progress_percent ?? 0;
+                        if ($kr->target_value && $kr->target_value > 0) {
+                            $calculatedProgress = ($kr->current_value / $kr->target_value) * 100;
+                            $krProgress = $kr->progress_percent ?? min(100, max(0, $calculatedProgress));
+                        }
+                        
+                        $assigneeUser = $kr->assignedUser ?? $kr->assignee ?? null;
+                        
+                        return [
+                            'kr_id' => $kr->kr_id,
+                            'kr_title' => $kr->kr_title,
+                            'current_value' => $kr->current_value ?? 0,
+                            'target_value' => $kr->target_value,
+                            'progress_percent' => round($krProgress, 2),
+                            'unit' => $kr->unit,
+                            'assignee' => $assigneeUser ? [
+                                'user_id' => $assigneeUser->user_id,
+                                'full_name' => $assigneeUser->full_name,
+                            ] : null,
+                        ];
+                    })->values(),
+                ];
+            })->values();
+        });
+
+        // Format response
+        $result = [];
+        foreach ($okrsByDepartment as $deptId => $okrs) {
+            $dept = Department::find($deptId);
+            $result[] = [
+                'department_id' => $deptId,
+                'department_name' => $dept ? $dept->d_name : 'N/A',
+                'okrs' => $okrs,
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $result,
         ]);
     }
 }

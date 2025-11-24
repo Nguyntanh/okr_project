@@ -41,10 +41,11 @@ export default function CompanyOkrList() {
 
                 // 1. Tìm quý hiện tại chính xác (regex linh hoạt hơn)
                 let selected = cycles.find((c) => {
-                    // Thử nhiều regex để match: "Quý 4 năm 2025", "q4 2025", "Q4/2025", etc.
+                    // Thử nhiều regex để match: "Quý 4 năm 2025", "q4 2025", "Q4/2025", "Q4-2025", etc.
                     const patterns = [
                         /Quý\s*(\d+)\s*năm\s*(\d+)/i,
-                        /Q(\d+)\s*\/\s*(\d+)/i,
+                        /Q(\d+)\s*[\/\-]\s*(\d+)/i, // Q4/2025 hoặc Q4-2025
+                        /Q(\d+)\s+(\d+)/i, // Q4 2025
                         /Quý\s*(\d+)\s*(\d+)/i, // Nếu thiếu "năm"
                     ];
                     for (const pattern of patterns) {
@@ -66,7 +67,8 @@ export default function CompanyOkrList() {
                         // Regex linh hoạt cho tất cả
                         const patterns = [
                             /Quý\s*(\d+)\s*năm\s*(\d+)/i,
-                            /Q(\d+)\s*\/\s*(\d+)/i,
+                            /Q(\d+)\s*[\/\-]\s*(\d+)/i, // Q4/2025 hoặc Q4-2025
+                            /Q(\d+)\s+(\d+)/i, // Q4 2025
                             /Quý\s*(\d+)\s*(\d+)/i,
                         ];
                         let m = null;
@@ -106,7 +108,15 @@ export default function CompanyOkrList() {
                     }
                 }
 
-                setCycleFilter(selected.cycle_id);
+                if (selected && selected.cycle_id) {
+                    setCycleFilter(selected.cycle_id);
+                } else {
+                    setToast({
+                        type: "warning",
+                        message: "Không tìm thấy quý phù hợp. Vui lòng chọn quý thủ công.",
+                    });
+                    setLoading(false);
+                }
             } catch (err) {
                 console.error("Lỗi fetch cycles:", err);
                 setToast({ type: "error", message: "Lỗi tải danh sách quý" });

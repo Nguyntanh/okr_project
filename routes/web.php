@@ -94,6 +94,17 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     Route::get('/api/reports/cycles', [App\Http\Controllers\ReportController::class, 'getCycles'])->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])->name('api.reports.cycles');
     Route::get('/api/reports/progress-trend', [App\Http\Controllers\ReportController::class, 'getTeamProgressTrend'])->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])->name('api.reports.progress-trend');
 
+    // Routes cho Report Manager (Báo cáo quản lý phòng ban)
+    Route::get('/reports/manager', function() { return view('app'); })
+        ->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])
+        ->name('reports.manager');
+    Route::prefix('api/reports/manager')->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])->group(function () {
+        Route::get('/team-okrs', [\App\Http\Controllers\ReportManagerController::class, 'getTeamOkrs'])
+            ->name('api.reports.manager.team-okrs');
+        Route::get('/check-in-history/{objectiveId}/{krId}', [\App\Http\Controllers\ReportManagerController::class, 'getCheckInHistory'])
+            ->name('api.reports.manager.check-in-history');
+    });
+
     // Routes cho Profile - trả về React app
     Route::get('/profile', function () {
         return view('app');
@@ -254,6 +265,10 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
             ->name('api.reports.okr-company');
         Route::get('/okr-company/export.csv', [\App\Http\Controllers\ReportController::class, 'exportCompanyOkrCsv'])
             ->name('api.reports.okr-company.export.csv');
+        Route::get('/okr-company/export.pdf', [\App\Http\Controllers\ReportController::class, 'exportCompanyOkrPdf'])
+            ->name('api.reports.okr-company.export.pdf');
+        Route::get('/okr-company/by-department', [\App\Http\Controllers\ReportController::class, 'getOkrsByDepartment'])
+            ->name('api.reports.okr-company.by-department');
     });
 
     // Frontend page route for Reports (SPA) - Admin hoặc CEO

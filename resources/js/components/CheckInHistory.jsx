@@ -6,17 +6,20 @@ export default function CheckInHistory({
     onClose, 
     keyResult, 
     objectiveId,
+    krId, // Support for manager view
+    isManagerView = false,
     onSuccess
 }) {
     const [checkIns, setCheckIns] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [krInfo, setKrInfo] = useState(null);
 
     useEffect(() => {
-        if (open && keyResult) {
+        if (open && (keyResult || (objectiveId && krId))) {
             loadCheckInHistory();
         }
-    }, [open, keyResult]);
+    }, [open, keyResult, objectiveId, krId]);
 
     const loadCheckInHistory = async () => {
         setLoading(true);
@@ -28,7 +31,8 @@ export default function CheckInHistory({
             return;
         }
 
-        if (!keyResult?.kr_id) {
+        const targetKrId = krId || keyResult?.kr_id;
+        if (!targetKrId) {
             setError('Không tìm thấy Key Result ID');
             setLoading(false);
             return;
@@ -37,7 +41,12 @@ export default function CheckInHistory({
         try {
             const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
             
-            const response = await fetch(`/api/check-in/${objectiveId}/${keyResult.kr_id}/history`, {
+            // Use manager API if isManagerView
+            const apiUrl = isManagerView 
+                ? `/api/reports/manager/check-in-history/${objectiveId}/${targetKrId}`
+                : `/api/check-in/${objectiveId}/${targetKrId}/history`;
+            
+            const response = await fetch(apiUrl, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
@@ -55,18 +64,29 @@ export default function CheckInHistory({
                 throw new Error(data.message || 'Không thể tải lịch sử check-in');
             }
 
-            const checkInsData = data.data?.check_ins || data.check_ins || [];
+            const checkInsData = isManagerView 
+                ? (data.data || [])
+                : (data.data?.check_ins || data.check_ins || []);
             console.log('CheckInHistory - Setting checkIns:', checkInsData);
             
             // Ensure all numeric values are properly parsed
             const parsedCheckIns = checkInsData.map(checkIn => ({
                 ...checkIn,
-                progress_percent: parseFloat(checkIn.progress_percent),
-                progress_value: Math.round(parseFloat(checkIn.progress_value)),
-                is_completed: Boolean(checkIn.is_completed)
+                progress_percent: parseFloat(checkIn.progress_percent || 0),
+                current_value: parseFloat(checkIn.current_value || checkIn.progress_value || 0),
+                progress_value: Math.round(parseFloat(checkIn.progress_value || checkIn.current_value || 0)),
+                is_completed: Boolean(checkIn.is_completed),
+                user: checkIn.created_by || checkIn.user,
             }));
             
             setCheckIns(parsedCheckIns);
+            
+            // For manager view, we might need to get KR info separately
+            if (isManagerView && keyResult) {
+                setKrInfo(keyResult);
+            } else if (keyResult) {
+                setKrInfo(keyResult);
+            }
         } catch (err) {
             setError(err.message || 'Có lỗi xảy ra');
         } finally {
@@ -125,10 +145,11 @@ export default function CheckInHistory({
         if (checkIn.check_in_type === 'percentage') {
             return `${parseFloat(checkIn.progress_percent).toFixed(2)}%`;
         }
-        return `${Math.round(parseFloat(checkIn.progress_value))} ${keyResult?.unit || ''}`;
+        return `${Math.round(parseFloat(checkIn.current_value || checkIn.progress_value))} ${krInfo?.unit || keyResult?.unit || ''}`;
     };
 
-    if (!keyResult) {
+    const displayKr = krInfo || keyResult;
+    if (!displayKr && !isManagerView) {
         console.error('CheckInHistory: keyResult is null or undefined');
         return null;
     }
@@ -152,12 +173,14 @@ export default function CheckInHistory({
                     </div>
                 )}
 
-                <div className="bg-slate-50 rounded-lg p-3">
-                    <h3 className="font-medium text-slate-900 mb-1">{keyResult.kr_title}</h3>
-                    <p className="text-sm text-slate-600">
-                        Mục tiêu: {keyResult.target_value} {keyResult.unit || ''}
-                    </p>
-                </div>
+                {displayKr && (
+                    <div className="bg-slate-50 rounded-lg p-3">
+                        <h3 className="font-medium text-slate-900 mb-1">{displayKr.kr_title}</h3>
+                        <p className="text-sm text-slate-600">
+                            Mục tiêu: {displayKr.target_value} {displayKr.unit || ''}
+                        </p>
+                    </div>
+                )}
 
                 {loading ? (
                     <div className="text-center py-8">
@@ -240,15 +263,17 @@ export default function CheckInHistory({
                                         </div>
                                     </div>
 
-                                    <button
-                                        onClick={() => deleteCheckIn(checkIn.check_in_id)}
-                                        className="ml-3 p-1 text-slate-400 hover:text-red-600 transition-colors"
-                                        title="Xóa check-in"
-                                    >
-                                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
-                                    </button>
+                                    {!isManagerView && (
+                                        <button
+                                            onClick={() => deleteCheckIn(checkIn.check_in_id)}
+                                            className="ml-3 p-1 text-slate-400 hover:text-red-600 transition-colors"
+                                            title="Xóa check-in"
+                                        >
+                                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         ))}

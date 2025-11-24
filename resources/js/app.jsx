@@ -10,6 +10,7 @@ import ProfileSettings from "./pages/ProfileSettings";
 import ProfilePage from "./pages/ProfilePage";
 import ChangePasswordPage from "./pages/ChangePasswordPage";
 import CompanyOverviewReport from "./pages/CompanyOverviewReport";
+import ReportManager from "./pages/ReportManager";
 import { GradientText } from "./components/ui";
 import CompanyOkrList from "./pages/CompanyOkrList";
 
@@ -375,6 +376,7 @@ export default function App() {
             content = <ChangePasswordPage />;
         // else if (p.startsWith("/reports")) content = <ReportPage />;
         else if (p.startsWith("/dashboard")) content = <Dashboard />;
+        else if (p.startsWith("/reports/manager")) content = <ReportManager />;
         else if (p.startsWith("/reports")) content = <CompanyOverviewReport />;
         return <DashboardLayout user={user}>{content}</DashboardLayout>;
     }
