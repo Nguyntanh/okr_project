@@ -18,7 +18,7 @@ export default function ObjectiveModal({
                   obj_title: "",
                   description: "",
                   level: "",
-                  status: "",
+                  status: "draft",
                   cycle_id: "",
                   department_id: "",
                   key_results: [],
@@ -47,7 +47,7 @@ export default function ObjectiveModal({
                 obj_title: "",
                 description: "",
                 level: "",
-                status: "",
+                status: "draft",
                 cycle_id: "",
                 department_id: "",
                 key_results: [],
@@ -200,7 +200,7 @@ export default function ObjectiveModal({
                     target_value: 0,
                     current_value: 0,
                     unit: "",
-                    status: "",
+                    status: "draft",
                     department_id: prev.department_id,
                     cycle_id: prev.cycle_id,
                 },
@@ -469,21 +469,27 @@ export default function ObjectiveModal({
                             <label className="mb-1 block text-xs font-semibold text-slate-600">
                                 Trạng thái
                             </label>
-                            <select
-                                value={createForm.status || ""}
-                                onChange={(e) =>
-                                    handleCreateFormChange(
-                                        "status",
-                                        e.target.value
-                                    )
-                                }
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            >
-                                <option value="">-- chọn trạng thái --</option>
-                                <option value="draft">Bản nháp</option>
-                                <option value="active">Đang thực hiện</option>
-                                <option value="completed">Hoàn thành</option>
-                            </select>
+                            {creatingObjective ? (
+                                <div className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                                    Bản nháp
+                                </div>
+                            ) : (
+                                <select
+                                    value={createForm.status || ""}
+                                    onChange={(e) =>
+                                        handleCreateFormChange(
+                                            "status",
+                                            e.target.value
+                                        )
+                                    }
+                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                >
+                                    <option value="">-- chọn trạng thái --</option>
+                                    <option value="draft">Bản nháp</option>
+                                    <option value="active">Đang thực hiện</option>
+                                    <option value="completed">Hoàn thành</option>
+                                </select>
+                            )}
                         </div>
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-600">
@@ -591,36 +597,6 @@ export default function ObjectiveModal({
                                         />
                                     </div>
                                     <div className="grid gap-3 md:grid-cols-2 mb-3">
-                                        <div>
-                                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                                Trạng thái
-                                            </label>
-                                            <select
-                                                value={kr.status || ""}
-                                                onChange={(e) =>
-                                                    updateNewKR(
-                                                        index,
-                                                        "status",
-                                                        e.target.value
-                                                    )
-                                                }
-                                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                                required
-                                            >
-                                                <option value="">
-                                                    -- chọn trạng thái --
-                                                </option>
-                                                <option value="draft">
-                                                    Bản nháp
-                                                </option>
-                                                <option value="active">
-                                                    Đang thực hiện
-                                                </option>
-                                                <option value="completed">
-                                                    Hoàn thành
-                                                </option>
-                                            </select>
-                                        </div>
                                         <div>
                                             <label className="mb-1 block text-xs font-semibold text-slate-600">
                                                 Đơn vị

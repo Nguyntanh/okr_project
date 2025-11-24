@@ -174,7 +174,18 @@ export default function KeyResultRow({
                                 </td>
                                 <td className="px-3 py-3 text-center border-r border-slate-200">
                                     <div className="flex flex-col items-center">
-                                        <span>{formatPercent(sourceKr.progress_percent)}</span>
+                                        <div className="w-full bg-gray-200 rounded-full h-4 relative overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full absolute left-0 ${
+                                                    sourceKr.status === "completed" ? "bg-green-600" : "bg-blue-600"
+                                                }`}
+                                                style={{ width: `${sourceKr.progress_percent}%` }}
+                                            ></div>
+                                            {sourceKr.progress_percent > 0 && (
+                                                            <span className="absolute left-1 text-white text-xs font-semibold z-10">
+                                                                {formatPercent(sourceKr.progress_percent)}
+                                                            </span>                                            )}
+                                        </div>
                                         <span
                                             className={`inline-flex items-center rounded-md px-0 py-0 text-[9px] font-semibold ${
                                                 sourceKr.status === "completed"
@@ -182,7 +193,7 @@ export default function KeyResultRow({
                                                     : sourceKr.status === "active"
                                                     ? "text-blue-700"
                                                     : "text-slate-700"
-                                            }`}
+                                            } mt-1`}
                                         >
                                             {getStatusText(sourceKr.status)}
                                         </span>
@@ -290,7 +301,18 @@ export default function KeyResultRow({
                 </td>
                 <td className="px-3 py-3 text-center border-r border-slate-200">
                     <div className="flex flex-col items-center">
-                        <span>{formatPercent(kr.progress_percent)}</span>
+                        <div className="w-full bg-gray-200 rounded-full h-4 relative overflow-hidden">
+                            <div
+                                className={`h-full rounded-full absolute left-0 ${
+                                    kr.status === "completed" ? "bg-green-600" : "bg-blue-600"
+                                }`}
+                                style={{ width: `${kr.progress_percent}%` }}
+                            ></div>
+                            {kr.progress_percent > 0 && (
+                                                            <span className="absolute left-1 text-white text-xs font-semibold z-10">
+                                                                {formatPercent(kr.progress_percent)}
+                                                            </span>                            )}
+                        </div>
                         <span
                             className={`inline-flex items-center rounded-md px-0 py-0 text-[9px] font-semibold ${
                                 kr.status === "completed"
@@ -298,7 +320,7 @@ export default function KeyResultRow({
                                     : kr.status === "active"
                                     ? "text-blue-700"
                                     : "text-slate-700"
-                            }`}
+                            } mt-1`}
                         >
                             {getStatusText(kr.status)}
                         </span>
