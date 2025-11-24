@@ -58,15 +58,92 @@ export default function ObjectiveList({
     });
     const [assigneeTooltip, setAssigneeTooltip] = useState(null);
     const [archiving, setArchiving] = useState(null);
+    const [confirmModal, setConfirmModal] = useState({
+        show: false,
+        title: "",
+        message: "",
+        cancelText: "Hủy",
+        confirmText: "Xác nhận",
+        onConfirm: () => {},
+    });
 
     const menuRefs = useRef({});
 
     // === LINK LOOKUP & VIRTUAL ITEMS ===
     const linkLookup = useMemo(() => {
-        /* giữ nguyên logic cũ */
+        if (!links || !Array.isArray(links)) {
+            return { byObjective: {}, byKeyResult: {} };
+        }
+        const byObjective = {};
+        const byKeyResult = {};
+
+        links.forEach((link) => {
+            const sourceObjId =
+                link.sourceObjective?.objective_id ||
+                link.source_objective?.objective_id;
+            const targetObjId =
+                link.targetObjective?.objective_id ||
+                link.target_objective?.objective_id;
+            const sourceKrId =
+                link.sourceKr?.key_result_id || link.source_kr?.key_result_id;
+            const targetKrId =
+                link.targetKr?.key_result_id || link.target_kr?.key_result_id;
+
+            if (sourceObjId) {
+                if (!byObjective[sourceObjId]) byObjective[sourceObjId] = [];
+                byObjective[sourceObjId].push(link);
+            }
+            if (targetObjId) {
+                if (!byObjective[targetObjId]) byObjective[targetObjId] = [];
+                byObjective[targetObjId].push(link);
+            }
+            if (sourceKrId) {
+                if (!byKeyResult[sourceKrId]) byKeyResult[sourceKrId] = [];
+                byKeyResult[sourceKrId].push(link);
+            }
+            if (targetKrId) {
+                if (!byKeyResult[targetKrId]) byKeyResult[targetKrId] = [];
+                byKeyResult[targetKrId].push(link);
+            }
+        });
+
+        return { byObjective, byKeyResult };
     }, [links]);
+
     const itemsWithLinkedChildren = useMemo(() => {
-        /* giữ nguyên logic cũ */
+        if (!items || !Array.isArray(items)) {
+            return [];
+        }
+        if (
+            !childLinks ||
+            !Array.isArray(childLinks) ||
+            childLinks.length === 0
+        ) {
+            return items;
+        }
+
+        // Tạo map để dễ tìm kiếm child links theo objective_id
+        const childLinksMap = {};
+        childLinks.forEach((link) => {
+            const targetObjId =
+                link.targetObjective?.objective_id ||
+                link.target_objective?.objective_id;
+            if (targetObjId) {
+                if (!childLinksMap[targetObjId]) {
+                    childLinksMap[targetObjId] = [];
+                }
+                childLinksMap[targetObjId].push(link);
+            }
+        });
+
+        // Merge items với child links nếu có
+        return items.map((item) => {
+            const linkedChildren = childLinksMap[item.objective_id] || [];
+            return {
+                ...item,
+                linkedChildren,
+            };
+        });
     }, [items, childLinks]);
 
     // === RELOAD BOTH TABS ===

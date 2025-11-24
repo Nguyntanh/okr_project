@@ -1,6 +1,7 @@
 // src/components/okr/ObjectiveRow.jsx
 import React from "react";
 import AlignmentBadge from "./AlignmentBadge";
+import KeyResultRow from "./KeyResultRow";
 
 export default function ObjectiveRow({
     obj,
@@ -13,6 +14,16 @@ export default function ObjectiveRow({
     handleArchive,
     archiving,
     menuRefs,
+    onCancelLink,
+    canCheckInKR,
+    openCheckInModal,
+    openCheckInHistory,
+    setAssignModal,
+    setAssigneeTooltip,
+    getAssigneeInfo,
+    formatPercent,
+    getStatusText,
+    getUnitText,
 }) {
     const hasKRs = obj.key_results?.length > 0;
 
@@ -164,9 +175,24 @@ export default function ObjectiveRow({
 
             {openObj[obj.objective_id] &&
                 obj.key_results?.map((kr) => (
-                    <tr key={kr.kr_id}>
-                        {/* Sẽ được render bởi KeyResultRow trong parent */}
-                    </tr>
+                    <KeyResultRow
+                        key={kr.kr_id}
+                        kr={kr}
+                        objective={obj}
+                        openObj={openObj}
+                        setOpenObj={setOpenObj}
+                        canCheckInKR={canCheckInKR} // truyền tiếp xuống
+                        openCheckInModal={openCheckInModal}
+                        openCheckInHistory={openCheckInHistory}
+                        onCancelLink={onCancelLink}
+                        setAssignModal={setAssignModal}
+                        setAssigneeTooltip={setAssigneeTooltip}
+                        getAssigneeInfo={getAssigneeInfo}
+                        formatPercent={formatPercent}
+                        getStatusText={getStatusText}
+                        getUnitText={getUnitText}
+                        menuRefs={menuRefs}
+                    />
                 ))}
         </>
     );

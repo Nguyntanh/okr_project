@@ -19,6 +19,8 @@ export default function KeyResultRow({
     getStatusText,
     getUnitText,
     menuRefs,
+    openCheckInModal,
+    openCheckInHistory,
 }) {
     const isLinkedKR = kr.isLinked;
     const isLinkedObjective = kr.isLinkedObjective; // O→O
