@@ -114,11 +114,9 @@ export default function LinkedChildObjectiveRow({
                             <td className="px-16 py-3 border-r border-slate-200">
                                 <div className="flex items-center gap-2">
                                     <FaKey className="h-4 w-4 text-amber-600 flex-shrink-0" title="Key Result"/>
-                                    <div className="truncate">
-                                        <span className="font-medium text-slate-700 text-sm">
-                                            {kr.kr_title}
-                                        </span>
-                                    </div>
+                                    <span className="font-medium text-slate-700 text-sm">
+                                        {kr.kr_title}
+                                    </span>
                                 </div>
                             </td>
                             <td className="px-3 py-3 text-center border-r border-slate-200">

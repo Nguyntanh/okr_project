@@ -242,11 +242,9 @@ export default function KeyResultRow({
                         </div>
                         <FaKey className="h-4 w-4 text-amber-600 flex-shrink-0" title="Key Result"/>
 
-                        <div className="truncate">
-                            <span className="font-medium text-slate-900">
-                                {kr.kr_title}
-                            </span>
-                        </div>
+                        <span className="font-medium text-slate-900">
+                            {kr.kr_title}
+                        </span>
 
                     </div>
                 </td>
