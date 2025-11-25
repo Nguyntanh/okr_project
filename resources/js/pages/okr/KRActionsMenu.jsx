@@ -55,19 +55,6 @@ export default function KRActionsMenu({
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
-                            setEditingKR(kr);
-                            setOpenObj((prev) => ({
-                                ...prev,
-                                [menuKey]: false,
-                            }));
-                        }}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                    >
-                        Sửa Key Result
-                    </button>
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
                             setAssignModal({
                                 show: true,
                                 kr,
