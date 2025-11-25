@@ -44,12 +44,11 @@ export default function ObjectiveList({
     onOpenLinkModal,
     onCancelLink,
     handleAssignKR,
-    handleArchive,
-    handleArchiveKR,
 }) {
     const [toast, setToast] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
     const [archivedItems, setArchivedItems] = useState([]);
+    const [archivedCount, setArchivedCount] = useState(0);
     const [loadingArchived, setLoadingArchived] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [assignModal, setAssignModal] = useState({
@@ -61,14 +60,46 @@ export default function ObjectiveList({
     });
     const [assigneeTooltip, setAssigneeTooltip] = useState(null);
     const [archiving, setArchiving] = useState(null);
+    const [archivingKR, setArchivingKR] = useState(null);
+
+    // === MODAL XÁC NHẬN CHUNG ===
     const [confirmModal, setConfirmModal] = useState({
         show: false,
         title: "",
         message: "",
-        cancelText: "Hủy",
-        confirmText: "Xác nhận",
         onConfirm: () => {},
+        confirmText: "OK",
+        cancelText: "Hủy",
     });
+
+    const openConfirm = (
+        title,
+        message,
+        onConfirm,
+        confirmText = "OK",
+        cancelText = "Hủy"
+    ) => {
+        setConfirmModal({
+            show: true,
+            title,
+            message,
+            onConfirm,
+            confirmText,
+            cancelText,
+        });
+    };
+
+    const closeConfirm = () => {
+        setConfirmModal((prev) => ({ ...prev, show: false }));
+    };
+
+    useEffect(() => {
+        if (toast) {
+            const timer = setTimeout(() => setToast(null), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [toast]);
+
 
     const menuRefs = useRef({});
 
@@ -289,36 +320,122 @@ export default function ObjectiveList({
         });
     }, [items, childLinks]);
 
-    // === RELOAD BOTH TABS ===
-    const reloadBothTabs = useCallback(async () => {
-        setLoading(true);
-        setLoadingArchived(true);
+    // === RELOAD CẢ 2 TAB TỪ SERVER ===
+    const reloadBothTabs = useCallback(
+        async (token) => {
+            const baseParams = new URLSearchParams();
+            if (cycleFilter) baseParams.append("cycle_id", cycleFilter);
 
-        const fetchActive = fetch(
-            `/my-objectives?cycle_id=${cycleFilter || ""}`
-        )
-            .then((res) => res.json())
-            .then((json) => {
-                if (json.success) {
-                    setItems(json.data.data);
-                }
+            // Tab Hoạt động
+            const activeRes = await fetch(`/my-objectives?${baseParams}`, {
+                headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
             });
+            const activeJson = await activeRes.json();
+            if (activeJson.success) {
+                setItems(activeJson.data.data || []);
+            }
 
-        const fetchArchived = fetch(
-            `/my-objectives?cycle_id=${cycleFilter || ""}&archived=1`
-        )
-            .then((res) => res.json())
-            .then((json) => {
-                if (json.success) {
-                    setArchivedItems(json.data.data);
+            // Tab Lưu trữ
+            if (showArchived) {
+                const archivedParams = new URLSearchParams({
+                    archived: "1",
+                    include_archived_kr: "1",
+                });
+                if (cycleFilter) archivedParams.append("cycle_id", cycleFilter);
+                const archivedRes = await fetch(
+                    `/my-objectives?${archivedParams}`,
+                    {
+                        headers: {
+                            Accept: "application/json",
+                            "X-CSRF-TOKEN": token,
+                        },
+                    }
+                );
+                const archivedJson = await archivedRes.json();
+                if (archivedJson.success) {
+                    setArchivedItems(archivedJson.data.data || []);
                 }
-            });
+            }
+        },
+        [cycleFilter, showArchived, setItems]
+    );
 
-        await Promise.all([fetchActive, fetchArchived]);
+    // === LƯU TRỮ OKR ===
+    const handleArchive = async (id) => {
+        openConfirm(
+            "Lưu trữ OKR",
+            "Bạn sẽ không thể chỉnh sửa OKR này nữa.",
+            async () => {
+                setArchiving(id);
+                try {
+                    const token = document
+                        .querySelector('meta[name="csrf-token"]')
+                        ?.getAttribute("content");
+                    const res = await fetch(`/my-objectives/${id}/archive`, {
+                        method: "POST",
+                        headers: {
+                            "X-CSRF-TOKEN": token,
+                            Accept: "application/json",
+                        },
+                    });
+                    const json = await res.json();
+                    if (json.success) {
+                        await reloadBothTabs(token);
+                        setToast({ type: "success", message: json.message });
+                    } else {
+                        throw new Error(json.message);
+                    }
+                } catch (err) {
+                    setToast({ type: "error", message: err.message });
+                } finally {
+                    setArchiving(null);
+                }
+            },
+            "Lưu trữ",
+            "Hủy"
+        );
+    };
 
-        setLoading(false);
-        setLoadingArchived(false);
-    }, [cycleFilter]);
+    // === LƯU TRỮ KR ===
+    const handleArchiveKR = async (krId) => {
+        openConfirm(
+            "Lưu trữ Key Result",
+            "Key Result sẽ được chuyển vào tab Lưu trữ.",
+            async () => {
+                setArchivingKR(krId);
+                try {
+                    const token = document
+                        .querySelector('meta[name="csrf-token"]')
+                        ?.getAttribute("content");
+                    const obj = items.find((o) =>
+                        o.key_results?.some((kr) => kr.kr_id === krId)
+                    );
+                    if (!obj) throw new Error("Không tìm thấy OKR cha.");
+
+                    const res = await fetch(
+                        `/my-key-results/${obj.objective_id}/${krId}/archive`,
+                        {
+                            method: "POST",
+                            headers: {
+                                "X-CSRF-TOKEN": token,
+                                Accept: "application/json",
+                            },
+                        }
+                    );
+                    const json = await res.json();
+                    if (!json.success)
+                        throw new Error(json.message || "Lưu trữ thất bại");
+
+                    await reloadBothTabs(token);
+                    setToast({ type: "success", message: json.message });
+                } catch (err) {
+                    setToast({ type: "error", message: err.message });
+                } finally {
+                    setArchivingKR(null);
+                }
+            }
+        );
+    };
 
     // === CLICK OUTSIDE TO CLOSE MENUS ===
     useEffect(() => {
@@ -330,29 +447,41 @@ export default function ObjectiveList({
         /* giữ nguyên 3 effect chọn cycle */
     }, [cycleFilter, cyclesList, items]);
 
-    // === LOAD ARCHIVED ===
+    // === TẢI OKR LƯU TRỮ ===
     useEffect(() => {
         if (showArchived) {
-            const loadArchived = async () => {
+            const fetchArchived = async () => {
                 setLoadingArchived(true);
                 try {
-                    const response = await fetch(
-                        `/my-objectives?cycle_id=${
-                            cycleFilter || ""
-                        }&archived=1`
-                    );
-                    const json = await response.json();
+                    const token = document
+                        .querySelector('meta[name="csrf-token"]')
+                        ?.getAttribute("content");
+                    const params = new URLSearchParams({
+                        archived: "1",
+                        include_archived_kr: "1",
+                    });
+                    if (cycleFilter) params.append("cycle_id", cycleFilter);
+
+                    const res = await fetch(`/my-objectives?${params}`, {
+                        headers: {
+                            Accept: "application/json",
+                            "X-CSRF-TOKEN": token,
+                        },
+                    });
+                    const json = await res.json();
                     if (json.success) {
                         setArchivedItems(json.data.data || []);
                     }
-                } catch (error) {
-                    console.error("Failed to load archived items:", error);
-                    setArchivedItems([]);
+                } catch (err) {
+                    setToast({ type: "error", message: err.message });
                 } finally {
                     setLoadingArchived(false);
                 }
             };
-            loadArchived();
+            fetchArchived();
+        } else {
+            setArchivedItems([]);
+            setArchivedCount(0);
         }
     }, [showArchived, cycleFilter]);
 
@@ -479,7 +608,8 @@ export default function ObjectiveList({
                                 openObj={openObj}
                                 setOpenObj={setOpenObj}
                                 loadingArchived={loadingArchived}
-                                reloadData={reloadData}
+                                reloadBothTabs={reloadBothTabs}
+                                showArchived={showArchived}
                             />
                         )}
                     </tbody>
