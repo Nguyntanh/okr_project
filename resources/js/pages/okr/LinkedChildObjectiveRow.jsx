@@ -1,6 +1,5 @@
-// src/components/okr/LinkedChildObjectiveRow.jsx
 import React from "react";
-import { LuAlignCenterHorizontal } from "react-icons/lu";
+import { FaBullseye, FaKey } from "react-icons/fa";
 
 export default function LinkedChildObjectiveRow({
     linkedObj,
@@ -21,9 +20,9 @@ export default function LinkedChildObjectiveRow({
 
     return (
         <>
-            <tr className="bg-white border-l-4 border-blue-400">
+            <tr className="bg-white">
                 <td
-                    colSpan={3} // Adjusted colSpan to remove 1 action column in ObjectiveList's perspective
+                    colSpan={3} 
                     className="px-12 py-3 border-r border-slate-200"
                 >
                     <div className="flex items-center justify-between">
@@ -58,7 +57,7 @@ export default function LinkedChildObjectiveRow({
                                     </svg>
                                 </button>
                             )}
-                            <LuAlignCenterHorizontal className="h-4 w-4 text-blue-500" />
+                            <FaBullseye className="h-4 w-4 text-indigo-500" />
                             <span className="font-medium text-slate-900">
                                 {linkedObj.obj_title}
                             </span>
@@ -113,9 +112,14 @@ export default function LinkedChildObjectiveRow({
                     return (
                         <tr key={kr.kr_id} className="bg-white">
                             <td className="px-16 py-3 border-r border-slate-200">
-                                <span className="font-medium text-slate-700 text-sm">
-                                    {kr.kr_title}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                    <FaKey className="h-4 w-4 text-amber-600 flex-shrink-0" title="Key Result"/>
+                                    <div className="truncate">
+                                        <span className="font-medium text-slate-700 text-sm">
+                                            {kr.kr_title}
+                                        </span>
+                                    </div>
+                                </div>
                             </td>
                             <td className="px-3 py-3 text-center border-r border-slate-200">
                                 {kr.assigned_to ? (

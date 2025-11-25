@@ -75,11 +75,12 @@ export default function KeyResultRow({
                                         </button>
                                     )}
                                 </div>
-                                <FaLink className="h-4 w-4 text-slate-500" title="Objective được liên kết" />
+                                <div className="truncate">
+                                    <span className="font-medium text-slate-900">
+                                        {kr.kr_title}
+                                    </span>
+                                </div>
                                 <FaBullseye className="h-4 w-4 text-indigo-500" />
-                                <span className="font-medium text-slate-900">
-                                    {kr.kr_title}
-                                </span>
                                 {kr.key_results?.length > 0 && (
                                     <span className="text-xs text-slate-500">
                                         ({kr.key_results.length} KR)
@@ -241,15 +242,12 @@ export default function KeyResultRow({
                         </div>
                         <FaKey className="h-4 w-4 text-amber-600 flex-shrink-0" title="Key Result"/>
 
-                        {isLinkedKR && (
-                            <LuAlignCenterHorizontal
-                                className="h-4 w-4 text-blue-500"
-                                title="KR được liên kết"
-                            />
-                        )}
-                        <span className="font-medium text-slate-900">
-                            {kr.kr_title}
-                        </span>
+                        <div className="truncate">
+                            <span className="font-medium text-slate-900">
+                                {kr.kr_title}
+                            </span>
+                        </div>
+
                     </div>
                 </td>
 
