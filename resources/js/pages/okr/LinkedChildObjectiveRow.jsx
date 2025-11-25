@@ -23,7 +23,7 @@ export default function LinkedChildObjectiveRow({
         <>
             <tr className="bg-white border-l-4 border-blue-400">
                 <td
-                    colSpan={colSpanForKRs - 1} // Adjusted colSpan to remove 1 action column in ObjectiveList's perspective
+                    colSpan={3} // Adjusted colSpan to remove 1 action column in ObjectiveList's perspective
                     className="px-12 py-3 border-r border-slate-200"
                 >
                     <div className="flex items-center justify-between">
@@ -141,15 +141,7 @@ export default function LinkedChildObjectiveRow({
                                     </span>
                                 )}
                             </td>
-                            <td className="px-3 py-3 text-center border-r border-slate-200">
-                                {getUnitText(kr.unit)}
-                            </td>
-                            <td className="px-3 py-3 text-center border-r border-slate-200">
-                                {kr.current_value ?? ""}
-                            </td>
-                            <td className="px-3 py-3 text-center border-r border-slate-200">
-                                {kr.target_value ?? ""}
-                            </td>
+
                             <td className="px-3 py-3 text200 text-center border-r border-slate-200">
                                 <div className="flex flex-col items-center">
                                     <div className="w-full bg-gray-200 rounded-full h-4 relative overflow-hidden">
