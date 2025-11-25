@@ -18,7 +18,7 @@ export default function KRActionsMenu({
 
     return (
         <div
-            className="relative z-[1000]"
+            className="relative"
             ref={(el) => (menuRefs.current[menuKey] = el)}
         >
             <button
@@ -51,7 +51,10 @@ export default function KRActionsMenu({
             </button>
 
             {openObj[menuKey] && (
-                <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg shadow-lg border border-slate-200 z-[9999] py-1">
+                <div 
+                    className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg shadow-lg border border-slate-200 py-1"
+                    style={{ zIndex: 50 }}
+                >
                     <button
                         onClick={(e) => {
                             e.stopPropagation();

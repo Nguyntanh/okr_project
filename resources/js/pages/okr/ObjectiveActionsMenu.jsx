@@ -37,7 +37,10 @@ export default function ObjectiveActionsMenu({
             </button>
 
             {openObj[menuKey] && (
-                <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg shadow-lg border border-slate-200 z-[9999] py-1">
+                <div 
+                    className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg shadow-lg border border-slate-200 py-1"
+                    style={{ zIndex: 50 }}
+                >
                     {onOpenLinkModal && (
                          <button
                             onClick={(e) => {
