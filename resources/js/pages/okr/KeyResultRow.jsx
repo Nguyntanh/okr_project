@@ -102,7 +102,10 @@ export default function KeyResultRow({
                                 className="bg-white"
                             >
                                 <td className="pl-16 pr-8 py-3 border-r border-slate-200 text-sm text-slate-800">
-                                    {sourceKr.kr_title}
+                                    <div className="flex items-center gap-2">
+                                        <FaKey className="h-4 w-4 text-amber-600 flex-shrink-0" title="Key Result" />
+                                        {sourceKr.kr_title}
+                                    </div>
                                 </td>
                                 <td className="px-3 py-3 text-center border-r border-slate-200">
                                     {info.name ? (
