@@ -1,5 +1,5 @@
 import React from "react";
-import { FaBullseye, FaKey } from "react-icons/fa";
+import { FaBullseye, FaKey, FaLongArrowAltLeft } from "react-icons/fa";
 
 export default function LinkedChildObjectiveRow({
     linkedObj,
@@ -23,7 +23,7 @@ export default function LinkedChildObjectiveRow({
             <tr className="bg-white">
                 {/* Cột Tiêu đề */}
                 <td className="px-13 py-3 border-r border-slate-200">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                         {hasKRs && (
                             <button
                                 onClick={() =>
@@ -54,7 +54,9 @@ export default function LinkedChildObjectiveRow({
                                 </svg>
                             </button>
                         )}
-                        <FaBullseye className="h-4 w-4 text-indigo-500" />
+                        <FaKey className="h-3 w-3 text-amber-600 flex-shrink-0" title="Key Result cấp cao"/>
+                        <FaLongArrowAltLeft className="h-3 w-3 text-slate-500" />
+                        <FaBullseye className="h-3 w-3 text-indigo-500 flex-shrink-0" title="Objective được liên kết" />
                         <span className="font-normal text-slate-900 text-sm">
                             {linkedObj.obj_title}
                         </span>
