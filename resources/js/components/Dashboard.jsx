@@ -1,5 +1,5 @@
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import ObjectiveModal from "../pages/ObjectiveModal.jsx";
 import KeyResultModal from "../pages/KeyResultModal.jsx";
 import ToastComponent from "../pages/ToastComponent.jsx";
@@ -473,6 +473,36 @@ export default function Dashboard() {
         setPage(1);
     }, [activeTab, myFilters, departmentFilters, companyFilters]);
 
+    // Kiểm tra quyền xem OKR phòng ban - tất cả user đều có thể xem
+    // Phải khai báo trước khi sử dụng trong các useMemo/useEffect khác
+    const canViewDepartmentOKR = useMemo(() => {
+        // Tất cả user đã đăng nhập đều có thể xem OKR phòng ban
+        return !!currentUser;
+    }, [currentUser]);
+    
+    // Hàm helper kiểm tra quyền quản trị OKR của một phòng ban cụ thể
+    // Trưởng phòng chỉ quản lý OKR của phòng ban mình, CEO và Admin quản lý tất cả
+    const canManageDepartmentOKRForDept = useCallback((departmentId) => {
+        if (!currentUser || !departmentId) return false;
+        const roleName = currentUser?.role?.role_name?.toLowerCase() || '';
+        const isAdminUser = Boolean(currentUser?.is_admin || roleName === 'admin');
+        
+        // CEO và Admin có thể quản lý tất cả phòng ban
+        if (isAdminUser || roleName === 'ceo') {
+            return true;
+        }
+        
+        // Manager chỉ quản lý OKR của phòng ban mình
+        if (roleName === 'manager') {
+            const userDeptId = currentUser.department_id || currentUser.department?.department_id;
+            return String(userDeptId) === String(departmentId);
+        }
+        
+        return false;
+    }, [currentUser]);
+
+    // Không cần tự động chuyển tab vì tất cả user đều có thể xem tab department
+
     useEffect(() => {
         // Load static data một lần khi component mount
         loadStaticData();
@@ -514,13 +544,21 @@ export default function Dashboard() {
             return false;
         });
         
+        // Lọc OKR phòng ban: tất cả user đều thấy tất cả OKR phòng ban (chỉ xem, không chỉnh sửa)
+        let deptOKRs = [];
+        if (canViewDepartmentOKR) {
+            // Tất cả user đều thấy tất cả OKR phòng ban
+            deptOKRs = allItems.filter(item => item.level === 'unit');
+        }
+        
         return {
             myOKRs: myOKRsFiltered,
-            // OKR phòng ban và công ty: hiển thị tất cả cho mọi role
-            departmentOKRs: allItems.filter(item => item.level === 'unit'),
+            // OKR phòng ban: đã lọc theo quyền
+            departmentOKRs: deptOKRs,
+            // OKR công ty: hiển thị tất cả cho mọi role
             companyOKRs: allItems.filter(item => item.level === 'company')
         };
-    }, [items, currentUser]);
+    }, [items, currentUser, canViewDepartmentOKR]);
 
     const personalSummary = useMemo(() => buildSummary(myOKRs), [myOKRs]);
     const teamSummary = useMemo(() => buildSummary(departmentOKRs), [departmentOKRs]);
@@ -968,8 +1006,13 @@ export default function Dashboard() {
                     return false;
                 });
             } else if (activeTab === 'department') {
-                // Tab "OKR Phòng ban": hiển thị tất cả OKR phòng ban cho mọi role
-                result = result.filter(item => item.level === 'unit');
+                // Tab "OKR Phòng ban": tất cả user đều có thể xem
+                if (canViewDepartmentOKR) {
+                    result = result.filter(item => item.level === 'unit');
+                } else {
+                    // Nếu không có quyền, không hiển thị gì
+                    result = [];
+                }
             } else if (activeTab === 'company') {
                 // Tab "OKR Công ty": hiển thị tất cả OKR công ty cho mọi role
                 result = result.filter(item => item.level === 'company');
@@ -1006,7 +1049,7 @@ export default function Dashboard() {
             // No sorting as requested; keep server order
             return result;
         },
-        [items, activeTab, myFilters, departmentFilters, companyFilters, currentUser]
+        [items, activeTab, myFilters, departmentFilters, companyFilters, currentUser, canViewDepartmentOKR]
     );
 
     const sortedItems = useMemo(() => {
@@ -1126,14 +1169,16 @@ export default function Dashboard() {
         : "";
     const isManager = roleName === "manager";
     const isAdmin = Boolean(currentUser?.is_admin || roleName === "admin");
+    const isCeo = roleName === "ceo";
     const canSeeTeamInsights =
-        isManager || isAdmin || (departmentOKRs?.length || 0) > 0;
+        isManager || isAdmin || isCeo || (departmentOKRs?.length || 0) > 0;
     
-    // Kiểm tra quyền quản trị OKR phòng ban
+    // Kiểm tra quyền quản trị OKR phòng ban (tạo, sửa, xóa) - dùng cho tạo mới
     const canManageDepartmentOKR = useMemo(() => {
         if (!currentUser) return false;
         const roleName = currentUser?.role?.role_name?.toLowerCase() || '';
-        return roleName === 'admin' || roleName === 'manager';
+        const isAdminUser = Boolean(currentUser?.is_admin || roleName === 'admin');
+        return isAdminUser || roleName === 'ceo' || roleName === 'manager';
     }, [currentUser]);
     
     // Handler xóa Objective
@@ -1398,16 +1443,18 @@ export default function Dashboard() {
                         >
                             My OKR ({myOKRs.length})
                         </button>
-                        <button
-                            onClick={() => setActiveTab('department')}
-                            className={`pb-4 px-2 border-b-2 font-medium text-sm transition-colors ${
-                                activeTab === 'department'
-                                    ? 'border-blue-600 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                            }`}
-                        >
-                            OKR Phòng ban ({departmentOKRs.length})
-                        </button>
+                        {canViewDepartmentOKR && (
+                            <button
+                                onClick={() => setActiveTab('department')}
+                                className={`pb-4 px-2 border-b-2 font-medium text-sm transition-colors ${
+                                    activeTab === 'department'
+                                        ? 'border-blue-600 text-blue-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
+                            >
+                                OKR Phòng ban ({departmentOKRs.length})
+                            </button>
+                        )}
                         <button
                             onClick={() => setActiveTab('company')}
                             className={`pb-4 px-2 border-b-2 font-medium text-sm transition-colors ${
@@ -1432,7 +1479,7 @@ export default function Dashboard() {
                         />
                         </div>
                 )}
-                {activeTab === 'department' && (
+                {activeTab === 'department' && canViewDepartmentOKR && (
                     <div className="mb-6">
                         <SummaryCard
                             title="Hiệu suất đội nhóm"
@@ -1590,7 +1637,7 @@ export default function Dashboard() {
                         </div>
                     </section>
                 )}
-                {activeTab === 'department' && (
+                {activeTab === 'department' && canViewDepartmentOKR && (
                     <section className="mb-8">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
@@ -1712,8 +1759,8 @@ export default function Dashboard() {
                             </p>
                         </div>
                     </div>
-                {/* Hiển thị OKR theo nhóm phòng ban nếu ở tab department */}
-                {activeTab === 'department' && groupedDepartmentOKRs.length > 0 ? (
+                {/* Hiển thị OKR theo nhóm phòng ban nếu ở tab department - chỉ cho trưởng phòng, CEO và admin */}
+                {activeTab === 'department' && canViewDepartmentOKR && groupedDepartmentOKRs.length > 0 ? (
                     <div className="space-y-6">
                         {groupedDepartmentOKRs.map((group) => (
                             <div key={group.department?.department_id || 'unknown'} className="border border-gray-200 rounded-lg overflow-hidden">
@@ -1732,7 +1779,7 @@ export default function Dashboard() {
                                                 )}
                                             </p>
                                         </div>
-                                        {canManageDepartmentOKR && (
+                                        {canManageDepartmentOKRForDept(group.department?.department_id) && (
                                             <button
                                                 onClick={() => {
                                                     setCreatingObjective(true);
@@ -1755,12 +1802,47 @@ export default function Dashboard() {
                                     onViewCheckInHistory={openCheckInHistory}
                                     currentUser={currentUser}
                                     viewMode={activeTab}
-                                    canManage={canManageDepartmentOKR}
-                                    onEditObjective={(item) => setEditingDepartmentObjective(item)}
-                                    onDeleteObjective={handleDeleteObjective}
-                                    onEditKeyResult={(kr, objective) => setEditingDepartmentKR({ kr, objective })}
-                                    onDeleteKeyResult={handleDeleteKeyResult}
-                                    onAddKeyResult={(objective) => setCreatingDepartmentKR(objective)}
+                                    canManage={canManageDepartmentOKRForDept(group.department?.department_id)}
+                                    onEditObjective={(item) => {
+                                        // Kiểm tra quyền trước khi cho phép edit
+                                        if (canManageDepartmentOKRForDept(item.department_id)) {
+                                            setEditingDepartmentObjective(item);
+                                        } else {
+                                            setToast({ type: 'error', message: 'Bạn không có quyền chỉnh sửa OKR của phòng ban này' });
+                                        }
+                                    }}
+                                    onDeleteObjective={(item) => {
+                                        // Kiểm tra quyền trước khi cho phép delete
+                                        if (canManageDepartmentOKRForDept(item.department_id)) {
+                                            handleDeleteObjective(item);
+                                        } else {
+                                            setToast({ type: 'error', message: 'Bạn không có quyền xóa OKR của phòng ban này' });
+                                        }
+                                    }}
+                                    onEditKeyResult={(kr, objective) => {
+                                        // Kiểm tra quyền trước khi cho phép edit
+                                        if (canManageDepartmentOKRForDept(objective.department_id)) {
+                                            setEditingDepartmentKR({ kr, objective });
+                                        } else {
+                                            setToast({ type: 'error', message: 'Bạn không có quyền chỉnh sửa Key Result của phòng ban này' });
+                                        }
+                                    }}
+                                    onDeleteKeyResult={(kr, objective) => {
+                                        // Kiểm tra quyền trước khi cho phép delete
+                                        if (canManageDepartmentOKRForDept(objective.department_id)) {
+                                            handleDeleteKeyResult(kr, objective);
+                                        } else {
+                                            setToast({ type: 'error', message: 'Bạn không có quyền xóa Key Result của phòng ban này' });
+                                        }
+                                    }}
+                                    onAddKeyResult={(objective) => {
+                                        // Kiểm tra quyền trước khi cho phép add
+                                        if (canManageDepartmentOKRForDept(objective.department_id)) {
+                                            setCreatingDepartmentKR(objective);
+                                        } else {
+                                            setToast({ type: 'error', message: 'Bạn không có quyền thêm Key Result cho OKR của phòng ban này' });
+                                        }
+                                    }}
                                 />
                             </div>
                         ))}
@@ -1777,12 +1859,67 @@ export default function Dashboard() {
                         onViewCheckInHistory={openCheckInHistory}
                         currentUser={currentUser}
                         viewMode={activeTab}
-                        canManage={activeTab === 'department' && canManageDepartmentOKR}
-                        onEditObjective={(item) => setEditingDepartmentObjective(item)}
-                        onDeleteObjective={handleDeleteObjective}
-                        onEditKeyResult={(kr, objective) => setEditingDepartmentKR({ kr, objective })}
-                        onDeleteKeyResult={handleDeleteKeyResult}
-                        onAddKeyResult={(objective) => setCreatingDepartmentKR(objective)}
+                        canManage={activeTab === 'department' && sortedItems.length > 0 && canManageDepartmentOKRForDept(sortedItems[0]?.department_id)}
+                        onEditObjective={(item) => {
+                            // Kiểm tra quyền trước khi cho phép edit
+                            if (activeTab === 'department') {
+                                if (canManageDepartmentOKRForDept(item.department_id)) {
+                                    setEditingDepartmentObjective(item);
+                                } else {
+                                    setToast({ type: 'error', message: 'Bạn không có quyền chỉnh sửa OKR của phòng ban này' });
+                                }
+                            } else {
+                                setEditingDepartmentObjective(item);
+                            }
+                        }}
+                        onDeleteObjective={(item) => {
+                            // Kiểm tra quyền trước khi cho phép delete
+                            if (activeTab === 'department') {
+                                if (canManageDepartmentOKRForDept(item.department_id)) {
+                                    handleDeleteObjective(item);
+                                } else {
+                                    setToast({ type: 'error', message: 'Bạn không có quyền xóa OKR của phòng ban này' });
+                                }
+                            } else {
+                                handleDeleteObjective(item);
+                            }
+                        }}
+                        onEditKeyResult={(kr, objective) => {
+                            // Kiểm tra quyền trước khi cho phép edit
+                            if (activeTab === 'department') {
+                                if (canManageDepartmentOKRForDept(objective.department_id)) {
+                                    setEditingDepartmentKR({ kr, objective });
+                                } else {
+                                    setToast({ type: 'error', message: 'Bạn không có quyền chỉnh sửa Key Result của phòng ban này' });
+                                }
+                            } else {
+                                setEditingDepartmentKR({ kr, objective });
+                            }
+                        }}
+                        onDeleteKeyResult={(kr, objective) => {
+                            // Kiểm tra quyền trước khi cho phép delete
+                            if (activeTab === 'department') {
+                                if (canManageDepartmentOKRForDept(objective.department_id)) {
+                                    handleDeleteKeyResult(kr, objective);
+                                } else {
+                                    setToast({ type: 'error', message: 'Bạn không có quyền xóa Key Result của phòng ban này' });
+                                }
+                            } else {
+                                handleDeleteKeyResult(kr, objective);
+                            }
+                        }}
+                        onAddKeyResult={(objective) => {
+                            // Kiểm tra quyền trước khi cho phép add
+                            if (activeTab === 'department') {
+                                if (canManageDepartmentOKRForDept(objective.department_id)) {
+                                    setCreatingDepartmentKR(objective);
+                                } else {
+                                    setToast({ type: 'error', message: 'Bạn không có quyền thêm Key Result cho OKR của phòng ban này' });
+                                }
+                            } else {
+                                setCreatingDepartmentKR(objective);
+                            }
+                        }}
                     />
                 )}
                 </section>

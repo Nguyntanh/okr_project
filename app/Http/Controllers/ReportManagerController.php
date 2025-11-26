@@ -38,20 +38,19 @@ class ReportManagerController extends Controller
             ], 400);
         }
 
-        // Lấy danh sách thành viên trong phòng ban (không bao gồm manager)
-        // Lấy tất cả user trong phòng ban trừ manager hiện tại
+        // Lấy danh sách thành viên trong phòng ban (bao gồm cả manager để hiển thị OKR của họ)
+        // Lấy tất cả user trong phòng ban
         $teamMembers = User::where('department_id', $managerDepartmentId)
-            ->where('user_id', '!=', $user->user_id)
             ->with(['role', 'department'])
             ->get()
             ->filter(function($member) {
-                // Lọc chỉ lấy member (không phải manager hoặc admin)
+                // Lọc chỉ lấy member và manager (không phải admin từ phòng ban khác)
                 if (!$member->role) return false;
                 $roleName = strtolower(trim($member->role->role_name ?? ''));
-                return $roleName === 'member';
+                return $roleName === 'member' || $roleName === 'manager';
             });
 
-        // Lấy tất cả OKR của thành viên trong phòng ban
+        // Lấy tất cả OKR của thành viên trong phòng ban (bao gồm cả manager)
         $memberIds = $teamMembers->pluck('user_id')->toArray();
         
         // Debug: Log số lượng thành viên
@@ -69,11 +68,13 @@ class ReportManagerController extends Controller
         $objectiveId = $request->integer('objective_id');
 
         // Lấy OKR cá nhân của thành viên (level = 'person')
+        // Nếu không có memberIds, vẫn cố gắng lấy OKR của phòng ban
         $personalObjectivesQuery = Objective::query()
-            ->whereIn('user_id', $memberIds)
             ->where('level', 'person')
             ->whereNull('archived_at')
             ->with(['cycle', 'department', 'user'])
+            ->when(!empty($memberIds), fn($q) => $q->whereIn('user_id', $memberIds))
+            ->when(empty($memberIds), fn($q) => $q->where('department_id', $managerDepartmentId))
             ->when($cycleId, fn($q) => $q->where('cycle_id', $cycleId))
             ->when($memberId, fn($q) => $q->where('user_id', $memberId))
             ->when($objectiveId, fn($q) => $q->where('objective_id', $objectiveId));
@@ -90,6 +91,16 @@ class ReportManagerController extends Controller
             ->when($objectiveId, fn($q) => $q->where('objective_id', $objectiveId));
 
         $teamObjectives = $teamObjectivesQuery->get();
+        
+        // Debug log
+        \Log::info('ReportManager: Objectives found', [
+            'manager_id' => $user->user_id,
+            'department_id' => $managerDepartmentId,
+            'cycle_id' => $cycleId,
+            'member_ids_count' => count($memberIds),
+            'personal_objectives_count' => $personalObjectives->count(),
+            'team_objectives_count' => $teamObjectives->count(),
+        ]);
 
         // Gộp tất cả objectives (cá nhân + nhóm)
         $objectives = $personalObjectives->merge($teamObjectives);
