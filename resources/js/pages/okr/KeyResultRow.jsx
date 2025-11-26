@@ -34,90 +34,97 @@ export default function KeyResultRow({
     // Nếu là KR ảo từ liên kết O→O → render riêng
     if (isLinkedObjective) {
         const isExpanded = openObj[`linked_obj_kr_${kr.kr_id}`];
+        const assigneeInfo = getAssigneeInfo(kr);
         return (
             <>
                 <tr className="bg-white hover:bg-slate-50/70 transition-colors duration-150">
-                    <td
-                        colSpan={colSpanForKRs}
-                        className="px-8 py-3 border-r border-slate-200"
-                    >
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 flex items-center justify-center">
-                                    {kr.key_results?.length > 0 && (
-                                        <button
-                                            onClick={() =>
-                                                setOpenObj((prev) => ({
-                                                    ...prev,
-                                                    [`linked_obj_kr_${kr.kr_id}`]:
-                                                        !prev[
-                                                            `linked_obj_kr_${kr.kr_id}`
-                                                        ],
-                                                }))
-                                            }
-                                            className="p-0.5 hover:bg-slate-100 rounded"
-                                        >
-                                            <svg
-                                                className={`h-4 w-4 text-slate-600 transition-transform ${
-                                                    isExpanded ? "rotate-90" : ""
-                                                }`}
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth={2}
-                                                    d="M9 5l7 7-7 7"
-                                                />
-                                            </svg>
-                                        </button>
-                                    )}
-                                </div>
-                                <div className="truncate">
-                                    <span className="font-medium text-slate-900">
-                                        {kr.kr_title}
-                                    </span>
-                                </div>
-                                <FaBullseye className="h-4 w-4 text-indigo-500" />
+                    {/* Cột Tiêu đề */}
+                    <td className="px-8 py-3 border-r border-slate-200">
+                        <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 flex items-center justify-center">
                                 {kr.key_results?.length > 0 && (
-                                    <span className="text-xs text-slate-500">
-                                        ({kr.key_results.length} KR)
+                                    <button
+                                        onClick={() =>
+                                            setOpenObj((prev) => ({
+                                                ...prev,
+                                                [`linked_obj_kr_${kr.kr_id}`]: !prev[`linked_obj_kr_${kr.kr_id}`],
+                                            }))
+                                        }
+                                        className="p-0.5 hover:bg-slate-100 rounded"
+                                    >
+                                        <svg
+                                            className={`h-4 w-4 text-slate-600 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </button>
+                                )}
+                            </div>
+                            <FaBullseye className="h-4 w-4 text-indigo-500 flex-shrink-0" />
+                            <div className="truncate">
+                                <span className="font-medium text-slate-900">{kr.kr_title}</span>
+                            </div>
+                            {kr.key_results?.length > 0 && (
+                                <span className="text-xs text-slate-500">({kr.key_results.length} KR)</span>
+                            )}
+                        </div>
+                    </td>
+                    {/* Cột Người thực hiện */}
+                    <td className="px-3 py-3 text-center border-r border-slate-200">
+                        {assigneeInfo.name ? (
+                             <div
+                                className="flex items-center justify-center gap-2 cursor-pointer"
+                                onMouseEnter={(e) => setAssigneeTooltip({ info: assigneeInfo, position: e.currentTarget.getBoundingClientRect() })}
+                                onMouseLeave={() => setAssigneeTooltip(null)}
+                            >
+                                {assigneeInfo.avatar ? (
+                                    <img src={assigneeInfo.avatar} alt={assigneeInfo.name} className="h-7 w-7 rounded-full object-cover" />
+                                ) : (
+                                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-[11px] font-semibold text-slate-700">
+                                        {assigneeInfo.name?.[0] || "?"}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <span className="text-slate-400 text-xs">Chưa giao</span>
+                        )}
+                    </td>
+                    {/* Cột Tiến độ */}
+                    <td className="px-3 py-3 text-center border-r border-slate-200">
+                         <div className="flex flex-col items-center">
+                            <div className="w-full bg-gray-200 rounded-full h-4 relative overflow-hidden">
+                                <div
+                                    className={`h-full rounded-full absolute left-0 ${kr.status === "completed" ? "bg-green-600" : "bg-blue-600"}`}
+                                    style={{ width: `${kr.progress_percent}%` }}
+                                ></div>
+                                {kr.progress_percent > 0 && (
+                                    <span className="absolute left-1 text-white text-xs font-semibold z-10">
+                                        {formatPercent(kr.progress_percent)}
                                     </span>
                                 )}
                             </div>
+                            <span className={`inline-flex items-center rounded-md px-0 py-0 text-[9px] font-semibold ${ kr.status === "completed" ? "text-emerald-700" : kr.status === "active" ? "text-blue-700" : "text-slate-700"} mt-1`}>
+                                {getStatusText(kr.status)}
+                            </span>
                         </div>
                     </td>
+                    {/* Cột Hành động */}
                     <td className="px-3 py-3 text-center">
                         <button
                             onClick={() => {
-                                if (
-                                    window.confirm(
-                                        `Hủy liên kết với "${kr.kr_title}"?`
-                                    )
-                                ) {
-                                    const keep = window.confirm(
-                                        "Giữ quyền sở hữu cho OKR cấp cao?"
-                                    );
+                                if (window.confirm(`Hủy liên kết với "${kr.kr_title}"?`)) {
+                                    const keep = window.confirm("Giữ quyền sở hữu cho OKR cấp cao?");
                                     onCancelLink?.(kr.link.link_id, "", keep);
                                 }
                             }}
                             className="p-1 text-rose-600 hover:bg-rose-50 rounded"
                             title="Hủy liên kết"
                         >
-                            <svg
-                                className="h-4 w-4"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M6 18L18 6M6 6l12 12"
-                                />
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         </button>
                     </td>

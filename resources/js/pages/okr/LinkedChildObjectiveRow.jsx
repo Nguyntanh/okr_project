@@ -21,54 +21,59 @@ export default function LinkedChildObjectiveRow({
     return (
         <>
             <tr className="bg-white">
-                <td
-                    colSpan={3} 
-                    className="px-12 py-3 border-r border-slate-200"
-                >
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            {hasKRs && (
-                                <button
-                                    onClick={() =>
-                                        setOpenObj((prev) => ({
-                                            ...prev,
-                                            [`linked_obj_${linkedObj.objective_id}_${parentKrId}`]:
-                                                !prev[
-                                                    `linked_obj_${linkedObj.objective_id}_${parentKrId}`
-                                                ],
-                                        }))
-                                    }
-                                    className="p-0.5 hover:bg-slate-100 rounded"
+                {/* Cột Tiêu đề */}
+                <td className="px-12 py-3 border-r border-slate-200">
+                    <div className="flex items-center gap-2">
+                        {hasKRs && (
+                            <button
+                                onClick={() =>
+                                    setOpenObj((prev) => ({
+                                        ...prev,
+                                        [`linked_obj_${linkedObj.objective_id}_${parentKrId}`]:
+                                            !prev[
+                                                `linked_obj_${linkedObj.objective_id}_${parentKrId}`
+                                            ],
+                                    }))
+                                }
+                                className="p-0.5 hover:bg-slate-100 rounded"
+                            >
+                                <svg
+                                    className={`h-4 w-4 text-slate-600 transition-transform ${
+                                        expanded ? "rotate-90" : ""
+                                    }`}
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
                                 >
-                                    <svg
-                                        className={`h-4 w-4 text-slate-600 transition-transform ${
-                                            expanded ? "rotate-90" : ""
-                                        }`}
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M9 5l7 7-7 7"
-                                        />
-                                    </svg>
-                                </button>
-                            )}
-                            <FaBullseye className="h-4 w-4 text-indigo-500" />
-                            <span className="font-medium text-slate-900">
-                                {linkedObj.obj_title}
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M9 5l7 7-7 7"
+                                    />
+                                </svg>
+                            </button>
+                        )}
+                        <FaBullseye className="h-4 w-4 text-indigo-500" />
+                        <span className="font-medium text-slate-900">
+                            {linkedObj.obj_title}
+                        </span>
+                        {hasKRs && (
+                            <span className="text-xs text-slate-500">
+                                ({linkedObj.key_results.length} KR)
                             </span>
-                            {hasKRs && (
-                                <span className="text-xs text-slate-500">
-                                    ({linkedObj.key_results.length} KR)
-                                </span>
-                            )}
-                        </div>
+                        )}
                     </div>
                 </td>
+                {/* Cột Người thực hiện (empty) */}
+                <td className="px-3 py-3 text-center border-r border-slate-200">
+                    {/* Giữ trống */}
+                </td>
+                {/* Cột Tiến độ (empty) */}
+                <td className="px-3 py-3 text-center border-r border-slate-200">
+                    {/* Giữ trống */}
+                </td>
+                {/* Cột Hành động */}
                 <td className="px-3 py-3 text-center">
                     <button
                         onClick={() => {
