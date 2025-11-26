@@ -30,6 +30,11 @@ export default function Dashboard() {
     const [showFilters, setShowFilters] = useState(false);
     const [checkInHistory, setCheckInHistory] = useState({ open: false, keyResult: null });
     const [activeTab, setActiveTab] = useState('my'); // 'my', 'department', 'company'
+    
+    // State cho quản trị OKR phòng ban
+    const [editingDepartmentObjective, setEditingDepartmentObjective] = useState(null);
+    const [editingDepartmentKR, setEditingDepartmentKR] = useState(null);
+    const [creatingDepartmentKR, setCreatingDepartmentKR] = useState(null);
     const [trendRange, setTrendRange] = useState("month"); // 'day' | 'week' | 'month' - dùng chung cho tất cả tab
     const trendOptions = [
         { value: "day", label: "Ngày" },
@@ -1123,6 +1128,86 @@ export default function Dashboard() {
     const isAdmin = Boolean(currentUser?.is_admin || roleName === "admin");
     const canSeeTeamInsights =
         isManager || isAdmin || (departmentOKRs?.length || 0) > 0;
+    
+    // Kiểm tra quyền quản trị OKR phòng ban
+    const canManageDepartmentOKR = useMemo(() => {
+        if (!currentUser) return false;
+        const roleName = currentUser?.role?.role_name?.toLowerCase() || '';
+        return roleName === 'admin' || roleName === 'manager';
+    }, [currentUser]);
+    
+    // Handler xóa Objective
+    const handleDeleteObjective = async (objective) => {
+        if (!confirm(`Bạn có chắc muốn xóa Objective "${objective.obj_title}"?`)) return;
+        
+        try {
+            const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
+            const res = await fetch(`/my-objectives/destroy/${objective.objective_id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': token,
+                },
+            });
+            
+            const json = await res.json();
+            if (json.success) {
+                setToast({ type: 'success', message: 'Đã xóa Objective thành công' });
+                const filters = getCurrentFilters();
+                load(filters.cycle, filters.myOKROnly);
+            } else {
+                setToast({ type: 'error', message: json.message || 'Xóa thất bại' });
+            }
+        } catch (err) {
+            setToast({ type: 'error', message: 'Lỗi khi xóa Objective' });
+        }
+    };
+    
+    // Handler xóa KeyResult
+    const handleDeleteKeyResult = async (kr, objective) => {
+        if (!confirm(`Bạn có chắc muốn xóa Key Result "${kr.kr_title}"?`)) return;
+        
+        try {
+            const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
+            const res = await fetch(`/my-objectives/destroy/${objective.objective_id}/${kr.kr_id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': token,
+                },
+            });
+            
+            const json = await res.json();
+            if (json.success) {
+                setToast({ type: 'success', message: 'Đã xóa Key Result thành công' });
+                const filters = getCurrentFilters();
+                load(filters.cycle, filters.myOKROnly);
+            } else {
+                setToast({ type: 'error', message: json.message || 'Xóa thất bại' });
+            }
+        } catch (err) {
+            setToast({ type: 'error', message: 'Lỗi khi xóa Key Result' });
+        }
+    };
+    
+    // Nhóm OKR theo phòng ban
+    const groupedDepartmentOKRs = useMemo(() => {
+        if (activeTab !== 'department') return [];
+        
+        const grouped = {};
+        departmentOKRs.forEach(okr => {
+            const deptId = okr.department_id || 'unknown';
+            if (!grouped[deptId]) {
+                grouped[deptId] = {
+                    department: departments.find(d => String(d.department_id) === String(deptId)),
+                    okrs: []
+                };
+            }
+            grouped[deptId].okrs.push(okr);
+        });
+        
+        return Object.values(grouped);
+    }, [departmentOKRs, departments, activeTab]);
 
     const personalMetrics = [
         {
@@ -1627,18 +1712,79 @@ export default function Dashboard() {
                             </p>
                         </div>
                     </div>
-                <OKRTable 
-                    items={sortedItems}
-                    departments={departments}
-                    cyclesList={cyclesList}
-                    loading={loading}
-                    onViewOKR={(item) => {
-                            console.log("View OKR:", item);
-                    }}
-                    onViewCheckInHistory={openCheckInHistory}
-                    currentUser={currentUser}
-                    viewMode={activeTab}
-                />
+                {/* Hiển thị OKR theo nhóm phòng ban nếu ở tab department */}
+                {activeTab === 'department' && groupedDepartmentOKRs.length > 0 ? (
+                    <div className="space-y-6">
+                        {groupedDepartmentOKRs.map((group) => (
+                            <div key={group.department?.department_id || 'unknown'} className="border border-gray-200 rounded-lg overflow-hidden">
+                                <div className="bg-gradient-to-r from-indigo-50 to-purple-50 px-6 py-4 border-b border-gray-200">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-gray-900">
+                                                {group.department?.d_name || group.department?.department_name || 'Không xác định'}
+                                            </h3>
+                                            <p className="text-sm text-gray-600 mt-1">
+                                                {group.okrs.length} Objective(s) • 
+                                                Tiến độ TB: {formatPercentValue(
+                                                    group.okrs.length > 0 
+                                                        ? group.okrs.reduce((sum, okr) => sum + calculateObjectiveProgress(okr), 0) / group.okrs.length
+                                                        : 0
+                                                )}
+                                            </p>
+                                        </div>
+                                        {canManageDepartmentOKR && (
+                                            <button
+                                                onClick={() => {
+                                                    setCreatingObjective(true);
+                                                }}
+                                                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+                                            >
+                                                + Tạo Objective
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                                <OKRTable 
+                                    items={group.okrs}
+                                    departments={departments}
+                                    cyclesList={cyclesList}
+                                    loading={loading}
+                                    onViewOKR={(item) => {
+                                        console.log("View OKR:", item);
+                                    }}
+                                    onViewCheckInHistory={openCheckInHistory}
+                                    currentUser={currentUser}
+                                    viewMode={activeTab}
+                                    canManage={canManageDepartmentOKR}
+                                    onEditObjective={(item) => setEditingDepartmentObjective(item)}
+                                    onDeleteObjective={handleDeleteObjective}
+                                    onEditKeyResult={(kr, objective) => setEditingDepartmentKR({ kr, objective })}
+                                    onDeleteKeyResult={handleDeleteKeyResult}
+                                    onAddKeyResult={(objective) => setCreatingDepartmentKR(objective)}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <OKRTable 
+                        items={sortedItems}
+                        departments={departments}
+                        cyclesList={cyclesList}
+                        loading={loading}
+                        onViewOKR={(item) => {
+                                console.log("View OKR:", item);
+                        }}
+                        onViewCheckInHistory={openCheckInHistory}
+                        currentUser={currentUser}
+                        viewMode={activeTab}
+                        canManage={activeTab === 'department' && canManageDepartmentOKR}
+                        onEditObjective={(item) => setEditingDepartmentObjective(item)}
+                        onDeleteObjective={handleDeleteObjective}
+                        onEditKeyResult={(kr, objective) => setEditingDepartmentKR({ kr, objective })}
+                        onDeleteKeyResult={handleDeleteKeyResult}
+                        onAddKeyResult={(objective) => setCreatingDepartmentKR(objective)}
+                    />
+                )}
                 </section>
 
                 {/* Pagination */}
@@ -1721,6 +1867,53 @@ export default function Dashboard() {
                     setItems={setItems}
                     setToast={setToast}
                     setLinks={setLinks}
+                    reloadData={() => {
+                        const filters = getCurrentFilters();
+                        load(filters.cycle, filters.myOKROnly);
+                    }}
+                />
+            )}
+            
+            {/* Modal quản trị OKR phòng ban */}
+            {editingDepartmentObjective && (
+                <ObjectiveModal
+                    editingObjective={editingDepartmentObjective}
+                    setEditingObjective={setEditingDepartmentObjective}
+                    departments={departments}
+                    cyclesList={cyclesList}
+                    setItems={setItems}
+                    setToast={setToast}
+                    setLinks={setLinks}
+                    reloadData={() => {
+                        const filters = getCurrentFilters();
+                        load(filters.cycle, filters.myOKROnly);
+                    }}
+                />
+            )}
+
+            {editingDepartmentKR && (
+                <KeyResultModal
+                    editingKR={editingDepartmentKR.kr}
+                    departments={departments}
+                    cyclesList={cyclesList}
+                    setEditingKR={() => setEditingDepartmentKR(null)}
+                    setItems={setItems}
+                    setToast={setToast}
+                    reloadData={() => {
+                        const filters = getCurrentFilters();
+                        load(filters.cycle, filters.myOKROnly);
+                    }}
+                />
+            )}
+
+            {creatingDepartmentKR && (
+                <KeyResultModal
+                    creatingFor={creatingDepartmentKR}
+                    departments={departments}
+                    cyclesList={cyclesList}
+                    setCreatingFor={() => setCreatingDepartmentKR(null)}
+                    setItems={setItems}
+                    setToast={setToast}
                     reloadData={() => {
                         const filters = getCurrentFilters();
                         load(filters.cycle, filters.myOKROnly);
