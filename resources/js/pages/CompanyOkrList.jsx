@@ -13,7 +13,7 @@ export default function CompanyOkrList() {
     const [dropdownOpen, setDropdownOpen] = useState(false);
 
     // ============================================================
-    // LOGIC CHỌN QUÝ: LUÔN ƯU TIÊN HIỆN TẠI/GẦN NHẤT – KHÔNG Fallback CỨ VÀ MỚI!
+    // CHỌN QUÝ MẶC ĐỊNH DỰA TRÊN NGÀY (HOÀN TOÀN KHÔNG DỰA VÀO TÊN!)
     // ============================================================
     useEffect(() => {
         (async () => {
@@ -35,97 +35,80 @@ export default function CompanyOkrList() {
                 const cycles = json.data;
                 setCyclesList(cycles);
 
-                const now = new Date();
-                const currentQuarter = Math.ceil((now.getMonth() + 1) / 3);
-                const currentYear = now.getFullYear();
+                const today = new Date();
+                today.setHours(0, 0, 0, 0); // chuẩn hóa
 
-                // 1. Tìm quý hiện tại chính xác (regex linh hoạt hơn)
-                let selected = cycles.find((c) => {
-                    // Thử nhiều regex để match: "Quý 4 năm 2025", "q4 2025", "Q4/2025", "Q4-2025", etc.
-                    const patterns = [
-                        /Quý\s*(\d+)\s*năm\s*(\d+)/i,
-                        /Q(\d+)\s*[\/\-]\s*(\d+)/i, // Q4/2025 hoặc Q4-2025
-                        /Q(\d+)\s+(\d+)/i, // Q4 2025
-                        /Quý\s*(\d+)\s*(\d+)/i, // Nếu thiếu "năm"
-                    ];
-                    for (const pattern of patterns) {
-                        const m = c.cycle_name.match(pattern);
-                        if (
-                            m &&
-                            +m[1] === currentQuarter &&
-                            +m[2] === currentYear
-                        ) {
-                            return true;
+                let selectedCycle = null;
+
+                // Ưu tiên 1: Dùng start_date / end_date (nếu có) - cách tốt nhất
+                for (const c of cycles) {
+                    const start = c.start_date ? new Date(c.start_date) : null;
+                    const end = c.end_date ? new Date(c.end_date) : null;
+
+                    if (start && end) {
+                        start.setHours(0, 0, 0, 0);
+                        end.setHours(23, 59, 59, 999);
+
+                        if (today >= start && today <= end) {
+                            selectedCycle = c;
+                            break;
                         }
-                    }
-                    return false;
-                });
-
-                // 2. Nếu không có → TÌM QUÝ GẦN NHẤT (KHÔNG Fallback cycles[0]!)
-                if (!selected) {
-                    selected = cycles.reduce((best, c) => {
-                        // Regex linh hoạt cho tất cả
-                        const patterns = [
-                            /Quý\s*(\d+)\s*năm\s*(\d+)/i,
-                            /Q(\d+)\s*[\/\-]\s*(\d+)/i, // Q4/2025 hoặc Q4-2025
-                            /Q(\d+)\s+(\d+)/i, // Q4 2025
-                            /Quý\s*(\d+)\s*(\d+)/i,
-                        ];
-                        let m = null;
-                        for (const pattern of patterns) {
-                            m = c.cycle_name.match(pattern);
-                            if (m) break;
-                        }
-                        if (!m) return best; // Bỏ qua nếu không match regex nào
-
-                        const q = +m[1];
-                        const y = +m[2];
-                        // Tính ngày đầu quý: tháng = (q-1)*3, ngày 1
-                        const cycleMonth = (q - 1) * 3; // 0-based
-                        const cycleDate = new Date(y, cycleMonth, 1);
-                        const diff = Math.abs(
-                            cycleDate.getTime() - now.getTime()
-                        );
-
-                        if (!best || diff < best.diff) {
-                            return { cycle: c, diff };
-                        }
-                        return best;
-                    }, null)?.cycle;
-
-                    // Nếu VẪN KHÔNG TÌM THẤY (tất cả không match regex) → chọn cycles[0] nhưng log lỗi
-                    if (!selected) {
-                        console.warn(
-                            "Không match regex nào cho cycles – fallback cycles[0]:",
-                            cycles[0]
-                        );
-                        selected = cycles[0];
-                        setToast({
-                            type: "warning",
-                            message:
-                                "Dữ liệu quý không chuẩn định dạng, đang dùng quý mặc định.",
-                        });
                     }
                 }
 
-                if (selected && selected.cycle_id) {
-                    setCycleFilter(selected.cycle_id);
-                } else {
+                // Ưu tiên 2: Nếu không có quý nào đang active → chọn quý gần nhất với hôm nay
+                if (!selectedCycle) {
+                    selectedCycle = cycles.reduce((best, c) => {
+                        const start = c.start_date
+                            ? new Date(c.start_date)
+                            : null;
+                        const end = c.end_date ? new Date(c.end_date) : null;
+
+                        let refDate = today;
+                        if (start && end) {
+                            // Dùng ngày giữa quý làm tham chiếu
+                            refDate = new Date(
+                                (start.getTime() + end.getTime()) / 2
+                            );
+                        } else if (start) {
+                            refDate = start;
+                        } else if (end) {
+                            refDate = end;
+                        } else {
+                            // Nếu không có ngày → dùng cycle_id lớn nhất (quý mới nhất)
+                            return !best || c.cycle_id > best.cycle_id
+                                ? c
+                                : best;
+                        }
+
+                        const diff = Math.abs(refDate - today);
+                        return !best || diff < best.diff
+                            ? { ...c, diff }
+                            : best;
+                    }, null);
+                }
+
+                // An toàn tuyệt đối
+                if (selectedCycle?.cycle_id) {
+                    setCycleFilter(selectedCycle.cycle_id);
+                } else if (cycles[0]?.cycle_id) {
+                    setCycleFilter(cycles[0].cycle_id);
                     setToast({
                         type: "warning",
                         message: "Không tìm thấy quý phù hợp. Vui lòng chọn quý thủ công.",
                     });
+                } else {
                     setLoading(false);
                 }
             } catch (err) {
-                console.error("Lỗi fetch cycles:", err);
+                console.error(err);
                 setToast({ type: "error", message: "Lỗi tải danh sách quý" });
                 setLoading(false);
             }
         })();
     }, []);
 
-    // Xóa cycle_id trên URL khi vào trang
+    // Xóa cycle_id trên URL
     useEffect(() => {
         const url = new URL(window.location);
         if (url.searchParams.has("cycle_id")) {
@@ -135,14 +118,13 @@ export default function CompanyOkrList() {
     }, []);
 
     // ============================================================
-    // LẤY DỮ LIỆU OKR CÔNG TY
+    // LẤY OKR CÔNG TY
     // ============================================================
     const fetchCompanyOkrs = useCallback(async () => {
         if (!cycleFilter) {
             setLoading(false);
             return;
         }
-
         setLoading(true);
         try {
             const params = new URLSearchParams({ cycle_id: cycleFilter });
@@ -150,18 +132,11 @@ export default function CompanyOkrList() {
                 headers: { Accept: "application/json" },
             });
             const json = await res.json();
-
             if (json.success) {
                 setItems(json.data || []);
-            } else {
-                throw new Error(json.message || "Lỗi tải dữ liệu");
             }
         } catch (err) {
-            console.error("Lỗi fetch OKRs:", err);
-            setToast({
-                type: "error",
-                message: err.message || "Không tải được OKR công ty",
-            });
+            setToast({ type: "error", message: "Không tải được OKR công ty" });
             setItems([]);
         } finally {
             setLoading(false);
@@ -173,11 +148,10 @@ export default function CompanyOkrList() {
     }, [fetchCompanyOkrs]);
 
     // ============================================================
-    // HELPER FUNCTIONS
+    // HELPER
     // ============================================================
     const formatPercent = (v) =>
         Number.isFinite(+v) ? `${(+v).toFixed(1)}%` : "0%";
-
     const getStatusText = (s) => {
         switch ((s || "").toLowerCase()) {
             case "draft":
@@ -190,7 +164,6 @@ export default function CompanyOkrList() {
                 return s || "";
         }
     };
-
     const getUnitText = (u) => {
         switch ((u || "").toLowerCase()) {
             case "number":
@@ -209,7 +182,7 @@ export default function CompanyOkrList() {
 
     const currentCycleName =
         cyclesList.find((c) => c.cycle_id === cycleFilter)?.cycle_name ||
-        "Đang tải quý...";
+        "Đang tải...";
 
     // ============================================================
     // RENDER
@@ -229,7 +202,6 @@ export default function CompanyOkrList() {
                 </div>
             </div>
 
-            {/* BẢNG OKR CÔNG TY */}
             <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
                 <table className="min-w-full divide-y divide-slate-200">
                     <thead className="bg-slate-50 text-left font-semibold text-slate-700">
@@ -283,7 +255,6 @@ export default function CompanyOkrList() {
                         ) : (
                             items.map((obj, index) => (
                                 <React.Fragment key={obj.objective_id}>
-                                    {/* Objective Row */}
                                     <tr
                                         className={`bg-gradient-to-r from-indigo-50 to-purple-50 border-t-2 border-indigo-200 ${
                                             index > 0 ? "mt-4" : ""
@@ -298,25 +269,19 @@ export default function CompanyOkrList() {
                                                     0 && (
                                                     <button
                                                         onClick={() =>
-                                                            setOpenObj(
-                                                                (prev) => ({
-                                                                    ...prev,
-                                                                    [obj.objective_id]:
-                                                                        !prev[
-                                                                            obj
-                                                                                .objective_id
-                                                                        ],
-                                                                })
-                                                            )
+                                                            setOpenObj((p) => ({
+                                                                ...p,
+                                                                [obj.objective_id]:
+                                                                    !p[
+                                                                        obj
+                                                                            .objective_id
+                                                                    ],
+                                                            }))
                                                         }
-                                                        className="p-2 rounded-lg hover:bg-slate-100 transition-all duration-200 group"
-                                                        title="Đóng/mở Key Results"
+                                                        className="p-2 rounded-lg hover:bg-slate-100 transition-all group"
                                                     >
                                                         <svg
-                                                            xmlns="http://www.w3.org/2000/svg"
-                                                            viewBox="0 0 20 20"
-                                                            fill="currentColor"
-                                                            className={`w-4 h-4 text-slate-500 group-hover:text-slate-700 transition-transform duration-200 ${
+                                                            className={`w-4 h-4 text-slate-500 group-hover:text-slate-700 transition-transform ${
                                                                 openObj[
                                                                     obj
                                                                         .objective_id
@@ -324,11 +289,12 @@ export default function CompanyOkrList() {
                                                                     ? "rotate-90"
                                                                     : ""
                                                             }`}
+                                                            fill="currentColor"
+                                                            viewBox="0 0 20 20"
                                                         >
                                                             <path
                                                                 fillRule="evenodd"
                                                                 d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                                                                clipRule="evenodd"
                                                             />
                                                         </svg>
                                                     </button>
@@ -344,17 +310,16 @@ export default function CompanyOkrList() {
                                                 </span>
                                             </div>
                                         </td>
-                                        <td className="px-3 py-3 text-center bg-gradient-to-r from-indigo-50 to-purple-50"></td>
+                                        <td className="px-3 py-3 text-center bg-gradient-to-r from-indigo-50 to-purple-50">
+                                            —
+                                        </td>
                                     </tr>
 
-                                    {/* Key Results */}
                                     {openObj[obj.objective_id] &&
                                         obj.key_results?.map((kr) => (
                                             <tr key={kr.kr_id}>
-                                                <td className="px-8 py-3 border-r border-slate-200">
-                                                    <span className="font-medium text-slate-900">
-                                                        {kr.kr_title}
-                                                    </span>
+                                                <td className="px-8 py-3 border-r border-slate-200 font-medium text-slate-900">
+                                                    {kr.kr_title}
                                                 </td>
                                                 <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     {kr.assignee?.fullName ||
@@ -392,7 +357,9 @@ export default function CompanyOkrList() {
                                                         kr.progress_percent
                                                     )}
                                                 </td>
-                                                <td className="px-3 py-3 text-center text-slate-400"></td>
+                                                <td className="px-3 py-3 text-center text-slate-400">
+                                                    —
+                                                </td>
                                             </tr>
                                         ))}
                                 </React.Fragment>

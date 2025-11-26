@@ -339,6 +339,11 @@ function DashboardTopbar({
 
 export default function DashboardLayout({ children, user }) {
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const roleName = (user?.role?.role_name || "").toLowerCase();
+    const isAdmin = user?.is_admin === true;
+    const isManager = roleName === "manager";
+    const canSeeTeamReport = isAdmin || isManager;
+    const canSeeCompanyReport = isAdmin;
 
     const toggleSidebar = () => {
         setSidebarOpen(!sidebarOpen);
@@ -417,6 +422,12 @@ export default function DashboardLayout({ children, user }) {
                                           currentPath.startsWith(p)
                                       )
                                     : currentPath.startsWith(paths);
+                            const isTeamReportActive =
+                                currentPath === "/reports";
+                            const isCompanyReportActive =
+                                currentPath.startsWith(
+                                    "/reports/company-overview"
+                                );
 
                             return (
                                 <>
@@ -581,8 +592,8 @@ export default function DashboardLayout({ children, user }) {
                                             isActive={isActive("/reports/manager")}
                                         />
                                     )}
-                                    {/* Báo cáo - chỉ Admin */}
-                                    {user?.is_admin && (
+                                    {/* Báo cáo công ty - chỉ Admin và CEO */}
+                                    {canSeeCompanyReport && (
                                         <SidebarItem
                                             collapsed={!sidebarOpen}
                                             href="/reports/company-overview"
@@ -597,12 +608,12 @@ export default function DashboardLayout({ children, user }) {
                                                     <path d="M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7-10h4v24h-4V-3z" />
                                                 </svg>
                                             }
-                                            isActive={isActive("/reports/company-overview")}
+                                            isActive={isCompanyReportActive}
                                         />
                                     )}
 
                                     {/* Quản trị - Admin only */}
-                                    {user?.is_admin && (
+                                    {isAdmin && (
                                         <div className="rounded-xl">
                                             {sidebarOpen ? (
                                                 <details
