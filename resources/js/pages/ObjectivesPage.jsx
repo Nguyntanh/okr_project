@@ -538,6 +538,7 @@ export default function ObjectivesPage() {
                     setCreatingFor={setCreatingFor}
                     setItems={setItems}
                     setToast={setToast}
+                    currentUser={currentUser}
                 />
             )}
             {creatingObjective && (

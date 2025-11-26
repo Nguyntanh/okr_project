@@ -10,6 +10,7 @@ export default function KeyResultModal({
     setCreatingFor,
     setItems,
     setToast,
+    currentUser,
 }) {
     const [form, setForm] = useState({
         kr_title: "",
@@ -40,9 +41,10 @@ export default function KeyResultModal({
                 status: "draft",
                 cycle_id: creatingFor.cycle_id || "",
                 department_id: creatingFor.department_id || "",
+                assigned_to: currentUser?.user_id || null, // Mặc định là người tạo
             });
         }
-    }, [creatingFor]);
+    }, [creatingFor, currentUser]);
 
     // Cập nhật form khi editingKR thay đổi
     useEffect(() => {
@@ -55,6 +57,7 @@ export default function KeyResultModal({
                 status: editingKR.status || "",
                 cycle_id: editingKR.cycle_id || "",
                 department_id: editingKR.department_id || "",
+                assigned_to: editingKR.assigned_to || null,
             });
         }
     }, [editingKR]);
@@ -72,6 +75,7 @@ export default function KeyResultModal({
             current_value: Number(form.current_value),
             cycle_id: form.cycle_id, // Luôn lấy từ Objective
             department_id: form.department_id || null,
+            assigned_to: form.assigned_to || null, // Thêm người được giao vào payload
         };
 
         try {

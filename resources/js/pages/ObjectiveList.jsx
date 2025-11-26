@@ -43,7 +43,6 @@ export default function ObjectiveList({
     setItems,
     onOpenLinkModal,
     onCancelLink,
-    handleAssignKR,
 }) {
     const [toast, setToast] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
@@ -61,6 +60,125 @@ export default function ObjectiveList({
     const [assigneeTooltip, setAssigneeTooltip] = useState(null);
     const [archiving, setArchiving] = useState(null);
     const [archivingKR, setArchivingKR] = useState(null);
+
+    const openAssignModal = (kr, objective) => {
+        setAssignModal({
+            show: true,
+            kr,
+            objective,
+            email: "",
+            loading: false,
+        });
+    };
+
+    const closeAssignModal = () => {
+        setAssignModal((prev) => ({ ...prev, show: false }));
+    };
+
+    const handleAssignKR = async () => {
+        const { kr, objective, email } = assignModal;
+
+        // 1. Validate email
+        if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) {
+            setToast({ type: "error", message: "Vui lòng nhập email hợp lệ." });
+            return;
+        }
+
+        // 2. Bật loading
+        setAssignModal((prev) => ({ ...prev, loading: true }));
+
+        try {
+            // 3. Lấy CSRF token
+            const token = document
+                .querySelector('meta[name="csrf-token"]')
+                ?.getAttribute("content");
+
+            if (!token) {
+                throw new Error("Không tìm thấy CSRF token");
+            }
+
+            // 4. Gửi request
+            const res = await fetch(
+                `/my-key-results/${objective.objective_id}/${kr.kr_id}/assign`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRF-TOKEN": token,
+                        Accept: "application/json",
+                    },
+                    body: JSON.stringify({ email }),
+                }
+            );
+
+            // 5. Parse JSON (có thể lỗi nếu server trả HTML)
+            let json;
+            try {
+                json = await res.json();
+            } catch (parseErr) {
+                throw new Error("Phản hồi từ server không hợp lệ");
+            }
+
+            // 6. Kiểm tra HTTP status + success
+            if (!res.ok) {
+                throw new Error(
+                    json.message || `Lỗi ${res.status}: Giao việc thất bại`
+                );
+            }
+
+            if (!json.success) {
+                throw new Error(json.message || "Giao việc thất bại");
+            }
+
+            // Cập nhật giao diện ngay lập tức
+            if (json.data?.assigned_to) {
+                const assignee = json.data.assigned_to;
+
+                setItems((prevItems) =>
+                    prevItems.map((obj) => ({
+                        ...obj,
+                        key_results: obj.key_results.map((kr) =>
+                            kr.kr_id === assignModal.kr.kr_id
+                                ? {
+                                      ...kr,
+                                      assigned_to: assignee.user_id,
+                                      assignee: assignee,
+                                  }
+                                : kr
+                        ),
+                    }))
+                );
+            }
+
+            setToast({
+                type: "success",
+                message: json.message || "Giao việc thành công!",
+            });
+            closeAssignModal();
+        } catch (err) {
+            // 10. Xử lý lỗi
+            console.error("Assign KR error:", err);
+            setToast({
+                type: "error",
+                message: err.message || "Đã có lỗi xảy ra",
+            });
+        } finally {
+            // 11. Tắt loading
+            setAssignModal((prev) => ({ ...prev, loading: false }));
+        }
+    };
+
+    const handleAssigneeHover = (event, info) => {
+        if (!info) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        setAssigneeTooltip({
+            info,
+            position: {
+                x: rect.left + rect.width / 2 + window.scrollX,
+                y: rect.top + window.scrollY,
+            },
+        });
+    };
 
     // === MODAL XÁC NHẬN CHUNG ===
     const [confirmModal, setConfirmModal] = useState({
@@ -627,11 +745,48 @@ export default function ObjectiveList({
                 }
                 loading={assignModal.loading}
                 onConfirm={handleAssignKR}
-                onClose={() =>
-                    setAssignModal((prev) => ({ ...prev, show: false }))
-                }
+                onClose={closeAssignModal}
             />
-            <AssigneeTooltip tooltip={assigneeTooltip} />
+            {assigneeTooltip && assigneeTooltip.info && (
+                <div
+                    className="pointer-events-none fixed z-[2000]"
+                    style={{
+                        left: assigneeTooltip.position.x,
+                        top: assigneeTooltip.position.y - 12,
+                    }}
+                >
+                    <div className="relative -translate-x-1/2 -translate-y-full rounded-2xl bg-white px-4 py-3 shadow-2xl ring-1 ring-slate-100">
+                        <div className="flex items-start gap-3">
+                            {assigneeTooltip.info.avatar ? (
+                                <img
+                                    src={assigneeTooltip.info.avatar}
+                                    alt={assigneeTooltip.info.name}
+                                    className="h-12 w-12 rounded-full object-cover ring-2 ring-slate-100"
+                                />
+                            ) : (
+                                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 text-base font-semibold text-indigo-700">
+                                    {assigneeTooltip.info.name?.trim()?.charAt(0)?.toUpperCase() ||
+                                        "?"}
+                                </div>
+                            )}
+                            <div className="min-w-[180px] max-w-[240px]">
+                                <p className="text-base font-semibold text-slate-900">
+                                    {assigneeTooltip.info.name || "Không rõ tên"}
+                                </p>
+                                <p className="text-sm text-slate-500">
+                                    {assigneeTooltip.info.department || "Phòng ban: Chưa xác định"}
+                                </p>
+                                {assigneeTooltip.info.email && (
+                                    <p className="mt-1 text-xs text-slate-400">
+                                        {assigneeTooltip.info.email}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                        <div className="absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-white shadow-[1px_1px_2px_rgba(15,23,42,.15)]"></div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
