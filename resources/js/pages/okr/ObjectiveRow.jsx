@@ -71,7 +71,7 @@ export default function ObjectiveRow({
                                 )}
                             </div>
                             <FaBullseye className="h-5 w-5 text-indigo-600 flex-shrink-0" title="Objective"/>
-                            <span className="font-semibold text-slate-900 truncate">
+                            <span className="font-normal text-slate-900 truncate text-sm">
                                 {obj.obj_title}
                             </span>
                         </div>

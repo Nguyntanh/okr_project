@@ -55,7 +55,7 @@ export default function LinkedChildObjectiveRow({
                             </button>
                         )}
                         <FaBullseye className="h-4 w-4 text-indigo-500" />
-                        <span className="font-medium text-slate-900">
+                        <span className="font-normal text-slate-900 text-sm">
                             {linkedObj.obj_title}
                         </span>
                         {hasKRs && (
@@ -122,7 +122,7 @@ export default function LinkedChildObjectiveRow({
                                         className="h-4 w-4 text-amber-600 flex-shrink-0"
                                         title="Key Result"
                                     />
-                                    <span className="font-medium text-slate-700 text-sm">
+                                    <span className="font-normal text-slate-900 text-sm">
                                         {kr.kr_title}
                                     </span>
                                 </div>

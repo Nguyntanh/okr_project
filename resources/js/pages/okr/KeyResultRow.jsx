@@ -74,7 +74,7 @@ export default function KeyResultRow({
                             </div>
                             <FaBullseye className="h-4 w-4 text-indigo-500 flex-shrink-0" />
                             <div className="truncate">
-                                <span className="font-medium text-slate-900">
+                                <span className="font-normal text-slate-900 text-sm">
                                     {kr.kr_title}
                                 </span>
                             </div>
@@ -261,7 +261,7 @@ export default function KeyResultRow({
                             title="Key Result"
                         />
 
-                        <span className="font-medium text-slate-900">
+                        <span className="font-normal text-slate-900 text-sm">
                             {kr.kr_title}
                         </span>
                     </div>
