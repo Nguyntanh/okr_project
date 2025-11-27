@@ -58,7 +58,7 @@ export default function LinkedChildObjectiveRow({
                             className="h-3 w-3 text-indigo-500 flex-shrink-0"
                             title="Objective được liên kết"
                         />
-                        <span className="font-normal text-slate-900 text-sm">
+                        <span className="font-semibold text-slate-900 text-lg">
                             {linkedObj.obj_title}
                         </span>
                         {hasKRs && (
@@ -125,7 +125,7 @@ export default function LinkedChildObjectiveRow({
                                         className="h-4 w-4 text-amber-600 flex-shrink-0"
                                         title="Key Result"
                                     />
-                                    <span className="font-normal text-slate-900 text-sm">
+                                    <span className="font-semibold text-slate-900 text-base">
                                         {kr.kr_title}
                                     </span>
                                 </div>
