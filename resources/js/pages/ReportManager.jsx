@@ -36,6 +36,16 @@ export default function ReportManager() {
     const [checkInHistory, setCheckInHistory] = useState({ open: false, objectiveId: null, krId: null });
     const [error, setError] = useState('');
     const [exporting, setExporting] = useState(false);
+    
+    // Snapshot states
+    const [reportsList, setReportsList] = useState([]);
+    const [selectedReportId, setSelectedReportId] = useState(null);
+    const [isSnapshot, setIsSnapshot] = useState(false);
+    const [snapshotMetadata, setSnapshotMetadata] = useState(null);
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [creatingSnapshot, setCreatingSnapshot] = useState(false);
+    const [reportName, setReportName] = useState("");
+    const [reportNotes, setReportNotes] = useState("");
 
     // Load cycles
     useEffect(() => {
@@ -90,30 +100,67 @@ export default function ReportManager() {
     }, [filters.cycle_id, cycles]);
 
     // Load OKR data
-    const loadOkrs = async () => {
+    const loadOkrs = async (reportId = null) => {
         setLoading(true);
         setError('');
         try {
-            const params = new URLSearchParams();
-            // Không bắt buộc cycle_id - nếu không có thì lấy tất cả OKR
-            if (filters.cycle_id) {
-                params.set('cycle_id', filters.cycle_id);
-            }
-            if (filters.member_id) params.set('member_id', filters.member_id);
-            if (filters.status) params.set('status', filters.status);
-            if (filters.objective_id) params.set('objective_id', filters.objective_id);
+            let json;
+            
+            if (reportId) {
+                // Load từ snapshot
+                const snapshotRes = await fetch(`/api/reports/snapshots/${reportId}`, {
+                    headers: { Accept: 'application/json' },
+                    credentials: 'include',
+                });
+                const snapshotData = await snapshotRes.json();
+                
+                if (snapshotData.success) {
+                    json = snapshotData.data.snapshot_data;
+                    setIsSnapshot(true);
+                    setSnapshotMetadata({
+                        report_name: snapshotData.data.report_name,
+                        created_at: snapshotData.data.created_at_formatted,
+                        creator: snapshotData.data.creator,
+                        notes: snapshotData.data.notes,
+                        cycle_id: snapshotData.data.cycle?.cycle_id,
+                        cycle_name: snapshotData.data.cycle?.cycle_name,
+                    });
+                    
+                    // Tự động cập nhật cycle selector về cycle của snapshot
+                    if (snapshotData.data.cycle?.cycle_id && String(snapshotData.data.cycle.cycle_id) !== String(filters.cycle_id)) {
+                        setFilters(f => ({ ...f, cycle_id: String(snapshotData.data.cycle.cycle_id) }));
+                        setCurrentCycleMeta({
+                            id: snapshotData.data.cycle.cycle_id,
+                            name: snapshotData.data.cycle.cycle_name,
+                        });
+                    }
+                } else {
+                    throw new Error(snapshotData.message || "Không thể tải snapshot");
+                }
+            } else {
+                // Load real-time
+                const params = new URLSearchParams();
+                if (filters.cycle_id) {
+                    params.set('cycle_id', filters.cycle_id);
+                }
+                if (filters.member_id) params.set('member_id', filters.member_id);
+                if (filters.status) params.set('status', filters.status);
+                if (filters.objective_id) params.set('objective_id', filters.objective_id);
 
-            const res = await fetch(`/api/reports/manager/team-okrs?${params.toString()}`, {
-                headers: { Accept: 'application/json' },
-                credentials: 'include',
-            });
-            
-            if (!res.ok) {
-                const errorData = await res.json().catch(() => ({ message: 'Lỗi không xác định' }));
-                throw new Error(errorData.message || `Lỗi ${res.status}: ${res.statusText}`);
+                const res = await fetch(`/api/reports/manager/team-okrs?${params.toString()}`, {
+                    headers: { Accept: 'application/json' },
+                    credentials: 'include',
+                });
+                
+                if (!res.ok) {
+                    const errorData = await res.json().catch(() => ({ message: 'Lỗi không xác định' }));
+                    throw new Error(errorData.message || `Lỗi ${res.status}: ${res.statusText}`);
+                }
+                
+                json = await res.json();
+                setIsSnapshot(false);
+                setSnapshotMetadata(null);
             }
-            
-            const json = await res.json();
 
             if (!json.success) {
                 throw new Error(json.message || 'Không thể tải dữ liệu OKR');
@@ -134,16 +181,6 @@ export default function ReportManager() {
                 completion_rate: 0,
             });
             setDepartment(json.data?.department || null);
-            
-            // Debug log
-            console.log('ReportManager data loaded:', {
-                okrsCount: json.data?.okrs?.length || 0,
-                personalOkrsCount: json.data?.personal_okrs?.length || 0,
-                teamOkrsCount: json.data?.team_okrs?.length || 0,
-                teamMembersCount: json.data?.team_members?.length || 0,
-                summary: json.data?.summary,
-                department: json.data?.department,
-            });
         } catch (e) {
             const errorMsg = e.message || 'Có lỗi xảy ra khi tải dữ liệu';
             setError(errorMsg);
@@ -153,9 +190,96 @@ export default function ReportManager() {
         }
     };
 
+    // Load danh sách báo cáo đã tạo (timeline)
+    const loadReportsList = async () => {
+        try {
+            const res = await fetch(`/api/reports/snapshots/list?report_type=manager&cycle_id=${filters.cycle_id || ''}`, {
+                headers: { Accept: "application/json" },
+                credentials: "include",
+            });
+            const data = await res.json();
+            if (data.success) {
+                setReportsList(data.data || []);
+            }
+        } catch (e) {
+            console.error("Error loading reports list:", e);
+        }
+    };
+
+    // Tạo snapshot báo cáo
+    const createSnapshot = async () => {
+        if (!filters.cycle_id) {
+            setError("Vui lòng chọn chu kỳ trước khi tạo báo cáo");
+            return;
+        }
+        
+        setCreatingSnapshot(true);
+        try {
+            const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
+            const res = await fetch("/api/reports/snapshots/create", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "X-CSRF-TOKEN": token,
+                },
+                credentials: "include",
+                body: JSON.stringify({
+                    report_type: "manager",
+                    cycle_id: parseInt(filters.cycle_id),
+                    department_id: department?.department_id,
+                    report_name: reportName || `Báo cáo phòng ban - ${new Date().toLocaleString('vi-VN')}`,
+                    notes: reportNotes,
+                    member_id: filters.member_id || null,
+                    status: filters.status || null,
+                    objective_id: filters.objective_id || null,
+                }),
+            });
+            
+            const data = await res.json();
+            if (data.success) {
+                // Hiển thị thông báo thành công
+                alert("✅ Đã tạo snapshot báo cáo thành công!");
+                setShowCreateModal(false);
+                setReportName("");
+                setReportNotes("");
+                setError(""); // Clear error
+                await loadReportsList();
+                if (data.data?.report_id) {
+                    setSelectedReportId(data.data.report_id);
+                    await loadOkrs(data.data.report_id);
+                }
+            } else {
+                const errorMsg = data.message || "Không thể tạo snapshot";
+                setError(errorMsg);
+                alert("❌ Lỗi: " + errorMsg);
+                console.error("Snapshot creation failed:", data);
+            }
+        } catch (e) {
+            console.error("Error creating snapshot:", e);
+            const errorMsg = "Lỗi khi tạo snapshot báo cáo: " + (e.message || "Lỗi không xác định");
+            setError(errorMsg);
+            alert("❌ " + errorMsg);
+        } finally {
+            setCreatingSnapshot(false);
+        }
+    };
+
     useEffect(() => {
-        // Load OKR ngay cả khi chưa có cycle_id (sẽ lấy tất cả OKR)
-        loadOkrs();
+        // Reset snapshot khi cycle thay đổi (người dùng chọn cycle khác)
+        if (filters.cycle_id) {
+            // Nếu đang xem snapshot của cycle khác, reset về real-time
+            if (selectedReportId && isSnapshot && snapshotMetadata) {
+                const snapshotCycleId = snapshotMetadata.cycle_id;
+                if (snapshotCycleId && String(snapshotCycleId) !== String(filters.cycle_id)) {
+                    setSelectedReportId(null);
+                    setIsSnapshot(false);
+                    setSnapshotMetadata(null);
+                }
+            }
+            loadOkrs();
+        }
+        loadReportsList();
     }, [filters.cycle_id, filters.member_id, filters.status, filters.objective_id]);
 
     // Báo cáo cuối kỳ - không auto-refresh
@@ -268,8 +392,30 @@ export default function ReportManager() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 px-6 py-8">
             <div className="mb-6 flex items-start justify-between">
-                <h1 className="text-2xl font-extrabold text-slate-900">Báo cáo phòng ban</h1>
+                <div>
+                    <h1 className="text-2xl font-extrabold text-slate-900">Báo cáo phòng ban</h1>
+                    {isSnapshot && snapshotMetadata && (
+                        <div className="mt-2 text-sm text-slate-600">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-2">
+                                📸 Snapshot
+                            </span>
+                            <span>Tạo bởi: <strong>{snapshotMetadata.creator.full_name}</strong> • {snapshotMetadata.created_at}</span>
+                            {snapshotMetadata.report_name && (
+                                <span className="ml-2">• {snapshotMetadata.report_name}</span>
+                            )}
+                        </div>
+                    )}
+                </div>
                 <div className="flex flex-col gap-2">
+                    <button
+                        onClick={() => setShowCreateModal(true)}
+                        className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        Tạo báo cáo
+                    </button>
                     <button
                         onClick={handleExport}
                         disabled={exporting || loading}
@@ -313,6 +459,58 @@ export default function ReportManager() {
                     </div>
                 </div>
             </div>
+
+            {/* Timeline các báo cáo đã tạo */}
+            {reportsList.length > 0 && (
+                <div className="mb-6 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <h3 className="text-sm font-semibold text-slate-700 mb-3">Timeline báo cáo đã tạo:</h3>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                        <button
+                            onClick={() => {
+                                setSelectedReportId(null);
+                                loadOkrs();
+                            }}
+                            className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                                !selectedReportId
+                                    ? 'bg-indigo-50 border border-indigo-200 text-indigo-700'
+                                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700'
+                            }`}
+                        >
+                            <div className="flex items-center justify-between">
+                                <span className="font-medium">📊 Xem dữ liệu hiện tại (real-time)</span>
+                                <span className="text-xs text-slate-500">Live</span>
+                            </div>
+                        </button>
+                        {reportsList.map((report) => (
+                            <button
+                                key={report.report_id}
+                                onClick={() => {
+                                    setSelectedReportId(report.report_id);
+                                    loadOkrs(report.report_id);
+                                }}
+                                className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                                    selectedReportId === report.report_id
+                                        ? 'bg-indigo-50 border border-indigo-200 text-indigo-700'
+                                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700'
+                                }`}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <div className="font-medium">{report.report_name || 'Báo cáo không tên'}</div>
+                                        <div className="text-xs text-slate-500 mt-0.5">
+                                            {report.creator.full_name} • {report.created_at_formatted}
+                                            {report.cycle && (
+                                                <span className="ml-1">• {report.cycle.cycle_name}</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <span className="text-xs text-slate-400">📸</span>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {currentCycleMeta && (
                 <div className="mb-6 flex items-center gap-4 text-sm">
@@ -692,6 +890,64 @@ export default function ReportManager() {
                     isManagerView={true}
                     keyResult={[...teamOkrs, ...personalOkrs].find(o => o.objective_id === checkInHistory.objectiveId)?.key_results?.find(kr => kr.kr_id === checkInHistory.krId)}
                 />
+            )}
+
+            {/* Modal tạo báo cáo */}
+            {showCreateModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                        <h2 className="text-xl font-bold text-slate-900 mb-4">Tạo snapshot báo cáo</h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">
+                                    Tên báo cáo (tùy chọn)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={reportName}
+                                    onChange={(e) => setReportName(e.target.value)}
+                                    placeholder="Báo cáo phòng ban - Q1 2024"
+                                    className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">
+                                    Ghi chú (tùy chọn)
+                                </label>
+                                <textarea
+                                    value={reportNotes}
+                                    onChange={(e) => setReportNotes(e.target.value)}
+                                    placeholder="Thêm ghi chú cho báo cáo này..."
+                                    rows={3}
+                                    className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+                            <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800">
+                                <strong>Lưu ý:</strong> Báo cáo sẽ lưu snapshot dữ liệu tại thời điểm hiện tại. 
+                                Dữ liệu sau này có thể thay đổi nhưng snapshot này sẽ giữ nguyên.
+                            </div>
+                        </div>
+                        <div className="mt-6 flex gap-3 justify-end">
+                            <button
+                                onClick={() => {
+                                    setShowCreateModal(false);
+                                    setReportName("");
+                                    setReportNotes("");
+                                }}
+                                className="px-4 py-2 border border-slate-300 rounded-md text-slate-700 hover:bg-slate-50 transition-colors"
+                            >
+                                Hủy
+                            </button>
+                            <button
+                                onClick={createSnapshot}
+                                disabled={creatingSnapshot}
+                                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {creatingSnapshot ? "Đang tạo..." : "Tạo báo cáo"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

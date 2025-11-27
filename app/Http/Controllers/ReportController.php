@@ -8,6 +8,7 @@ use App\Models\Cycle;
 use App\Models\CheckIn;
 use App\Models\KeyResult;
 use App\Models\User;
+use App\Models\Report;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -826,6 +827,340 @@ class ReportController extends Controller
         return response()->json([
             'success' => true,
             'data' => $result,
+        ]);
+    }
+
+    /**
+     * Tạo snapshot báo cáo từ dữ liệu hiện tại
+     */
+    public function createSnapshot(Request $request)
+    {
+        $user = $request->user();
+        
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Người dùng chưa đăng nhập.',
+            ], 401);
+        }
+
+        $reportType = $request->input('report_type'); // 'team', 'manager', 'company'
+        $cycleId = $request->input('cycle_id') ? (int)$request->input('cycle_id') : null;
+        $departmentId = $request->input('department_id') ? (int)$request->input('department_id') : null;
+        $reportName = $request->input('report_name') ?? '';
+        $notes = $request->input('notes') ?? '';
+
+        // Validate report type
+        if (!in_array($reportType, ['team', 'manager', 'company'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Loại báo cáo không hợp lệ.',
+            ], 422);
+        }
+
+        // Validate cycle_id
+        if (!$cycleId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vui lòng chọn chu kỳ.',
+            ], 422);
+        }
+
+        // Lấy dữ liệu báo cáo hiện tại dựa trên loại
+        $snapshotData = null;
+        
+        try {
+            if ($reportType === 'team') {
+                // Báo cáo nhóm
+                $tempRequest = new Request(['cycle_id' => $cycleId]);
+                $tempRequest->setUserResolver(fn() => $user);
+                $response = $this->getMyTeamReport($tempRequest);
+                $snapshotData = $response->getData(true);
+            } elseif ($reportType === 'manager') {
+                // Báo cáo phòng ban (Manager)
+                $tempRequest = new Request([
+                    'cycle_id' => $cycleId,
+                    'member_id' => $request->input('member_id'),
+                    'status' => $request->input('status'),
+                    'objective_id' => $request->input('objective_id'),
+                ]);
+                $tempRequest->setUserResolver(fn() => $user);
+                // Gọi API manager report
+                $snapshotData = $this->getManagerReportData($tempRequest);
+            } elseif ($reportType === 'company') {
+                // Báo cáo công ty
+                $tempRequest = new Request([
+                    'cycle_id' => $cycleId,
+                    'department_id' => $departmentId,
+                    'status' => $request->input('status'),
+                    'owner_id' => $request->input('owner_id'),
+                ]);
+                $tempRequest->setUserResolver(fn() => $user);
+                $response = $this->companyOkrReport($tempRequest);
+                $snapshotData = $response->getData(true);
+            }
+
+            if (!$snapshotData || !isset($snapshotData['success']) || !$snapshotData['success']) {
+                \Log::error('Invalid snapshot data', [
+                    'report_type' => $reportType,
+                    'snapshot_data' => $snapshotData,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Không thể tạo snapshot. Dữ liệu báo cáo không hợp lệ: ' . ($snapshotData['message'] ?? 'Unknown error'),
+                ], 422);
+            }
+
+            // Tạo báo cáo snapshot
+            try {
+                $report = Report::create([
+                    'report_type' => $reportType,
+                    'report_name' => $reportName ?: $this->generateDefaultReportName($reportType, $cycleId),
+                    'snapshot_data' => $snapshotData,
+                    'user_id' => $user->user_id,
+                    'cycle_id' => $cycleId,
+                    'department_id' => $departmentId ?: null,
+                    'notes' => $notes ?: null,
+                ]);
+            } catch (\Illuminate\Database\QueryException $e) {
+                \Log::error('Database error creating report: ' . $e->getMessage(), [
+                    'sql' => $e->getSql(),
+                    'bindings' => $e->getBindings(),
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Lỗi database khi tạo báo cáo. Có thể bảng chưa được tạo. Vui lòng chạy migration.',
+                ], 500);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã tạo snapshot báo cáo thành công.',
+                'data' => [
+                    'report_id' => $report->report_id,
+                    'report_name' => $report->report_name,
+                    'report_type' => $report->report_type,
+                    'created_at' => $report->created_at->toISOString(),
+                    'creator' => [
+                        'user_id' => $user->user_id,
+                        'full_name' => $user->full_name,
+                        'email' => $user->email,
+                    ],
+                ],
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error creating snapshot: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'report_type' => $reportType,
+                'cycle_id' => $cycleId,
+                'user_id' => $user->user_id ?? null,
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi tạo snapshot: ' . $e->getMessage(),
+                'debug' => config('app.debug') ? $e->getTraceAsString() : null,
+            ], 500);
+        }
+    }
+
+    /**
+     * Lấy dữ liệu báo cáo Manager (helper method)
+     */
+    protected function getManagerReportData(Request $request)
+    {
+        try {
+            // Gọi ReportManagerController để lấy dữ liệu
+            $managerController = new \App\Http\Controllers\ReportManagerController();
+            
+            // Đảm bảo request có user resolver - luôn set lại để đảm bảo
+            $user = auth()->user();
+            $request->setUserResolver(fn() => $user);
+            
+            $response = $managerController->getTeamOkrs($request);
+            $data = $response->getData(true);
+            
+            // Trả về structure tương thích
+            return $data;
+        } catch (\Exception $e) {
+            \Log::error('Error getting manager report data: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            return [
+                'success' => false,
+                'message' => 'Lỗi khi lấy dữ liệu báo cáo: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Tạo tên báo cáo mặc định
+     */
+    protected function generateDefaultReportName(string $type, ?int $cycleId): string
+    {
+        $typeNames = [
+            'team' => 'Báo cáo nhóm',
+            'manager' => 'Báo cáo phòng ban',
+            'company' => 'Báo cáo công ty',
+        ];
+        
+        $baseName = $typeNames[$type] ?? 'Báo cáo';
+        
+        if ($cycleId) {
+            $cycle = Cycle::find($cycleId);
+            if ($cycle) {
+                return $baseName . ' - ' . $cycle->cycle_name;
+            }
+        }
+        
+        return $baseName . ' - ' . now()->format('d/m/Y H:i');
+    }
+
+    /**
+     * Lấy danh sách báo cáo đã tạo (timeline)
+     */
+    public function getReportsList(Request $request)
+    {
+        $user = $request->user();
+        $reportType = $request->input('report_type');
+        $cycleId = $request->input('cycle_id') ? (int)$request->input('cycle_id') : null;
+        $limit = $request->input('limit') ? (int)$request->input('limit') : 50;
+
+        $query = Report::query()
+            ->with(['creator', 'cycle', 'department'])
+            ->orderByDesc('created_at');
+
+        // Lọc theo loại báo cáo
+        if ($reportType && in_array($reportType, ['team', 'manager', 'company'], true)) {
+            $query->where('report_type', $reportType);
+        }
+
+        // Lọc theo chu kỳ
+        if ($cycleId) {
+            $query->where('cycle_id', $cycleId);
+        }
+
+        // Nếu không phải admin/CEO, chỉ xem báo cáo của mình hoặc phòng ban mình
+        if (!$user->is_admin && strtolower($user->role->role_name ?? '') !== 'ceo') {
+            $query->where(function ($q) use ($user) {
+                $q->where('user_id', $user->user_id)
+                  ->orWhere('department_id', $user->department_id);
+            });
+        }
+
+        $reports = $query->limit($limit)->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $reports->map(function ($report) {
+                return [
+                    'report_id' => $report->report_id,
+                    'report_type' => $report->report_type,
+                    'report_name' => $report->report_name,
+                    'created_at' => $report->created_at->toISOString(),
+                    'created_at_formatted' => $report->created_at->format('d/m/Y H:i'),
+                    'creator' => [
+                        'user_id' => $report->creator->user_id ?? null,
+                        'full_name' => $report->creator->full_name ?? 'N/A',
+                        'email' => $report->creator->email ?? null,
+                    ],
+                    'cycle' => $report->cycle ? [
+                        'cycle_id' => $report->cycle->cycle_id,
+                        'cycle_name' => $report->cycle->cycle_name,
+                        'start_date' => $report->cycle->start_date,
+                        'end_date' => $report->cycle->end_date,
+                    ] : null,
+                    'department' => $report->department ? [
+                        'department_id' => $report->department->department_id,
+                        'department_name' => $report->department->d_name,
+                    ] : null,
+                    'notes' => $report->notes,
+                ];
+            }),
+        ]);
+    }
+
+    /**
+     * Xem chi tiết một báo cáo snapshot
+     */
+    public function getReportSnapshot(Request $request, int $reportId)
+    {
+        $user = $request->user();
+        
+        $report = Report::with(['creator', 'cycle', 'department'])->find($reportId);
+        
+        if (!$report) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy báo cáo.',
+            ], 404);
+        }
+
+        // Kiểm tra quyền xem
+        if (!$user->is_admin && strtolower($user->role->role_name ?? '') !== 'ceo') {
+            if ($report->user_id !== $user->user_id && $report->department_id !== $user->department_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Bạn không có quyền xem báo cáo này.',
+                ], 403);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'report_id' => $report->report_id,
+                'report_type' => $report->report_type,
+                'report_name' => $report->report_name,
+                'snapshot_data' => $report->snapshot_data,
+                'created_at' => $report->created_at->toISOString(),
+                'created_at_formatted' => $report->created_at->format('d/m/Y H:i'),
+                'creator' => [
+                    'user_id' => $report->creator->user_id ?? null,
+                    'full_name' => $report->creator->full_name ?? 'N/A',
+                    'email' => $report->creator->email ?? null,
+                ],
+                'cycle' => $report->cycle ? [
+                    'cycle_id' => $report->cycle->cycle_id,
+                    'cycle_name' => $report->cycle->cycle_name,
+                ] : null,
+                'department' => $report->department ? [
+                    'department_id' => $report->department->department_id,
+                    'department_name' => $report->department->d_name,
+                ] : null,
+                'notes' => $report->notes,
+            ],
+        ]);
+    }
+
+    /**
+     * Xóa một báo cáo snapshot
+     */
+    public function deleteReport(Request $request, int $reportId)
+    {
+        $user = $request->user();
+        
+        $report = Report::find($reportId);
+        
+        if (!$report) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy báo cáo.',
+            ], 404);
+        }
+
+        // Chỉ người tạo, admin hoặc CEO mới được xóa
+        if ($report->user_id !== $user->user_id && !$user->is_admin && strtolower($user->role->role_name ?? '') !== 'ceo') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bạn không có quyền xóa báo cáo này.',
+            ], 403);
+        }
+
+        $report->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đã xóa báo cáo thành công.',
         ]);
     }
 }
