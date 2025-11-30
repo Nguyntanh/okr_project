@@ -96,6 +96,31 @@ class Objective extends Model
     }
 
     /**
+     * Get child OKRs linked to this objective (OKRs that link to this as target)
+     * Trong tree view, đây là các OKR con được liên kết lên OKR này
+     */
+    public function childObjectives()
+    {
+        return $this->hasMany(OkrLink::class, 'target_objective_id', 'objective_id')
+            ->where('is_active', true)
+            ->where('status', OkrLink::STATUS_APPROVED)
+            ->where('source_type', 'objective')
+            ->with('sourceObjective');
+    }
+
+    /**
+     * Get child KeyResults linked to this objective
+     */
+    public function childKeyResults()
+    {
+        return $this->hasMany(OkrLink::class, 'target_objective_id', 'objective_id')
+            ->where('is_active', true)
+            ->where('status', OkrLink::STATUS_APPROVED)
+            ->where('target_type', 'kr')
+            ->with('targetKr');
+    }
+
+    /**
      * Append key_results to array/JSON
      */
     protected $appends = [];
