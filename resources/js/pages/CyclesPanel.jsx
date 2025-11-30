@@ -179,7 +179,7 @@ function CycleFormModal({ open, onClose, onSubmit, initialData, title }) {
     );
 }
 
-function CyclesTable({ cycles, onRowClick, onEdit, onDelete, isAdmin, emptyMessage }) {
+function CyclesTable({ cycles, onRowClick, onEdit, onDelete, onCloseCycle, isAdmin, emptyMessage }) {
     if (!cycles || cycles.length === 0) {
         return (
             <div className="rounded-2xl border border-dashed border-slate-300 p-12 text-center">
@@ -261,16 +261,7 @@ function CyclesTable({ cycles, onRowClick, onEdit, onDelete, isAdmin, emptyMessa
                                             {/* Nút đóng chu kỳ: Chỉ hiện khi Active + Quá hạn */}
                                             {isActive && isEnded && (
                                                 <button 
-                                                    onClick={() => handleCloseCycle(cycle)} // Sử dụng prop function passed down or context logic
-                                                    // Lưu ý: Ở đây cần gọi onCloseCycle được truyền từ props vào component CyclesTable
-                                                    // Nhưng component CyclesTable đang nhận prop tên là onCloseCycle
-                                                    // Sửa lại logic gọi hàm bên dưới
-                                                />
-                                            )}
-                                            {/* Nút đóng chu kỳ thực tế */}
-                                            {isActive && isEnded && (
-                                                <button 
-                                                    onClick={() => onCloseCycle(cycle)}
+                                                    onClick={() => onCloseCycle(cycle)} 
                                                     className="rounded-md bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors"
                                                     title="Đóng chu kỳ này lại để lưu trữ"
                                                 >
@@ -638,6 +629,7 @@ export default function CyclesPanel() {
                                     cycles={currentCycles}
                                     onRowClick={(c) => goDetail(c.id || c.cycle_id)}
                                     onEdit={(c) => { setEditingCycle(c); setEditModalOpen(true); }}
+                                    onCloseCycle={handleCloseCycle}
                                     onDelete={handleDelete}
                                     isAdmin={isAdmin}
                                     emptyMessage="Không có chu kỳ nào đang hoạt động."
@@ -665,26 +657,35 @@ function CycleDetailView({ detail, krs, formatDate }) {
     const [openObj, setOpenObj] = useState({});
     const toggleObj = (id) => setOpenObj(prev => ({ ...prev, [id]: !prev[id] }));
 
+    // Safe check cho list objectives
+    const objectives = detail?.objectives || [];
+
     return (
-        <div className="space-y-8">
+        <div className="space-y-6">
             {/* Info Card */}
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-4 flex items-center justify-between">
-                    <h3 className="font-bold text-slate-900">Thông tin chung</h3>
-                    <Badge color="slate">{detail.cycle?.status}</Badge>
+                <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-4">
+                    <h3 className="font-semibold text-slate-900">Thông tin chung</h3>
                 </div>
-                <div className="grid gap-8 px-6 py-6 md:grid-cols-3">
+                <div className="grid gap-6 px-6 py-6 md:grid-cols-3">
                     <div>
-                        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Thời gian</div>
-                        <div className="text-sm font-medium text-slate-900 flex items-center gap-2">
-                            <FiCalendar className="text-slate-400" />
+                        <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Thời gian</div>
+                        <div className="mt-1 text-sm font-medium text-slate-900">
                             {formatDate(detail.cycle?.start_date)} — {formatDate(detail.cycle?.end_date)}
                         </div>
                     </div>
-                    <div className="md:col-span-2">
-                        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Mô tả</div>
-                        <div className="text-sm text-slate-700 leading-relaxed">
-                            {detail.cycle?.description || "Chưa có mô tả cho chu kỳ này."}
+                    <div>
+                        <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Trạng thái</div>
+                        <div className="mt-1">
+                             <Badge color={detail.cycle?.status === 'active' ? 'emerald' : detail.cycle?.status === 'draft' ? 'slate' : 'red'}>
+                                {detail.cycle?.status}
+                             </Badge>
+                        </div>
+                    </div>
+                    <div className="md:col-span-3">
+                        <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Mô tả</div>
+                        <div className="mt-1 text-sm text-slate-700">
+                            {detail.cycle?.description || "Chưa có mô tả"}
                         </div>
                     </div>
                 </div>
@@ -692,48 +693,36 @@ function CycleDetailView({ detail, krs, formatDate }) {
 
             {/* Objectives List */}
             <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                    <h3 className="text-xl font-bold text-slate-900">Objectives & Key Results</h3>
-                </div>
-                
-                {(detail.objectives || []).length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-slate-300 p-12 text-center text-slate-500">
-                        Chưa có mục tiêu nào được thiết lập trong chu kỳ này.
+                <h3 className="text-lg font-bold text-slate-900">Objectives & Key Results</h3>
+                {objectives.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-slate-500">
+                        Chưa có mục tiêu nào trong chu kỳ này.
                     </div>
                 ) : (
-                    (detail.objectives || []).map(obj => (
-                        <div key={obj.objective_id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all hover:border-slate-300">
+                    objectives.map(obj => (
+                        <div key={obj.objective_id} className="overflow-hidden rounded-xl border border-slate-200 bg-white transition-shadow hover:shadow-sm">
                             <div 
                                 onClick={() => toggleObj(obj.objective_id)}
-                                className="flex cursor-pointer items-center justify-between px-6 py-5 hover:bg-slate-50/50 transition-colors"
+                                className="flex cursor-pointer items-center justify-between px-6 py-4 hover:bg-slate-50"
                             >
                                 <div className="flex items-center gap-4">
-                                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600 font-bold text-sm border border-slate-200">
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600 font-bold text-sm">
                                         {(obj.obj_title || "O")[0]}
                                     </div>
                                     <div>
-                                        <div className="font-bold text-slate-900 text-base">{obj.obj_title}</div>
-                                        <div className="text-xs font-medium text-slate-500 mt-0.5">{obj.level}</div>
+                                        <div className="font-semibold text-slate-900">{obj.obj_title}</div>
+                                        <div className="text-xs text-slate-500">{obj.level}</div>
                                     </div>
                                 </div>
-                                <FiMoreVertical className="text-slate-400" />
                             </div>
                             
                             {openObj[obj.objective_id] !== false && (
-                                <div className="border-t border-slate-100 bg-slate-50/30 px-6 py-5">
+                                <div className="border-t border-slate-100 bg-slate-50/30 px-6 py-4">
                                     <div className="space-y-3 pl-14">
                                         {(krs[obj.objective_id] || []).map(kr => (
-                                            <div key={kr.kr_id || kr.id} className="group flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-slate-300 transition-all">
+                                            <div key={kr.kr_id || kr.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3">
                                                 <span className="text-sm font-medium text-slate-700">{kr.kr_title}</span>
-                                                <div className="flex items-center gap-3">
-                                                    <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
-                                                        kr.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 
-                                                        kr.status === 'active' ? 'bg-blue-50 text-blue-700 border border-blue-100' : 
-                                                        'bg-slate-50 text-slate-600 border border-slate-200'
-                                                    }`}>
-                                                        {kr.status || 'active'}
-                                                    </span>
-                                                </div>
+                                                <Badge color={kr.status === 'completed' ? 'blue' : 'slate'}>{kr.status || 'active'}</Badge>
                                             </div>
                                         ))}
                                         {(krs[obj.objective_id] || []).length === 0 && (
