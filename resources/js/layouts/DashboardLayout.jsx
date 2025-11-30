@@ -377,6 +377,21 @@ function DashboardSidebar({ open, user }) {
                         </svg>
                     }
                 />
+                <SidebarItem
+                    collapsed={collapsed}
+                    href="/okr-tree"
+                    label="Tree View OKR"
+                    icon={
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-6 w-6"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                        >
+                            <path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z" />
+                        </svg>
+                    }
+                />
                 {/* Phòng ban & Đội nhóm - chỉ hiển thị cho Admin */}
                 {isAdmin && (
                     <SidebarItem
@@ -650,9 +665,9 @@ export default function DashboardLayout({ children, user }) {
                                     {/* MỤC TIÊU - giữ nguyên */}
                                     <div className="rounded-xl">
                                         {sidebarOpen ? (
-                                            <details className="group [&_summary::-webkit-details-marker]:hidden" open={isActive(["/my-objectives", "/company-okrs"])}>
+                                            <details className="group [&_summary::-webkit-details-marker]:hidden" open={isActive(["/my-objectives", "/company-okrs", "/okr-tree"])}>
                                                 <summary className={`flex cursor-pointer items-center gap-4 rounded-xl px-4 py-3.5 text-[16px] font-semibold transition-all
-                                                    ${isActive(["/my-objectives", "/company-okrs"]) ? "bg-slate-100 text-blue-700" : "text-slate-700 hover:bg-slate-50"}`}>
+                                                    ${isActive(["/my-objectives", "/company-okrs", "/okr-tree"]) ? "bg-slate-100 text-blue-700" : "text-slate-700 hover:bg-slate-50"}`}>
                                                     <span className={`inline-flex h-6 w-6 items-center justify-center transition-colors
                                                         ${isActive(["/my-objectives", "/company-okrs"]) ? "text-blue-600" : "text-slate-500 group-hover:text-blue-600"}`}>
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
@@ -676,11 +691,15 @@ export default function DashboardLayout({ children, user }) {
                                                         ${isActive("/company-okrs") ? "bg-blue-50 text-blue-700 font-bold shadow-sm" : "text-slate-700 hover:bg-slate-50"}`}>
                                                         Mục tiêu công ty
                                                     </a>
+                                                    <a href="/okr-tree" className={`block rounded-lg px-3 py-2.5 text-[15px] font-medium transition-all
+                                                        ${isActive("/okr-tree") ? "bg-blue-50 text-blue-700 font-bold shadow-sm" : "text-slate-700 hover:bg-slate-50"}`}>
+                                                        Tree View OKR
+                                                    </a>
                                                 </div>
                                             </details>
                                         ) : (
                                             <a href="/my-objectives" className={`group flex items-center justify-center rounded-xl px-4 py-3.5 transition-all
-                                                ${isActive(["/my-objectives", "/company-okrs"]) ? "bg-slate-100 text-blue-700" : "text-slate-700 hover:bg-slate-50"}`} title="Mục tiêu">
+                                                ${isActive(["/my-objectives", "/company-okrs", "/okr-tree"]) ? "bg-slate-100 text-blue-700" : "text-slate-700 hover:bg-slate-50"}`} title="Mục tiêu">
                                                 <span className={`inline-flex h-6 w-6 items-center justify-center transition-colors
                                                     ${isActive(["/my-objectives", "/company-okrs"]) ? "text-blue-600" : "text-slate-500 group-hover:text-blue-600"}`}>
                                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
