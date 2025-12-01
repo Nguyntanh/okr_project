@@ -685,6 +685,7 @@ export default function CyclesPanel() {
 
 function CycleDetailView({ detail, krs, formatDate }) {
     const [openObj, setOpenObj] = useState({});
+    const [activeObjTab, setActiveObjTab] = useState('company'); // 'company', 'department', 'personal'
     const toggleObj = (id) => setOpenObj(prev => ({ ...prev, [id]: !prev[id] }));
 
     // Safe check cho list objectives
@@ -693,6 +694,101 @@ function CycleDetailView({ detail, krs, formatDate }) {
     // Tính toán thống kê đơn giản
     const totalObjectives = objectives.length;
     const totalKRs = objectives.reduce((acc, obj) => acc + (krs[obj.objective_id]?.length || 0), 0);
+
+    // Phân loại Objectives
+    const companyObjs = objectives.filter(o => !o.level || o.level === 'company');
+    const deptObjs = objectives.filter(o => o.level === 'department' || (o.department_id && !o.user_id));
+    const personalObjs = objectives.filter(o => o.level === 'personal' || o.user_id);
+
+    const renderObjectivesList = (list, emptyMsg) => {
+        if (list.length === 0) {
+            return (
+                <div className="rounded-xl border border-dashed border-slate-300 p-12 text-center bg-slate-50">
+                    <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm text-slate-400">
+                        <FiTarget size={24} />
+                    </div>
+                    <p className="text-slate-500 font-medium">{emptyMsg}</p>
+                </div>
+            );
+        }
+
+        return list.map(obj => {
+            const isOpen = openObj[obj.objective_id] !== false; // Default open
+            
+            return (
+                <div key={obj.objective_id} className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md hover:border-blue-200 mb-4">
+                    {/* Objective Header */}
+                    <div 
+                        onClick={() => toggleObj(obj.objective_id)}
+                        className="flex cursor-pointer items-center justify-between px-6 py-5 bg-white select-none"
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl font-bold text-lg transition-colors ${isOpen ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600 group-hover:bg-blue-100'}`}>
+                                {(obj.obj_title || "O")[0].toUpperCase()}
+                            </div>
+                            <div>
+                                <h4 className="text-base font-bold text-slate-900 group-hover:text-blue-700 transition-colors line-clamp-1">{obj.obj_title}</h4>
+                                <div className="mt-1 flex items-center gap-2 text-xs text-slate-500 flex-wrap">
+                                    <span className="rounded-md bg-slate-100 px-2 py-0.5 font-medium text-slate-600 border border-slate-200 uppercase tracking-wider text-[10px]">
+                                        {obj.level || 'Company'}
+                                    </span>
+                                    
+                                    {/* Hiển thị thông tin User/Department nếu có */}
+                                    {obj.user && (
+                                        <span className="flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-blue-700 border border-blue-100">
+                                            <span className="font-medium">{obj.user.full_name}</span>
+                                        </span>
+                                    )}
+                                    
+                                    {obj.department && (
+                                        <span className="flex items-center gap-1 rounded-md bg-purple-50 px-2 py-0.5 text-purple-700 border border-purple-100">
+                                            <span className="font-medium">{obj.department.d_name}</span>
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        <div className={`text-slate-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : 'rotate-0'}`}>
+                            <FiChevronDown size={20} />
+                        </div>
+                    </div>
+                    
+                    {/* KRs Section (Expandable) */}
+                    {isOpen && (
+                        <div className="border-t border-slate-100 bg-slate-50/50 px-6 py-4 animate-in slide-in-from-top-2 duration-200">
+                            <div className="space-y-3 pl-0 sm:pl-16">
+                                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                                    <span>Key Results</span>
+                                    <span>Trạng thái</span>
+                                </div>
+                                
+                                {(krs[obj.objective_id] || []).map(kr => (
+                                    <div key={kr.kr_id || kr.id} className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 transition-colors hover:border-blue-300 hover:shadow-sm">
+                                        <div className="mt-0.5 text-slate-400">
+                                            <FiCheckCircle size={16} className={kr.status === 'completed' ? 'text-emerald-500' : ''} />
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-sm font-medium text-slate-800 leading-snug">{kr.kr_title}</p>
+                                        </div>
+                                        <Badge color={kr.status === 'completed' ? 'emerald' : 'slate'}>
+                                            {kr.status || 'active'}
+                                        </Badge>
+                                    </div>
+                                ))}
+                                
+                                {(krs[obj.objective_id] || []).length === 0 && (
+                                    <div className="flex items-center gap-2 text-sm italic text-slate-400 px-2 py-2 border border-dashed border-slate-300 rounded-lg justify-center">
+                                        <FiTarget size={14} />
+                                        Chưa có Key Results nào được thiết lập.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        });
+    };
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
@@ -756,7 +852,7 @@ function CycleDetailView({ detail, krs, formatDate }) {
                 </div>
             )}
 
-            {/* Objectives & KRs List */}
+            {/* Objectives & KRs Section with Tabs */}
             <div className="space-y-4">
                 <div className="flex items-center justify-between">
                     <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
@@ -764,92 +860,49 @@ function CycleDetailView({ detail, krs, formatDate }) {
                         Objectives & Key Results
                     </h3>
                 </div>
-                
-                {objectives.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-300 p-12 text-center bg-slate-50">
-                        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm text-slate-400">
-                            <FiTarget size={24} />
-                        </div>
-                        <p className="text-slate-500 font-medium">Chưa có mục tiêu nào được thiết lập trong chu kỳ này.</p>
+
+                {/* Tabs Navigation */}
+                <div className="border-b border-slate-200">
+                    <div className="flex gap-6">
+                        <button
+                            onClick={() => setActiveObjTab('company')}
+                            className={`relative pb-3 text-sm font-medium transition-all ${
+                                activeObjTab === 'company' 
+                                ? 'text-blue-600 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-blue-600' 
+                                : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            Cấp Công Ty ({companyObjs.length})
+                        </button>
+                        <button
+                            onClick={() => setActiveObjTab('department')}
+                            className={`relative pb-3 text-sm font-medium transition-all ${
+                                activeObjTab === 'department' 
+                                ? 'text-blue-600 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-blue-600' 
+                                : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            Cấp Phòng Ban ({deptObjs.length})
+                        </button>
+                        <button
+                            onClick={() => setActiveObjTab('personal')}
+                            className={`relative pb-3 text-sm font-medium transition-all ${
+                                activeObjTab === 'personal' 
+                                ? 'text-blue-600 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-blue-600' 
+                                : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            Cấp Cá Nhân ({personalObjs.length})
+                        </button>
                     </div>
-                ) : (
-                    objectives.map(obj => {
-                        const isOpen = openObj[obj.objective_id] !== false; // Default open
-                        
-                        return (
-                            <div key={obj.objective_id} className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md hover:border-blue-200">
-                                {/* Objective Header */}
-                                <div 
-                                    onClick={() => toggleObj(obj.objective_id)}
-                                    className="flex cursor-pointer items-center justify-between px-6 py-5 bg-white select-none"
-                                >
-                                    <div className="flex items-center gap-4">
-                                        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl font-bold text-lg transition-colors ${isOpen ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600 group-hover:bg-blue-100'}`}>
-                                            {(obj.obj_title || "O")[0].toUpperCase()}
-                                        </div>
-                                        <div>
-                                            <h4 className="text-base font-bold text-slate-900 group-hover:text-blue-700 transition-colors line-clamp-1">{obj.obj_title}</h4>
-                                            <div className="mt-1 flex items-center gap-2 text-xs text-slate-500 flex-wrap">
-                                                <span className="rounded-md bg-slate-100 px-2 py-0.5 font-medium text-slate-600 border border-slate-200 uppercase tracking-wider text-[10px]">
-                                                    {obj.level || 'Company'}
-                                                </span>
-                                                
-                                                {/* Hiển thị thông tin User/Department nếu có */}
-                                                {obj.user && (
-                                                    <span className="flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-blue-700 border border-blue-100">
-                                                        <span className="font-medium">{obj.user.full_name}</span>
-                                                    </span>
-                                                )}
-                                                
-                                                {obj.department && (
-                                                    <span className="flex items-center gap-1 rounded-md bg-purple-50 px-2 py-0.5 text-purple-700 border border-purple-100">
-                                                        <span className="font-medium">{obj.department.d_name}</span>
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className={`text-slate-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : 'rotate-0'}`}>
-                                        <FiChevronDown size={20} />
-                                    </div>
-                                </div>
-                                
-                                {/* KRs Section (Expandable) */}
-                                {isOpen && (
-                                    <div className="border-t border-slate-100 bg-slate-50/50 px-6 py-4 animate-in slide-in-from-top-2 duration-200">
-                                        <div className="space-y-3 pl-0 sm:pl-16">
-                                            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                                                <span>Key Results</span>
-                                                <span>Trạng thái</span>
-                                            </div>
-                                            
-                                            {(krs[obj.objective_id] || []).map(kr => (
-                                                <div key={kr.kr_id || kr.id} className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 transition-colors hover:border-blue-300 hover:shadow-sm">
-                                                    <div className="mt-0.5 text-slate-400">
-                                                        <FiCheckCircle size={16} className={kr.status === 'completed' ? 'text-emerald-500' : ''} />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <p className="text-sm font-medium text-slate-800 leading-snug">{kr.kr_title}</p>
-                                                    </div>
-                                                    <Badge color={kr.status === 'completed' ? 'emerald' : 'slate'}>
-                                                        {kr.status || 'active'}
-                                                    </Badge>
-                                                </div>
-                                            ))}
-                                            
-                                            {(krs[obj.objective_id] || []).length === 0 && (
-                                                <div className="flex items-center gap-2 text-sm italic text-slate-400 px-2 py-2 border border-dashed border-slate-300 rounded-lg justify-center">
-                                                    <FiTarget size={14} />
-                                                    Chưa có Key Results nào được thiết lập.
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })
-                )}
+                </div>
+
+                {/* Tab Content */}
+                <div className="pt-2">
+                    {activeObjTab === 'company' && renderObjectivesList(companyObjs, "Chưa có mục tiêu cấp Công ty nào.")}
+                    {activeObjTab === 'department' && renderObjectivesList(deptObjs, "Chưa có mục tiêu cấp Phòng ban nào.")}
+                    {activeObjTab === 'personal' && renderObjectivesList(personalObjs, "Chưa có mục tiêu cấp Cá nhân nào.")}
+                </div>
             </div>
         </div>
     );
