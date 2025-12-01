@@ -674,7 +674,7 @@ export default function DashboardLayout({ children, user }) {
                                                             <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 5a5 5 0 015 5h2a7 7 0 10-7 7v-2a5 5 0 115-5h-2a3 3 0 11-3-3V7z" />
                                                         </svg>
                                                     </span>
-                                                    <span className="truncate">Mục tiêu</span>
+                                                    <span className="truncate">Quản lý OKR</span>
                                                     <span className="ml-auto text-slate-400 group-open:rotate-180 transition-transform">
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                                                             <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
@@ -685,11 +685,11 @@ export default function DashboardLayout({ children, user }) {
                                                 <div className="mt-1 pl-12 pr-2 space-y-1">
                                                     <a href="/my-objectives" className={`block rounded-lg px-3 py-2.5 text-[15px] font-medium transition-all
                                                         ${isActive("/my-objectives") ? "bg-blue-50 text-blue-700 font-bold shadow-sm" : "text-slate-700 hover:bg-slate-50"}`}>
-                                                        Mục tiêu của tôi
+                                                        OKR của tôi
                                                     </a>
                                                     <a href="/company-okrs" className={`block rounded-lg px-3 py-2.5 text-[15px] font-medium transition-all
                                                         ${isActive("/company-okrs") ? "bg-blue-50 text-blue-700 font-bold shadow-sm" : "text-slate-700 hover:bg-slate-50"}`}>
-                                                        Mục tiêu công ty
+                                                        OKR công ty
                                                     </a>
                                                     <a href="/okr-tree" className={`block rounded-lg px-3 py-2.5 text-[15px] font-medium transition-all
                                                         ${isActive("/okr-tree") ? "bg-blue-50 text-blue-700 font-bold shadow-sm" : "text-slate-700 hover:bg-slate-50"}`}>
@@ -699,7 +699,7 @@ export default function DashboardLayout({ children, user }) {
                                             </details>
                                         ) : (
                                             <a href="/my-objectives" className={`group flex items-center justify-center rounded-xl px-4 py-3.5 transition-all
-                                                ${isActive(["/my-objectives", "/company-okrs", "/okr-tree"]) ? "bg-slate-100 text-blue-700" : "text-slate-700 hover:bg-slate-50"}`} title="Mục tiêu">
+                                                ${isActive(["/my-objectives", "/company-okrs", "/okr-tree"]) ? "bg-slate-100 text-blue-700" : "text-slate-700 hover:bg-slate-50"}`} title="Quản lý OKR">
                                                 <span className={`inline-flex h-6 w-6 items-center justify-center transition-colors
                                                     ${isActive(["/my-objectives", "/company-okrs"]) ? "text-blue-600" : "text-slate-500 group-hover:text-blue-600"}`}>
                                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
