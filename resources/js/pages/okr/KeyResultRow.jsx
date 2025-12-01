@@ -73,10 +73,11 @@ export default function KeyResultRow({
                                 )}
                             </div>
                             <div className="truncate flex items-center gap-1">
-                                <FaBullseye className="h-3 w-3 text-indigo-500 flex-shrink-0" title="Objective cấp cao"/>
-                                <FaLongArrowAltLeft className="h-3 w-3 text-slate-500" />
-                                <FaBullseye className="h-3 w-3 text-indigo-500 flex-shrink-0" title="OKR được liên kết" />
-                                <span className="font-normal text-slate-900 text-sm">
+                                <FaBullseye
+                                    className="h-3 w-3 text-indigo-500 flex-shrink-0"
+                                    title="OKR được liên kết"
+                                />
+                                <span className="font-semibold text-slate-900 text-lg">
                                     {kr.kr_title}
                                 </span>
                             </div>
@@ -133,13 +134,15 @@ export default function KeyResultRow({
                                 key={`source_kr_${sourceKr.kr_id}`}
                                 className="bg-white"
                             >
-                                <td className="pl-18 pr-8 py-3 border-r border-slate-200 text-sm text-slate-800">
+                                <td className="pl-18 pr-8 py-3 border-r border-slate-200 text-base text-slate-800">
                                     <div className="flex items-center gap-2">
                                         <FaKey
                                             className="h-4 w-4 text-amber-600 flex-shrink-0"
                                             title="Key Result"
                                         />
-                                        {sourceKr.kr_title}
+                                        <span className="font-semibold">
+                                            {sourceKr.kr_title}
+                                        </span>
                                     </div>
                                 </td>
                                 <td className="px-3 py-3 text-center border-r border-slate-200">
@@ -266,7 +269,7 @@ export default function KeyResultRow({
                             title="Key Result"
                         />
 
-                        <span className="font-normal text-slate-900 text-sm">
+                        <span className="font-semibold text-slate-900 text-base">
                             {kr.kr_title}
                         </span>
                     </div>
