@@ -223,6 +223,50 @@ export default function ObjectivesPage() {
         loadCurrentUser();
     }, []);
 
+    // Auto-open check-in modal nếu có thông tin từ CheckInReminderBanner
+    useEffect(() => {
+        // Chỉ chạy khi không còn loading và đã có items
+        if (loading || items.length === 0) return;
+
+        try {
+            const autoOpenData = localStorage.getItem('autoOpenCheckIn');
+            if (!autoOpenData) return;
+
+            const autoOpen = JSON.parse(autoOpenData);
+            console.log('🔔 Auto-opening check-in modal for:', autoOpen);
+
+            // Tìm Key Result trong items
+            let foundKR = null;
+            for (const obj of items) {
+                if (obj.objective_id === autoOpen.objective_id) {
+                    const kr = (obj.key_results || []).find(k => k.kr_id === autoOpen.kr_id);
+                    if (kr) {
+                        foundKR = {
+                            ...kr,
+                            objective_id: obj.objective_id,
+                        };
+                        break;
+                    }
+                }
+            }
+
+            if (foundKR) {
+                // Đợi một chút để đảm bảo component đã render xong
+                setTimeout(() => {
+                    openCheckInModal(foundKR);
+                    // Xóa localStorage sau khi đã mở modal
+                    localStorage.removeItem('autoOpenCheckIn');
+                }, 500);
+            } else {
+                console.warn('🔔 Key Result not found in items, clearing autoOpen');
+                localStorage.removeItem('autoOpenCheckIn');
+            }
+        } catch (error) {
+            console.error('🔔 Error auto-opening check-in modal:', error);
+            localStorage.removeItem('autoOpenCheckIn');
+        }
+    }, [items, loading]);
+
     const sortedItems = useMemo(
         () => (Array.isArray(items) ? items : []),
         [items]

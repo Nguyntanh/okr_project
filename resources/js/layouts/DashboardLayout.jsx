@@ -5,6 +5,7 @@ import Dropdown, {
     DropdownContent,
 } from "../components/Dropdown";
 import { navigateTo } from "../utils/navigation";
+import NotificationBell from "../components/NotificationBell";
 
 function SidebarItem({ icon, label, href, collapsed, isActive = false }) {
     return (
@@ -261,6 +262,15 @@ function DashboardTopbar({
                 />
             </div>
             <div className="flex items-center gap-3">
+                {(() => {
+                    console.log('🔔 DashboardLayout: Rendering NotificationBell');
+                    try {
+                        return <NotificationBell />;
+                    } catch (error) {
+                        console.error('🔔 Error rendering NotificationBell:', error);
+                        return null;
+                    }
+                })()}
                 <Dropdown
                     position="right"
                     zIndex={10000}
@@ -774,6 +784,15 @@ export default function DashboardLayout({ children, user }) {
                         </button>
                     </div>
                     <div className="flex items-center space-x-4">
+                        {(() => {
+                            console.log('🔔 DashboardLayout: Rendering NotificationBell in main header');
+                            try {
+                                return <NotificationBell />;
+                            } catch (error) {
+                                console.error('🔔 Error rendering NotificationBell:', error);
+                                return null;
+                            }
+                        })()}
                         <Dropdown
                             position="right"
                             zIndex={10000}

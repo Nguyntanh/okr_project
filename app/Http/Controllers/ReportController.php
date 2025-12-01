@@ -11,6 +11,8 @@ use App\Models\User;
 use App\Models\Report;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\URL;
+use Spatie\Browsershot\Browsershot;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
@@ -692,7 +694,7 @@ class ReportController extends Controller
     }
 
     /**
-     * Export PDF for OKR company report
+     * Export PDF for OKR company report (image-based PDF like Canva)
      */
     public function exportCompanyOkrPdf(Request $request)
     {
@@ -716,11 +718,56 @@ class ReportController extends Controller
             'generatedAt' => now()->format('d/m/Y H:i'),
         ])->render();
 
-        // For now, return HTML that can be printed to PDF by browser
-        // In production, you can use libraries like dompdf, tcpdf, or wkhtmltopdf
-        return response($html)
-            ->header('Content-Type', 'text/html; charset=UTF-8')
-            ->header('Content-Disposition', 'inline; filename="bao_cao_okr_' . now()->format('Ymd_His') . '.html"');
+        try {
+            // Generate PDF as image-based using browsershot
+            $browsershot = Browsershot::html($html)
+                ->format('A4')
+                ->margins(10, 10, 10, 10, 'mm')
+                ->showBackground()
+                ->waitUntilNetworkIdle()
+                ->timeout(120);
+            
+            // Set node binary path (Windows)
+            $nodePath = 'E:\\node\\node.exe';
+            if (file_exists($nodePath)) {
+                $browsershot->setNodeBinary($nodePath);
+            }
+            
+            // Set npm binary path (Windows)
+            $npmPath = 'E:\\node\\npm.cmd';
+            if (file_exists($npmPath)) {
+                $browsershot->setNpmBinary($npmPath);
+            }
+            
+            $pdf = $browsershot->pdf();
+
+            $filename = 'bao_cao_okr_' . now()->format('Ymd_His') . '.pdf';
+            
+            return response($pdf, 200)
+                ->header('Content-Type', 'application/pdf')
+                ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
+        } catch (\Exception $e) {
+            // Log detailed error
+            \Log::error('PDF generation failed', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            
+            // Return JSON error for API calls (always return JSON for API endpoints)
+            return response()->json([
+                'success' => false,
+                'message' => 'Không thể tạo PDF. Lỗi: ' . $e->getMessage(),
+                'error' => config('app.debug') ? $e->getMessage() : 'Lỗi khi tạo PDF. Vui lòng thử lại sau.',
+                'trace' => config('app.debug') ? $e->getTraceAsString() : null,
+            ], 500);
+            
+            // Fallback to HTML if browsershot fails
+            return response($html)
+                ->header('Content-Type', 'text/html; charset=UTF-8')
+                ->header('Content-Disposition', 'inline; filename="bao_cao_okr_' . now()->format('Ymd_His') . '.html"');
+        }
     }
 
     /**

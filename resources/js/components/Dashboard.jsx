@@ -6,6 +6,7 @@ import ToastComponent from "../pages/ToastComponent.jsx";
 import ErrorBoundary from "./ErrorBoundary";
 import OKRTable from "./OKRTable";
 import CheckInHistory from "./CheckInHistory";
+import CheckInReminderBanner from "./CheckInReminderBanner";
 import BarChart from "./BarChart";
 import LineChart from "./LineChart";
 import PieChart from "./PieChart";
@@ -1429,6 +1430,9 @@ export default function Dashboard() {
                     <h2 className="text-2xl font-extrabold text-gray-900">Tổng quan OKR</h2>
                     <p className="text-sm text-gray-600 mt-1">Theo dõi nhanh tiến độ mục tiêu theo vai trò của bạn</p>
                 </div>
+
+                {/* Check-in Reminder Banner */}
+                <CheckInReminderBanner />
 
                 {/* Tab Navigation */}
                 <div className="mb-6 border-b border-gray-200">

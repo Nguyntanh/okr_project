@@ -232,6 +232,9 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/getAllowedLevelsApi', [MyObjectiveController::class, 'getAllowedLevelsApi'])
             ->middleware('auth')
             ->name('my-objectives.getAllowedLevelsApi');
+        Route::get('/check-in-reminders', [MyObjectiveController::class, 'getCheckInReminders'])
+            ->middleware('auth')
+            ->name('my-objectives.check-in-reminders');
         Route::get('/user-levels', [MyObjectiveController::class, 'getUserLevels'])
             ->middleware('auth')
             ->name('my-objectives.user-levels');
@@ -287,6 +290,15 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     // API Check-in Routes (for JSON responses)
     Route::prefix('api/check-in')->middleware('auth')->group(function () {
         Route::get('/{objectiveId}/{krId}/history', [CheckInController::class, 'getHistory'])->name('api.check-in.history');
+    });
+
+    // Notifications API
+    Route::prefix('api/notifications')->middleware('auth')->group(function () {
+        Route::get('/', [\App\Http\Controllers\NotificationController::class, 'index'])->name('api.notifications.index');
+        Route::get('/unread-count', [\App\Http\Controllers\NotificationController::class, 'unreadCount'])->name('api.notifications.unread-count');
+        Route::post('/{notificationId}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead'])->name('api.notifications.mark-as-read');
+        Route::post('/mark-all-read', [\App\Http\Controllers\NotificationController::class, 'markAllAsRead'])->name('api.notifications.mark-all-read');
+        Route::delete('/{notificationId}', [\App\Http\Controllers\NotificationController::class, 'destroy'])->name('api.notifications.destroy');
     });
 
     // Reports API (Admin hoặc CEO)

@@ -258,9 +258,33 @@ export default function CompanyOverviewReport() {
             
             // Download PDF file first
             const response = await fetch(url);
-            if (!response.ok) throw new Error('Export failed');
+            
+            // Check if response is JSON (error response)
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || errorData.error || 'Export failed');
+            }
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Export failed: ${response.status} ${response.statusText}`);
+            }
             
             const blob = await response.blob();
+            
+            // Check if blob is actually PDF
+            if (blob.type && !blob.type.includes('pdf') && !blob.type.includes('html')) {
+                // Might be JSON error
+                const text = await blob.text();
+                try {
+                    const errorData = JSON.parse(text);
+                    throw new Error(errorData.message || errorData.error || 'Export failed');
+                } catch (e) {
+                    // Not JSON, continue with download
+                }
+            }
+            
             const downloadUrl = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = downloadUrl;
@@ -270,14 +294,9 @@ export default function CompanyOverviewReport() {
             link.click();
             document.body.removeChild(link);
             window.URL.revokeObjectURL(downloadUrl);
-            
-            // After download, open in new window if needed
-            setTimeout(() => {
-                window.open(url, '_blank');
-            }, 500);
         } catch (e) {
             console.error('Export failed:', e);
-            alert('Xuất báo cáo thất bại');
+            alert('Xuất báo cáo thất bại: ' + (e.message || 'Lỗi không xác định'));
         } finally {
             setExporting(false);
         }
