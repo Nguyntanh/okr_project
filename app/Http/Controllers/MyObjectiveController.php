@@ -96,6 +96,14 @@ class MyObjectiveController extends Controller
             // ->with('assignedUser')
             ->where('user_id', $user->user_id);
 
+        // Filter by view_mode: 'levels' or 'personal'
+        $viewMode = $request->input('view_mode', 'levels'); // Default to 'levels'
+        if ($viewMode === 'personal') {
+            $query->where('level', 'person');
+        } else { // 'levels'
+            $query->whereIn('level', ['company', 'unit', 'team']);
+        }
+
         if ($request->has('archived') && $request->archived == '1') {
             $query->whereNotNull('archived_at')
                 ->orWhereHas('keyResults', function ($q) {

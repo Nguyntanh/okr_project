@@ -56,6 +56,7 @@ export default function ObjectivesPage() {
     const [currentUser, setCurrentUser] = useState(null);
     const [cycleFilter, setCycleFilter] = useState(null);
     const [myOKRFilter, setMyOKRFilter] = useState(false);
+    const [viewMode, setViewMode] = useState('levels'); // 'levels' or 'personal'
 
     // Effect to select the default cycle on initial load
     useEffect(() => {
@@ -113,7 +114,7 @@ export default function ObjectivesPage() {
     }, []);
 
 
-    const load = async (pageNum = 1, cycle = "", myOKR = false) => {
+    const load = async (pageNum = 1, cycle = "", myOKR = false, view = 'levels') => {
         // If cycleFilter is not set yet, don't load
         if (cycle === null) {
             setLoading(false);
@@ -132,7 +133,7 @@ export default function ObjectivesPage() {
                 throw new Error("CSRF token not found");
             }
 
-            let url = `/my-objectives?page=${pageNum}`;
+            let url = `/my-objectives?page=${pageNum}&view_mode=${view}`;
             if (cycle) url += `&cycle_id=${cycle}`;
             if (myOKR) url += `&my_okr=true`;
 
@@ -300,22 +301,19 @@ export default function ObjectivesPage() {
         }
     }, []);
 
-    // Load data từ server khi page thay đổi
+    // Main data loading effect
     useEffect(() => {
-        load(page, cycleFilter, myOKRFilter);
-    }, [page]);
+        // Do not load if cycleFilter is still being determined
+        if (cycleFilter === null) return;
+        load(page, cycleFilter, myOKRFilter, viewMode);
+    }, [page, cycleFilter, myOKRFilter, viewMode]);
 
+    // Reset page to 1 when any filter changes
     useEffect(() => {
-        // Khi filter thay đổi, reset về trang 1 và reload
-        setPage(1);
-        load(1, cycleFilter, myOKRFilter);
-    }, [cycleFilter]);
-
-    useEffect(() => {
-        // Khi My OKR filter thay đổi, reset về trang 1 và reload
-        setPage(1);
-        load(1, cycleFilter, myOKRFilter);
-    }, [myOKRFilter]);
+        if (page !== 1) {
+            setPage(1);
+        }
+    }, [cycleFilter, myOKRFilter, viewMode]);
 
     useEffect(() => {
         // Load current user
@@ -546,6 +544,8 @@ export default function ObjectivesPage() {
                 setCycleFilter={setCycleFilter}
                 myOKRFilter={myOKRFilter}
                 setMyOKRFilter={setMyOKRFilter}
+                viewMode={viewMode}
+                setViewMode={setViewMode}
                 onOpenLinkModal={handleOpenLinkModal}
                 onCancelLink={handleCancelLink}
                 reloadData={load}

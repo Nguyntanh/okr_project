@@ -6,7 +6,7 @@ import React, {
     useMemo,
     useRef,
 } from "react";
-import { CycleDropdown } from "../components/Dropdown";
+import { CycleDropdown, ViewModeDropdown } from "../components/Dropdown";
 import Tabs from "../components/Tabs";
 import ConfirmationModal from "../components/ConfirmationModal";
 import ToastNotification from "../components/ToastNotification";
@@ -37,6 +37,8 @@ export default function ObjectiveList({
     linksLoading = false,
     cycleFilter,
     setCycleFilter,
+    viewMode,
+    setViewMode,
     openCheckInModal,
     openCheckInHistory,
     currentUser,
@@ -50,6 +52,7 @@ export default function ObjectiveList({
     const [archivedCount, setArchivedCount] = useState(0);
     const [loadingArchived, setLoadingArchived] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [viewModeDropdownOpen, setViewModeDropdownOpen] = useState(false);
     const [assignModal, setAssignModal] = useState({
         show: false,
         kr: null,
@@ -607,13 +610,21 @@ export default function ObjectiveList({
     return (
         <div className="mx-auto w-full max-w-6xl">
             <div className="mb-4 flex w-full items-center justify-between">
-                <CycleDropdown
-                    cyclesList={cyclesList}
-                    cycleFilter={cycleFilter}
-                    handleCycleChange={setCycleFilter}
-                    dropdownOpen={dropdownOpen}
-                    setDropdownOpen={setDropdownOpen}
-                />
+                <div className="flex items-center gap-2">
+                    <CycleDropdown
+                        cyclesList={cyclesList}
+                        cycleFilter={cycleFilter}
+                        handleCycleChange={setCycleFilter}
+                        dropdownOpen={dropdownOpen}
+                        setDropdownOpen={setDropdownOpen}
+                    />
+                    <ViewModeDropdown
+                        viewMode={viewMode}
+                        setViewMode={setViewMode}
+                        dropdownOpen={viewModeDropdownOpen}
+                        setDropdownOpen={setViewModeDropdownOpen}
+                    />
+                </div>
                 <Tabs
                     showArchived={showArchived}
                     setShowArchived={setShowArchived}
