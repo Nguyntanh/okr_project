@@ -128,6 +128,16 @@ class Objective extends Model
     /**
      * Tính toán progress_percent tự động từ KeyResults và child Objectives (đệ quy)
      * Ưu tiên: giá trị trong DB > tính đệ quy từ KeyResults + child Objectives
+     * 
+     * Logic tính progress (Option B):
+     * - Tính từ KeyResults trực tiếp: Giữ nguyên progress từ check-in (người sở hữu KR cập nhật)
+     * - Tính từ child Objectives: Progress của các Objective liên kết lên Objective này (O -> O)
+     * - KHÔNG tính progress của Objective liên kết lên KR: 
+     *   Khi có O liên kết lên KR, giữ nguyên progress của KR (từ check-in), 
+     *   bỏ qua progress của O liên kết để tránh trùng lặp
+     * 
+     * Ví dụ: Objective A có KR-A1 (50% từ check-in), Objective B (75%) liên kết lên KR-A1
+     * -> Progress A = (50 + ...) / n (chỉ tính KR-A1, không tính progress của B)
      */
     public function getProgressPercentAttribute($value)
     {
@@ -149,15 +159,19 @@ class Objective extends Model
             $progressList = [];
 
             // Bước 1: Tính từ KeyResults trực tiếp
+            // Lưu ý: Giữ nguyên progress của KR từ check-in, không tính progress của O liên kết lên KR
+            // (Nếu có O liên kết lên KR, progress của O đó không được tính vào progress của O chứa KR)
             $keyResults = $this->keyResults()->whereNull('archived_at')->get();
             foreach ($keyResults as $kr) {
-                $progress = $kr->progress_percent;
+                $progress = $kr->progress_percent; // Progress từ check-in (người sở hữu KR)
                 if ($progress !== null) {
                     $progressList[] = $progress;
                 }
             }
 
             // Bước 2: Tính từ child Objectives được liên kết (đệ quy)
+            // Chỉ tính các Objective liên kết trực tiếp lên Objective này (O -> O)
+            // KHÔNG tính progress của Objective liên kết lên KR (O -> KR)
             $childObjectives = $this->childObjectives()->get();
             foreach ($childObjectives as $link) {
                 $childObjective = $link->sourceObjective;
@@ -190,6 +204,13 @@ class Objective extends Model
      * Tự động cập nhật progress_percent khi KeyResults thay đổi
      * Tính đệ quy: Progress = trung bình của (KeyResults trực tiếp + Progress của child Objectives)
      * 
+     * Logic tính progress (Option B):
+     * - Tính từ KeyResults trực tiếp: Giữ nguyên progress từ check-in (người sở hữu KR cập nhật)
+     * - Tính từ child Objectives: Progress của các Objective liên kết lên Objective này (O -> O)
+     * - KHÔNG tính progress của Objective liên kết lên KR: 
+     *   Khi có O liên kết lên KR, giữ nguyên progress của KR (từ check-in), 
+     *   bỏ qua progress của O liên kết để tránh trùng lặp
+     * 
      * @param array $visited Để tránh vòng lặp vô hạn (track các Objective đã được tính)
      * @return bool
      */
@@ -205,17 +226,21 @@ class Objective extends Model
         $visited[] = $this->objective_id;
 
         // Bước 1: Tính progress từ KeyResults trực tiếp
+        // Lưu ý: Giữ nguyên progress của KR từ check-in, không tính progress của O liên kết lên KR
+        // (Nếu có O liên kết lên KR, progress của O đó không được tính vào progress của O chứa KR)
         $keyResults = $this->keyResults()->whereNull('archived_at')->get();
         $progressList = [];
         
         foreach ($keyResults as $kr) {
-            $progress = $kr->progress_percent; // Sử dụng accessor của KeyResult
+            $progress = $kr->progress_percent; // Progress từ check-in (người sở hữu KR)
             if ($progress !== null) {
                 $progressList[] = $progress;
             }
         }
 
         // Bước 2: Tính progress từ child Objectives được liên kết (đệ quy)
+        // Chỉ tính các Objective liên kết trực tiếp lên Objective này (O -> O)
+        // KHÔNG tính progress của Objective liên kết lên KR (O -> KR)
         $childObjectives = $this->childObjectives()->get();
         
         foreach ($childObjectives as $link) {
