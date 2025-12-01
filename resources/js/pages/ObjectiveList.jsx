@@ -39,6 +39,7 @@ export default function ObjectiveList({
     setCycleFilter,
     viewMode,
     setViewMode,
+    userDepartmentName,
     openCheckInModal,
     openCheckInHistory,
     currentUser,
@@ -63,6 +64,9 @@ export default function ObjectiveList({
     const [assigneeTooltip, setAssigneeTooltip] = useState(null);
     const [archiving, setArchiving] = useState(null);
     const [archivingKR, setArchivingKR] = useState(null);
+
+    const role = currentUser?.role?.role_name?.toLowerCase();
+    const isCeo = role === 'ceo';
 
     const openAssignModal = (kr, objective) => {
         setAssignModal({
@@ -618,12 +622,16 @@ export default function ObjectiveList({
                         dropdownOpen={dropdownOpen}
                         setDropdownOpen={setDropdownOpen}
                     />
-                    <ViewModeDropdown
-                        viewMode={viewMode}
-                        setViewMode={setViewMode}
-                        dropdownOpen={viewModeDropdownOpen}
-                        setDropdownOpen={setViewModeDropdownOpen}
-                    />
+                    {!isCeo && (
+                        <ViewModeDropdown
+                            viewMode={viewMode}
+                            setViewMode={setViewMode}
+                            dropdownOpen={viewModeDropdownOpen}
+                            setDropdownOpen={setViewModeDropdownOpen}
+                            currentUser={currentUser}
+                            userDepartmentName={userDepartmentName}
+                        />
+                    )}
                 </div>
                 <Tabs
                     showArchived={showArchived}

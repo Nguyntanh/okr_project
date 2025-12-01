@@ -288,9 +288,23 @@ export function ViewModeDropdown({
     setViewMode,
     dropdownOpen,
     setDropdownOpen,
+    currentUser,
+    userDepartmentName,
 }) {
+    const role = currentUser?.role?.role_name?.toLowerCase();
+
+    const getLevelsLabel = () => {
+        if (role === 'manager') {
+            return `OKR ${userDepartmentName || 'Phòng ban'}`;
+        }
+        if (role === 'admin' || role === 'ceo') {
+            return 'OKR Công ty';
+        }
+        return 'OKR Phòng ban được giao';
+    };
+
     const options = {
-        levels: 'OKR các cấp',
+        levels: getLevelsLabel(),
         personal: 'OKR cá nhân',
     };
 
@@ -300,12 +314,12 @@ export function ViewModeDropdown({
     };
 
     return (
-        <div className="relative w-44">
+        <div className="relative w-48">
             <button
                 onClick={() => setDropdownOpen((prev) => !prev)}
                 className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             >
-                <span className="flex items-center gap-2">
+                <span className="flex items-center gap-2 truncate">
                     {options[viewMode]}
                 </span>
                 <svg
