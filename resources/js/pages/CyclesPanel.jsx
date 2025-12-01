@@ -792,65 +792,71 @@ function CycleDetailView({ detail, krs, formatDate }) {
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
-            {/* Summary Cards Section */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                {/* Thời gian */}
-                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600">
-                            <FiCalendar size={20} />
-                        </div>
-                        <div>
-                            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Thời gian</p>
-                            <p className="text-sm font-semibold text-slate-900">
-                                {formatDate(detail.cycle?.start_date)} - {formatDate(detail.cycle?.end_date)}
-                            </p>
+            {/* Top Section: Stats & Description */}
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+                {/* Stats Grid (Chiếm 3 phần) */}
+                <div className="lg:col-span-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    {/* Thời gian */}
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col justify-center">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                                <FiCalendar size={20} />
+                            </div>
+                            <div>
+                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Thời gian</p>
+                                <p className="text-sm font-semibold text-slate-900">
+                                    {formatDate(detail.cycle?.start_date)} - {formatDate(detail.cycle?.end_date)}
+                                </p>
+                            </div>
                         </div>
                     </div>
-                </div>
-                
-                {/* Trạng thái */}
-                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-                            <FiActivity size={20} />
+                    
+                    {/* Trạng thái */}
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col justify-center">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                                <FiActivity size={20} />
+                            </div>
+                            <div>
+                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Trạng thái</p>
+                                <div className="mt-0.5">
+                                    <Badge color={detail.cycle?.status === 'active' ? 'emerald' : detail.cycle?.status === 'draft' ? 'slate' : 'red'}>
+                                        {detail.cycle?.status === 'active' ? 'Đang hoạt động' : detail.cycle?.status === 'draft' ? 'Bản nháp' : 'Đã đóng'}
+                                    </Badge>
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Trạng thái</p>
-                             <div className="mt-0.5">
-                                <Badge color={detail.cycle?.status === 'active' ? 'emerald' : detail.cycle?.status === 'draft' ? 'slate' : 'red'}>
-                                    {detail.cycle?.status === 'active' ? 'Đang hoạt động' : detail.cycle?.status === 'draft' ? 'Bản nháp' : 'Đã đóng'}
-                                </Badge>
-                             </div>
+                    </div>
+
+                    {/* Tổng quan */}
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col justify-center">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-50 text-purple-600">
+                                <FiPieChart size={20} />
+                            </div>
+                            <div>
+                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Tổng quan</p>
+                                <p className="text-sm font-semibold text-slate-900">
+                                    {totalObjectives} Mục tiêu • {totalKRs} Kết quả
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Tổng quan */}
-                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-50 text-purple-600">
-                            <FiPieChart size={20} />
-                        </div>
+                {/* Description (Chiếm 1 phần - Bên phải) */}
+                <div className="lg:col-span-1 rounded-xl border border-blue-100 bg-blue-50/50 p-4 flex flex-col justify-center">
+                    <div className="flex items-start gap-3">
+                        <FiFileText className="mt-0.5 text-blue-500 shrink-0" size={18} />
                         <div>
-                            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Tổng quan</p>
-                            <p className="text-sm font-semibold text-slate-900">
-                                {totalObjectives} Mục tiêu • {totalKRs} Kết quả
+                            <p className="text-xs font-semibold text-blue-700 uppercase mb-1">Mô tả</p>
+                            <p className="text-sm text-slate-700 leading-snug line-clamp-3">
+                                {detail.cycle?.description || "Không có mô tả thêm cho chu kỳ này."}
                             </p>
                         </div>
                     </div>
                 </div>
             </div>
-
-            {/* Description Section */}
-            {detail.cycle?.description && (
-                <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                    <h3 className="mb-2 text-sm font-semibold text-slate-900 flex items-center gap-2">
-                        <FiFileText className="text-slate-400"/> Mô tả chu kỳ
-                    </h3>
-                    <p className="text-slate-600 text-sm leading-relaxed">{detail.cycle.description}</p>
-                </div>
-            )}
 
             {/* Objectives & KRs Section with Tabs */}
             <div className="space-y-4">
