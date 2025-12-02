@@ -478,10 +478,20 @@ export default function OKRTreePage() {
     const [treeData, setTreeData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState(null);
-    const [cycleId, setCycleId] = useState(null);
+
+    // Khởi tạo state từ query params (nếu có)
+    const [cycleId, setCycleId] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        const val = params.get("cycle_id");
+        return val ? Number(val) : null;
+    });
     const [cyclesList, setCyclesList] = useState([]);
     const [companyObjectives, setCompanyObjectives] = useState([]);
-    const [selectedObjectiveId, setSelectedObjectiveId] = useState(null);
+    const [selectedObjectiveId, setSelectedObjectiveId] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        const val = params.get("objective_id");
+        return val ? Number(val) : null;
+    });
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [objectiveDropdownOpen, setObjectiveDropdownOpen] = useState(false);
     const [layoutDirection, setLayoutDirection] = useState("horizontal"); // 'horizontal' or 'vertical'
@@ -490,6 +500,29 @@ export default function OKRTreePage() {
     const [allEdges, setAllEdges] = useState([]); // Store all edges (before filtering)
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+
+    // Đồng bộ cycleId & selectedObjectiveId với query params
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+
+        if (cycleId != null) {
+            params.set("cycle_id", String(cycleId));
+        } else {
+            params.delete("cycle_id");
+        }
+
+        if (selectedObjectiveId != null) {
+            params.set("objective_id", String(selectedObjectiveId));
+        } else {
+            params.delete("objective_id");
+        }
+
+        const newUrl = params.toString()
+            ? `${window.location.pathname}?${params.toString()}`
+            : window.location.pathname;
+
+        window.history.replaceState({}, "", newUrl);
+    }, [cycleId, selectedObjectiveId]);
 
     // Load cycles
     useEffect(() => {
@@ -501,24 +534,28 @@ export default function OKRTreePage() {
                 const json = await res.json();
                 if (Array.isArray(json.data) && json.data.length > 0) {
                     setCyclesList(json.data);
-                    const today = new Date();
-                    const currentCycle = json.data.find((c) => {
-                        if (c.start_date && c.end_date) {
-                            const start = new Date(c.start_date);
-                            const end = new Date(c.end_date);
-                            return today >= start && today <= end;
+
+                    // Nếu chưa có cycleId từ query param, tự chọn chu kỳ hiện tại
+                    if (cycleId == null) {
+                        const today = new Date();
+                        const currentCycle = json.data.find((c) => {
+                            if (c.start_date && c.end_date) {
+                                const start = new Date(c.start_date);
+                                const end = new Date(c.end_date);
+                                return today >= start && today <= end;
+                            }
+                            return false;
+                        });
+                        if (currentCycle) {
+                            setCycleId(currentCycle.cycle_id);
                         }
-                        return false;
-                    });
-                    if (currentCycle) {
-                        setCycleId(currentCycle.cycle_id);
                     }
                 }
             } catch (error) {
                 console.error("Error loading cycles:", error);
             }
         })();
-    }, []);
+    }, [cycleId]);
 
     // Load company objectives khi cycle thay đổi
     useEffect(() => {
@@ -543,6 +580,28 @@ export default function OKRTreePage() {
                             (obj) => obj.objective_id === selectedObjectiveId
                         );
                         if (!currentSelected) {
+                            // Nếu có objective_id từ query thì ưu tiên dùng
+                            const params = new URLSearchParams(
+                                window.location.search
+                            );
+                            const objectiveFromQuery = params.get(
+                                "objective_id"
+                            );
+
+                            if (objectiveFromQuery) {
+                                const matched = json.data.find(
+                                    (obj) =>
+                                        String(obj.objective_id) ===
+                                        String(objectiveFromQuery)
+                                );
+                                if (matched) {
+                                    setSelectedObjectiveId(
+                                        matched.objective_id
+                                    );
+                                    return;
+                                }
+                            }
+
                             setSelectedObjectiveId(json.data[0].objective_id);
                         }
                     } else {
@@ -553,7 +612,7 @@ export default function OKRTreePage() {
                 console.error("Error loading company objectives:", error);
             }
         })();
-    }, [cycleId, cyclesList.length]);
+    }, [cycleId, cyclesList.length, selectedObjectiveId]);
 
     // Load tree data khi objective được chọn
     useEffect(() => {
@@ -937,27 +996,43 @@ export default function OKRTreePage() {
                             layoutDirection={layoutDirection}
                         />
                         {/* Controls - đặt ở góc trên bên trái trong ReactFlow view */}
-                        <div className="absolute top-4 left-4 z-20 flex items-center gap-3 flex-wrap">
+                        <div className="absolute top-4 left-4 z-20 flex items-start gap-4 flex-wrap">
                             {cyclesList && cyclesList.length > 0 && (
-                                <CycleDropdown
-                                    cyclesList={cyclesList}
-                                    cycleFilter={cycleId}
-                                    handleCycleChange={setCycleId}
-                                    dropdownOpen={dropdownOpen}
-                                    setDropdownOpen={setDropdownOpen}
-                                />
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-xs font-semibold text-slate-600 leading-none">
+                                        Chu kỳ OKR
+                                    </span>
+                                    <CycleDropdown
+                                        cyclesList={cyclesList}
+                                        cycleFilter={cycleId}
+                                        handleCycleChange={(value) => {
+                                            setCycleId(value);
+                                            setDropdownOpen(false);
+                                        }}
+                                        dropdownOpen={dropdownOpen}
+                                        setDropdownOpen={(open) => {
+                                            setDropdownOpen(open);
+                                            if (open) setObjectiveDropdownOpen(false);
+                                        }}
+                                    />
+                                </div>
                             )}
 
                             {/* Company Objective Dropdown */}
                             {companyObjectives &&
                                 companyObjectives.length > 0 && (
-                                    <div className="relative w-64">
+                                    <div className="flex flex-col gap-1 w-64 relative">
+                                        <span className="text-xs font-semibold text-slate-600 leading-none">
+                                            Objective công ty
+                                        </span>
                                         <button
-                                            onClick={() =>
-                                                setObjectiveDropdownOpen(
-                                                    (prev) => !prev
-                                                )
-                                            }
+                                            onClick={() => {
+                                                setObjectiveDropdownOpen((prev) => {
+                                                    const next = !prev;
+                                                    if (next) setDropdownOpen(false);
+                                                    return next;
+                                                });
+                                            }}
                                             className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-sm"
                                         >
                                             <span className="flex items-center gap-2 truncate">
@@ -992,14 +1067,14 @@ export default function OKRTreePage() {
                                         </button>
 
                                         {objectiveDropdownOpen && (
-                                            <div className="absolute top-full left-0 mt-1 w-full bg-white rounded-lg shadow-lg border border-slate-200 z-50 max-h-96 overflow-y-auto">
+                                            <div className="absolute top-full left-0 mt-1 w-full bg-white rounded-lg shadow-lg border border-slate-200 z-50 max-h-64 overflow-y-auto">
                                                 {companyObjectives.map(
                                                     (obj) => (
                                                         <label
                                                             key={
                                                                 obj.objective_id
                                                             }
-                                                            className={`flex items-center gap-3 px-3 py-2 hover:bg-blue-50 cursor-pointer transition-colors ${
+                                                            className={`flex items-start gap-3 px-3 py-2 hover:bg-blue-50 cursor-pointer transition-colors ${
                                                                 String(
                                                                     selectedObjectiveId
                                                                 ) ===
@@ -1040,14 +1115,14 @@ export default function OKRTreePage() {
                                                                 }}
                                                                 className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                                                             />
-                                                            <div className="flex-1">
+                                                            <div className="flex-1 leading-tight">
                                                                 <p className="text-sm font-medium text-slate-900">
                                                                     {
                                                                         obj.obj_title
                                                                     }
                                                                 </p>
                                                                 {obj.cycle_name && (
-                                                                    <p className="text-xs text-gray-500">
+                                                                    <p className="text-[11px] text-gray-500">
                                                                         {
                                                                             obj.cycle_name
                                                                         }

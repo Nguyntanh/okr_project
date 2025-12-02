@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mời tham gia hệ thống {{ $appName }}</title>
+    <title>Mời tham gia hệ thống <?php echo e($appName); ?></title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -154,40 +154,41 @@
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">{{ $appName }}</div>
+            <div class="logo"><?php echo e($appName); ?></div>
             <div class="title">Mời tham gia hệ thống</div>
         </div>
 
         <div class="content">
-            <p>Xin chào <strong>{{ $user->full_name }}</strong>,</p>
+            <p>Xin chào <strong><?php echo e($user->full_name); ?></strong>,</p>
             
-            <p>Bạn đã được mời tham gia hệ thống <strong>{{ $appName }}</strong> với vai trò <strong>{{ ucfirst($user->role->role_name ?? 'Member') }}</strong>.</p>
+            <p>Bạn đã được mời tham gia hệ thống <strong><?php echo e($appName); ?></strong> với vai trò <strong><?php echo e(ucfirst($user->role->role_name ?? 'Member')); ?></strong>.</p>
 
             <div class="info-box">
                 <div class="info-item">
                     <span class="label">Email:</span>
-                    <span class="value">{{ $user->email }}</span>
+                    <span class="value"><?php echo e($user->email); ?></span>
                 </div>
                 <div class="info-item">
                     <span class="label">Vai trò:</span>
-                    <span class="value">{{ ucfirst($user->role->role_name ?? 'Member') }}</span>
+                    <span class="value"><?php echo e(ucfirst($user->role->role_name ?? 'Member')); ?></span>
                 </div>
-                @if($user->department)
+                <?php if($user->department): ?>
                 <div class="info-item">
                     <span class="label">Phòng ban:</span>
-                    <span class="value">{{ $user->department->d_name }}</span>
+                    <span class="value"><?php echo e($user->department->d_name); ?></span>
                 </div>
-                @endif
+                <?php endif; ?>
             </div>
 
             <div class="credentials">
                 <div class="credentials-title">🔐 Thông tin đăng nhập:</div>
                 <div class="credential-item">
-                    <span class="label">Email:</span> {{ $user->email }}
+                    <span class="label">Email:</span> <?php echo e($user->email); ?>
+
                 </div>
                 <div class="credential-item">
                     <span class="label">Mật khẩu tạm thời:</span>
-                    <div class="password">{{ $temporaryPassword }}</div>
+                    <div class="password"><?php echo e($temporaryPassword); ?></div>
                 </div>
             </div>
 
@@ -199,15 +200,16 @@
             </div>
 
             <div style="text-align: center;">
-                <a href="{{ $loginUrl }}" class="button">🚀 Đăng nhập ngay</a>
+                <a href="<?php echo e($loginUrl); ?>" class="button">🚀 Đăng nhập ngay</a>
             </div>
 
-            <p>Chào mừng bạn đến với {{ $appName }}! Chúng tôi rất vui được chào đón bạn tham gia đội ngũ.</p>
+            <p>Chào mừng bạn đến với <?php echo e($appName); ?>! Chúng tôi rất vui được chào đón bạn tham gia đội ngũ.</p>
         </div>
 
         <div class="footer">
-            <p>Email này được gửi tự động từ hệ thống {{ $appName }}</p>
+            <p>Email này được gửi tự động từ hệ thống <?php echo e($appName); ?></p>
         </div>
     </div>
 </body>
 </html>
+<?php /**PATH D:\Thuc_tap\New folder (2)\OKR_Project\resources\views/emails/user-invitation.blade.php ENDPATH**/ ?>
