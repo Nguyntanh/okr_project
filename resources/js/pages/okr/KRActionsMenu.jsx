@@ -55,25 +55,6 @@ export default function KRActionsMenu({
                     className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg shadow-lg border border-slate-200 py-1"
                     style={{ zIndex: 50 }}
                 >
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setAssignModal({
-                                show: true,
-                                kr,
-                                objective,
-                                email: "",
-                                loading: false,
-                            });
-                            setOpenObj((prev) => ({
-                                ...prev,
-                                [menuKey]: false,
-                            }));
-                        }}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                    >
-                        Giao việc
-                    </button>
                     {canCheckIn && openCheckInModal && (
                         <button
                             onClick={(e) => {
