@@ -298,4 +298,30 @@ class UserController extends Controller
         return redirect()->route('users.index')
             ->with('success', "Đã xóa người dùng {$userName}.");
     }
+
+    /**
+     * Tìm kiếm người dùng theo tên hoặc email.
+     * Có thể lọc theo department_id.
+     */
+    public function search(Request $request): JsonResponse
+    {
+        $query = $request->query('q');
+        $departmentId = $request->query('department_id');
+
+        if (empty($query)) {
+            return response()->json(['success' => true, 'data' => []]);
+        }
+
+        $users = User::where(function ($qBuilder) use ($query) {
+                $qBuilder->where('full_name', 'like', '%' . $query . '%')
+                         ->orWhere('email', 'like', '%' . $query . '%');
+            })
+            ->when($departmentId, function ($qBuilder) use ($departmentId) {
+                $qBuilder->where('department_id', $departmentId);
+            })
+            ->limit(10)
+            ->get(['user_id', 'full_name', 'email', 'avatar_url']);
+
+        return response()->json(['success' => true, 'data' => $users]);
+    }
 }

@@ -139,6 +139,9 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     })->middleware('auth')->name('change.password.form');
     Route::post('/change-password', [App\Http\Controllers\AuthController::class, 'changePassword'])->middleware('auth')->name('change.password');
 
+    // API Route cho User Search (mới)
+    Route::get('/api/users/search', [UserController::class, 'search'])->middleware('auth')->name('api.users.search');
+
     // Notifications
     Route::middleware('auth')->group(function () {
         Route::get('/api/notifications', [NotificationController::class, 'index'])->name('notifications.index');

@@ -739,13 +739,10 @@ export default function ObjectiveList({
                 show={assignModal.show}
                 kr={assignModal.kr}
                 objective={assignModal.objective}
-                email={assignModal.email}
-                setEmail={(e) =>
-                    setAssignModal((prev) => ({ ...prev, email: e }))
-                }
                 loading={assignModal.loading}
                 onConfirm={handleAssignKR}
                 onClose={closeAssignModal}
+                currentUserRole={currentUser?.role} // NEW
             />
             {assigneeTooltip && assigneeTooltip.info && (
                 <div
