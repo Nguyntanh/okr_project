@@ -197,22 +197,7 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
                         );
 
                     setUsers(data.data || []);
-                    setSelectedUsers(
-                        data.data
-                            .filter((user) => {
-                                const isAdminUser =
-                                    (
-                                        user.role?.role_name || ""
-                                    ).toLowerCase() === "admin" ||
-                                    user.email === "okr.admin@company.com";
-                                return (
-                                    !isAdminUser &&
-                                    user.department_id ===
-                                        department?.department_id
-                                );
-                            })
-                            .map((user) => user.user_id)
-                    );
+                    setSelectedUsers([]);
                 } catch (e) {
                     setToast({
                         type: "error",
@@ -270,15 +255,19 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
     };
 
     const filteredUsers = users.filter((user) => {
+        const roleName = (user.role?.role_name || "").toLowerCase();
         const isAdminUser =
-            (user.role?.role_name || "").toLowerCase() === "admin" ||
+            roleName === "admin" ||
             user.email === "okr.admin@company.com";
-        return !isAdminUser;
+        const isCeoUser = roleName === "ceo";
+        // Chỉ hiển thị người dùng chưa thuộc phòng ban nào
+        const isAssignedToAnyDepartment = !!user.department_id;
+        return !isAdminUser && !isCeoUser && !isAssignedToAnyDepartment;
     });
 
     const userOptions = filteredUsers.map((user) => ({
         value: user.user_id,
-        label: `${user.full_name} (${user.email})`,
+        label: user.full_name,
     }));
 
     if (!open) return null;
@@ -376,6 +365,142 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
     );
 }
 
+// Component Modal hiển thị danh sách thành viên
+function MembersModal({
+    open,
+    onClose,
+    users,
+    departmentName,
+    canRemove = false,
+    onRemoveUser,
+    removingUserId = null,
+}) {
+    if (!users || users.length === 0) {
+        return (
+            <Modal open={open} onClose={onClose} title={departmentName}>
+                <div className="text-center text-slate-500 py-8">
+                    Chưa có thành viên nào
+                </div>
+            </Modal>
+        );
+    }
+
+    return (
+        <Modal
+            open={open}
+            onClose={onClose}
+            title={departmentName}
+        >
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+                {users.map((user) => {
+                    const roleName = (user.role?.role_name || "").toLowerCase();
+                    const isManager = roleName === "manager";
+                    const isMember = roleName === "member";
+                    
+                    return (
+                        <div
+                            key={user.user_id}
+                            className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition"
+                        >
+                            <img
+                                src={user.avatar_url || "/images/default.png"}
+                                alt={user.full_name}
+                                className="h-10 w-10 rounded-full object-cover"
+                            />
+                            <div className="flex-1 flex items-center justify-between gap-3">
+                                <div>
+                                    <div className="font-medium text-slate-900">
+                                        {user.full_name}
+                                    </div>
+                                    <div className="text-sm text-slate-500">
+                                        {user.email}
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {isManager && (
+                                        <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
+                                            Quản lý
+                                        </span>
+                                    )}
+                                    {isMember && (
+                                        <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">
+                                            Thành viên
+                                        </span>
+                                    )}
+                                    {canRemove && (
+                                        <button
+                                            onClick={() => onRemoveUser && onRemoveUser(user)}
+                                            disabled={removingUserId === user.user_id}
+                                            className={`p-1.5 rounded-lg border transition-colors ${
+                                                removingUserId === user.user_id
+                                                    ? "border-gray-200 text-gray-400 cursor-not-allowed"
+                                                    : "border-rose-200 text-rose-600 hover:bg-rose-50"
+                                            }`}
+                                            title="Xoá khỏi phòng ban"
+                                        >
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                className="h-4 w-4"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                            >
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </Modal>
+    );
+}
+
+// Component hiển thị danh sách thành viên với avatar
+function MembersDisplay({ users, departmentName, onShowAll }) {
+    const maxVisible = 3; // Số avatar hiển thị tối đa
+    const visibleUsers = users?.slice(0, maxVisible) || [];
+    const remainingCount = users?.length > maxVisible ? users.length - maxVisible : 0;
+
+    if (!users || users.length === 0) {
+        return (
+            <div className="flex items-center justify-center">
+                <span className="text-slate-400">—</span>
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex items-center justify-center gap-2 flex-wrap">
+            {visibleUsers.map((user) => (
+                <div
+                    key={user.user_id}
+                    className="flex items-center"
+                    title={user.full_name}
+                >
+                    <img
+                        src={user.avatar_url || "/images/default.png"}
+                        alt={user.full_name}
+                        className="h-8 w-8 rounded-full object-cover shadow-sm"
+                    />
+                </div>
+            ))}
+            {remainingCount > 0 && (
+                <button
+                    onClick={onShowAll}
+                    className="h-8 px-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-medium transition-colors flex items-center justify-center shadow-sm"
+                    title={`Xem thêm ${remainingCount} thành viên`}
+                >
+                    +{remainingCount}
+                </button>
+            )}
+        </div>
+    );
+}
+
 export default function DepartmentsPanel() {
     const [departments, setDepartments] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -385,6 +510,9 @@ export default function DepartmentsPanel() {
     const [assigningDepartment, setAssigningDepartment] = useState(null);
     const [editing, setEditing] = useState(null);
     const [toast, setToast] = useState({ type: "success", message: "" });
+    const [showMembersModal, setShowMembersModal] = useState(false);
+    const [selectedDepartment, setSelectedDepartment] = useState(null);
+    const [removingUserId, setRemovingUserId] = useState(null);
     const showToast = (type, message) => setToast({ type, message });
 
     const { isAdmin } = useAuth();
@@ -465,6 +593,57 @@ export default function DepartmentsPanel() {
         showToast("success", "Thao tác thành công");
     };
 
+    const handleRemoveUserFromDepartment = async (user) => {
+        if (!isAdmin || !selectedDepartment) return;
+        const confirmed = window.confirm(
+            `Bạn có chắc chắn muốn xoá ${user.full_name} khỏi ${selectedDepartment.d_name}?`
+        );
+        if (!confirmed) return;
+        try {
+            setRemovingUserId(user.user_id);
+            const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
+            const res = await fetch(
+                `/departments/${selectedDepartment.department_id}/users/${user.user_id}`,
+                {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRF-TOKEN": token,
+                        Accept: "application/json",
+                    },
+                }
+            );
+            const data = await res.json();
+            if (!res.ok || data.success === false) {
+                throw new Error(data.message || "Không thể xoá người dùng");
+            }
+
+            showToast("success", data.message || "Đã xoá người dùng khỏi phòng ban");
+            setDepartments((prev) =>
+                prev.map((dep) =>
+                    dep.department_id === selectedDepartment.department_id
+                        ? {
+                              ...dep,
+                              users: (dep.users || []).filter((u) => u.user_id !== user.user_id),
+                          }
+                        : dep
+                )
+            );
+            setSelectedDepartment((prev) =>
+                prev
+                    ? {
+                          ...prev,
+                          users: (prev.users || []).filter((u) => u.user_id !== user.user_id),
+                      }
+                    : prev
+            );
+        } catch (e) {
+            showToast("error", e.message || "Không thể xoá người dùng");
+        } finally {
+            setRemovingUserId(null);
+        }
+    };
+
     return (
         <div className="px-4 py-6">
             <Toast
@@ -475,14 +654,14 @@ export default function DepartmentsPanel() {
 
             <div className="mx-auto mb-3 flex w-full max-w-5xl items-center justify-between">
                 <h2 className="text-2xl font-extrabold text-slate-900">
-                    Quản lý phòng ban
+                    Danh sách phòng ban
                 </h2>
                 {isAdmin && (
                     <button
                         onClick={() => setOpenCreate(true)}
                         className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700 flex items-center gap-2"
                     >
-                        + Tạo mới
+                        Tạo mới
                     </button>
                 )}
             </div>
@@ -530,14 +709,25 @@ export default function DepartmentsPanel() {
                                     className="hover:bg-slate-50 transition"
                                 >
                                     <td className="px-4 py-3 border-r border-slate-200 font-medium text-slate-800">
-                                        {d.d_name}
+                                        <button
+                                            onClick={() => {
+                                                setSelectedDepartment(d);
+                                                setShowMembersModal(true);
+                                            }}
+                                            className="hover:text-blue-600 transition-colors cursor-pointer text-left"
+                                        >
+                                            {d.d_name}
+                                        </button>
                                     </td>
-                                    <td className="px-4 py-3 text-center border-r border-slate-200 text-slate-600">
-                                        {d.users?.length > 0
-                                            ? d.users
-                                                  .map((u) => u.full_name)
-                                                  .join(", ")
-                                            : "—"}
+                                    <td className="px-4 py-3 border-r border-slate-200">
+                                        <MembersDisplay
+                                            users={d.users}
+                                            departmentName={d.d_name}
+                                            onShowAll={() => {
+                                                setSelectedDepartment(d);
+                                                setShowMembersModal(true);
+                                            }}
+                                        />
                                     </td>
                                     <td className="px-4 py-3 text-center">
                                         {isAdmin ? (
@@ -627,6 +817,18 @@ export default function DepartmentsPanel() {
                 }}
                 department={assigningDepartment}
                 onReload={fetchDepartments}
+            />
+            <MembersModal
+                open={showMembersModal}
+                onClose={() => {
+                    setShowMembersModal(false);
+                    setSelectedDepartment(null);
+                }}
+                users={selectedDepartment?.users}
+                departmentName={selectedDepartment?.d_name}
+                canRemove={isAdmin}
+                onRemoveUser={handleRemoveUserFromDepartment}
+                removingUserId={removingUserId}
             />
         </div>
     );
