@@ -24,6 +24,9 @@ export default function UsersPage() {
     const [showFilterDropdown, setShowFilterDropdown] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const perPage = 10; // Số người dùng mỗi trang
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [userToDelete, setUserToDelete] = useState(null);
+    const [deleting, setDeleting] = useState(false);
 
     // Function để lưu tất cả thay đổi
     const saveAllChanges = async () => {
@@ -119,6 +122,50 @@ export default function UsersPage() {
         }
     };
 
+    // Function để xóa người dùng
+    const handleDeleteUser = (user) => {
+        setUserToDelete(user);
+        setShowDeleteModal(true);
+    };
+
+    // Function xác nhận xóa người dùng
+    const confirmDeleteUser = async () => {
+        if (!userToDelete) return;
+
+        setDeleting(true);
+        try {
+            const token = document
+                .querySelector('meta[name="csrf-token"]')
+                ?.getAttribute("content");
+
+            const response = await fetch(`/users/${userToDelete.user_id}`, {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRF-TOKEN": token,
+                    Accept: "application/json",
+                },
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showToast("success", result.message || "Đã xóa người dùng thành công");
+                setShowDeleteModal(false);
+                setUserToDelete(null);
+                // Reload danh sách users
+                await loadUsers();
+            } else {
+                showToast("error", result.message || "Không thể xóa người dùng");
+            }
+        } catch (error) {
+            console.error("Error deleting user:", error);
+            showToast("error", "Có lỗi xảy ra khi xóa người dùng. Vui lòng thử lại.");
+        } finally {
+            setDeleting(false);
+        }
+    };
+
     useEffect(() => {
         const load = async () => {
             try {
@@ -211,7 +258,7 @@ export default function UsersPage() {
             <div className="mx-auto max-w-6xl px-4 py-6">
                 <div className="flex justify-between items-center mb-4">
                     <h1 className="text-2xl font-extrabold text-slate-900">
-                        Quản lý người dùng
+                        Danh sách người dùng
                     </h1>
                     <div className="flex items-center gap-2">
                         <button
@@ -394,7 +441,7 @@ export default function UsersPage() {
                             {loading && (
                                 <tr>
                                     <td
-                                        colSpan={6}
+                                        colSpan={7}
                                         className="px-3 py-5 text-center text-slate-500"
                                     >
                                         Đang tải...
@@ -404,7 +451,7 @@ export default function UsersPage() {
                             {!loading && filtered.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={6}
+                                        colSpan={7}
                                         className="px-3 py-5 text-center text-slate-500"
                                     >
                                         Không có người dùng
@@ -547,6 +594,7 @@ export default function UsersPage() {
                                                 setPendingChanges
                                             }
                                             setUsers={setUsers}
+                                            onDelete={handleDeleteUser}
                                         />
                                     );
                                 })}
@@ -738,6 +786,73 @@ export default function UsersPage() {
                 departments={departments}
                 roles={roles}
             />
+
+            {/* Delete User Confirmation Modal */}
+            <Modal
+                open={showDeleteModal}
+                onClose={() => {
+                    if (!deleting) {
+                        setShowDeleteModal(false);
+                        setUserToDelete(null);
+                    }
+                }}
+                title="Xác nhận xóa người dùng"
+            >
+                <div className="space-y-4">
+                    <p className="text-gray-700">
+                        Bạn có chắc chắn muốn xóa người dùng{" "}
+                        <strong>{userToDelete?.full_name}</strong> (
+                        {userToDelete?.email}) khỏi hệ thống?
+                    </p>
+                    <p className="text-sm text-red-600">
+                        ⚠️ Hành động này không thể hoàn tác. Người dùng sẽ bị xóa khỏi hệ thống.
+                    </p>
+                    <div className="flex gap-3 justify-end">
+                        <button
+                            onClick={() => {
+                                setShowDeleteModal(false);
+                                setUserToDelete(null);
+                            }}
+                            disabled={deleting}
+                            className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            Hủy
+                        </button>
+                        <button
+                            onClick={confirmDeleteUser}
+                            disabled={deleting}
+                            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                            {deleting ? (
+                                <>
+                                    <svg
+                                        className="animate-spin h-4 w-4"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <circle
+                                            className="opacity-25"
+                                            cx="12"
+                                            cy="12"
+                                            r="10"
+                                            stroke="currentColor"
+                                            strokeWidth="4"
+                                        ></circle>
+                                        <path
+                                            className="opacity-75"
+                                            fill="currentColor"
+                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                        ></path>
+                                    </svg>
+                                    Đang xóa...
+                                </>
+                            ) : (
+                                "Xác nhận xóa"
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 }
