@@ -178,10 +178,10 @@ export default function CompanyOkrList() {
                                 }
                             }}
                         >
-                            <option value="company">OKR Công ty</option>
+                            <option value="company">Công ty</option>
                             {departments.map(dept => (
                                 <option key={dept.department_id} value={dept.department_id}>
-                                    OKR {dept.d_name}
+                                    {dept.d_name}
                                 </option>
                             ))}
                         </select>
