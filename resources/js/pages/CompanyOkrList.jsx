@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { CycleDropdown } from "../components/Dropdown";
 import ToastNotification from "../components/ToastNotification";
 import ObjectiveList from "./ObjectiveList"; // Corrected import
+import ObjectiveModal from "./ObjectiveModal";
 
 const pickRelation = (link, camel, snake) =>
     (link && link[camel]) || (link && link[snake]) || null;
@@ -36,7 +37,8 @@ export default function CompanyOkrList() {
     const [currentUser, setCurrentUser] = useState(null);
     const [childLinks, setChildLinks] = useState([]);
     const [linksLoading, setLinksLoading] = useState(false);
-    
+    const [creatingObjective, setCreatingObjective] = useState(false);
+
     // New state for advanced filtering
     const [filterType, setFilterType] = useState('company'); // 'company' or 'department'
     const [selectedDepartment, setSelectedDepartment] = useState('');
@@ -155,35 +157,43 @@ export default function CompanyOkrList() {
     return (
         <div className="mx-auto w-full max-w-6xl mt-8">
             <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                {/* Cycle Filter Dropdown */}
-                <CycleDropdown
-                    cyclesList={cyclesList}
-                    cycleFilter={cycleFilter}
-                    handleCycleChange={setCycleFilter}
-                    dropdownOpen={dropdownOpen}
-                    setDropdownOpen={setDropdownOpen}
-                />
-                {/* OKR Filter Dropdown */}
-                <div className="relative w-full sm:w-60">
-                    <select 
-                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                        value={filterType === 'company' ? 'company' : selectedDepartment}
-                        onChange={(e) => {
-                            const val = e.target.value;
-                            if (val === 'company') {
-                                handleFilterChange('company');
-                            } else {
-                                handleFilterChange('department', val);
-                            }
-                        }}
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={() => setCreatingObjective(true)}
+                        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                     >
-                        <option value="company">OKR Công ty</option>
-                        {departments.map(dept => (
-                            <option key={dept.department_id} value={dept.department_id}>
-                                OKR {dept.d_name}
-                            </option>
-                        ))}
-                    </select>
+                        Tạo Objective
+                    </button>
+                    {/* Cycle Filter Dropdown */}
+                    <CycleDropdown
+                        cyclesList={cyclesList}
+                        cycleFilter={cycleFilter}
+                        handleCycleChange={setCycleFilter}
+                        dropdownOpen={dropdownOpen}
+                        setDropdownOpen={setDropdownOpen}
+                    />
+                    {/* OKR Filter Dropdown */}
+                    <div className="relative w-full sm:w-60">
+                        <select 
+                            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                            value={filterType === 'company' ? 'company' : selectedDepartment}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === 'company') {
+                                    handleFilterChange('company');
+                                } else {
+                                    handleFilterChange('department', val);
+                                }
+                            }}
+                        >
+                            <option value="company">OKR Công ty</option>
+                            {departments.map(dept => (
+                                <option key={dept.department_id} value={dept.department_id}>
+                                    OKR {dept.d_name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
             </div>
             
@@ -196,17 +206,28 @@ export default function CompanyOkrList() {
                 setItems={setItems}
                 childLinks={childLinks}
                 linksLoading={linksLoading}
-                // Stub interactive props as this is a read-only view for now
                 setCreatingFor={() => {}}
                 setEditingObjective={() => {}}
                 setEditingKR={() => {}}
-                setCreatingObjective={() => {}}
+                setCreatingObjective={setCreatingObjective}
                 openCheckInModal={() => {}}
                 openCheckInHistory={() => {}}
                 onOpenLinkModal={() => {}}
                 onCancelLink={() => {}}
                 hideFilters={true} // Hide internal filters of ObjectiveList
             />
+
+            {creatingObjective && (
+                <ObjectiveModal
+                    creatingObjective={creatingObjective}
+                    setCreatingObjective={setCreatingObjective}
+                    departments={departments}
+                    cyclesList={cyclesList}
+                    setItems={setItems}
+                    setToast={setToast}
+                />
+            )}
+
             <ToastNotification toast={toast} />
         </div>
     );
