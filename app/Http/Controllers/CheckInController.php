@@ -95,16 +95,20 @@ class CheckInController extends Controller
                     'is_completed' => $request->boolean('is_completed') || $request->progress_percent >= 100,
                 ]);
 
-                // Cập nhật current_value và progress_percent của Key Result
+                // Determine the new status
+                $newStatus = $keyResult->status;
+                if ($request->boolean('is_completed') || $request->progress_percent >= 100) {
+                    $newStatus = 'completed';
+                } elseif ($keyResult->status !== 'completed') {
+                    $newStatus = 'active';
+                }
+
+                // Update the Key Result in a single call
                 $keyResult->update([
                     'current_value' => $request->progress_value,
                     'progress_percent' => $request->progress_percent,
+                    'status' => $newStatus,
                 ]);
-
-                // Nếu hoàn thành, cập nhật status
-                if ($checkIn->is_completed) {
-                    $keyResult->update(['status' => 'completed']);
-                }
 
                 // Tự động cập nhật progress của Objective từ KeyResults
                 if ($keyResult->objective) {
