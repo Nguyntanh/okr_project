@@ -86,17 +86,14 @@ export default function ObjectiveList({
     const handleAssignKR = async () => {
         const { kr, objective, email } = assignModal;
 
-        // 1. Validate email
         if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) {
             setToast({ type: "error", message: "Vui lòng nhập email hợp lệ." });
             return;
         }
 
-        // 2. Bật loading
         setAssignModal((prev) => ({ ...prev, loading: true }));
 
         try {
-            // 3. Lấy CSRF token
             const token = document
                 .querySelector('meta[name="csrf-token"]')
                 ?.getAttribute("content");
@@ -105,7 +102,6 @@ export default function ObjectiveList({
                 throw new Error("Không tìm thấy CSRF token");
             }
 
-            // 4. Gửi request
             const res = await fetch(
                 `/my-key-results/${objective.objective_id}/${kr.kr_id}/assign`,
                 {
@@ -119,7 +115,6 @@ export default function ObjectiveList({
                 }
             );
 
-            // 5. Parse JSON (có thể lỗi nếu server trả HTML)
             let json;
             try {
                 json = await res.json();
@@ -127,34 +122,18 @@ export default function ObjectiveList({
                 throw new Error("Phản hồi từ server không hợp lệ");
             }
 
-            // 6. Kiểm tra HTTP status + success
-            if (!res.ok) {
+            if (!res.ok || !json.success) {
                 throw new Error(
                     json.message || `Lỗi ${res.status}: Giao việc thất bại`
                 );
             }
 
-            if (!json.success) {
-                throw new Error(json.message || "Giao việc thất bại");
-            }
-
-            // Cập nhật giao diện ngay lập tức
-            if (json.data?.assigned_to) {
-                const assignee = json.data.assigned_to;
-
-                setItems((prevItems) =>
-                    prevItems.map((obj) => ({
-                        ...obj,
-                        key_results: obj.key_results.map((kr) =>
-                            kr.kr_id === assignModal.kr.kr_id
-                                ? {
-                                      ...kr,
-                                      assigned_to: assignee.user_id,
-                                      assignee: assignee,
-                                  }
-                                : kr
-                        ),
-                    }))
+            const updatedObjective = json.data.objective;
+            if (updatedObjective) {
+                setItems(prevItems => 
+                    prevItems.map(item => 
+                        item.objective_id === updatedObjective.objective_id ? updatedObjective : item
+                    )
                 );
             }
 
@@ -164,14 +143,12 @@ export default function ObjectiveList({
             });
             closeAssignModal();
         } catch (err) {
-            // 10. Xử lý lỗi
             console.error("Assign KR error:", err);
             setToast({
                 type: "error",
                 message: err.message || "Đã có lỗi xảy ra",
             });
         } finally {
-            // 11. Tắt loading
             setAssignModal((prev) => ({ ...prev, loading: false }));
         }
     };
