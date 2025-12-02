@@ -201,8 +201,21 @@ export default function ObjectivesPage() {
         [items]
     );
 
-    const handleCheckInSuccess = (keyResultData) => {
-        // ... (implementation is fine)
+    const handleCheckInSuccess = (responseData) => {
+        const updatedObjective = responseData.objective;
+
+        if (!updatedObjective) return;
+
+        setItems(prevItems => {
+            return prevItems.map(objective => {
+                if (objective.objective_id === updatedObjective.objective_id) {
+                    return updatedObjective; // Replace the old objective with the new one
+                }
+                return objective;
+            });
+        });
+
+        setToast({ type: 'success', message: 'Đã cập nhật tiến độ thành công!' });
     };
 
     const handleOpenLinkModal = (payload) => {
