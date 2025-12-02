@@ -699,7 +699,7 @@ export default function DepartmentsPanel() {
     }, [pendingDepartmentId, departments, openMembersModal]);
 
     return (
-        <div className="px-4 py-6">
+        <div className="">
             <Toast
                 type={toast.type}
                 message={toast.message}

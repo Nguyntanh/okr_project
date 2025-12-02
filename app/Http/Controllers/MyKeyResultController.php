@@ -395,9 +395,7 @@ class MyKeyResultController extends Controller
     {
         $user = Auth::user();
         $keyResult = KeyResult::where('objective_id', $objectiveId)
-            ->where('kr_id', $keyResultId)
-            ->whereNotNull('assigned_to')
-            ->firstOrFail();
+            ->findOrFail($keyResultId);
 
         $objective = Objective::findOrFail($objectiveId);
 
@@ -413,7 +411,7 @@ class MyKeyResultController extends Controller
             'email' => 'required|email|exists:users,email'
         ]);
 
-        $assignee = User::where('email', $validated['email'])->first();
+        $assignee = User::where('email', $validated['email'])->firstOrFail();
 
         // (Tùy chọn) Kiểm tra cùng phòng ban
         if ($objective->level === 'unit' && $assignee->department_id !== $objective->department_id) {
@@ -425,13 +423,14 @@ class MyKeyResultController extends Controller
 
         $keyResult->assigned_to = $assignee->user_id;
         $keyResult->save();
+        
+        $updatedObjective = $objective->fresh()->load('keyResults.assignedUser', 'user');
 
         return response()->json([
             'success' => true,
-            'message' => "Đã giao KR cho {$assignee->name}",
+            'message' => "Đã giao KR cho {$assignee->full_name}",
             'data' => [
-                'kr_id' => $keyResult->kr_id,
-                'assigned_to' => $assignee->only(['user_id', 'fullName', 'email', 'avatar'])
+                'objective' => $updatedObjective
             ]
         ]);
     }

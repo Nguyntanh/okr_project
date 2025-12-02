@@ -6,7 +6,7 @@ import React, {
     useMemo,
     useRef,
 } from "react";
-import { CycleDropdown } from "../components/Dropdown";
+import { CycleDropdown, ViewModeDropdown } from "../components/Dropdown";
 import Tabs from "../components/Tabs";
 import ConfirmationModal from "../components/ConfirmationModal";
 import ToastNotification from "../components/ToastNotification";
@@ -37,12 +37,16 @@ export default function ObjectiveList({
     linksLoading = false,
     cycleFilter,
     setCycleFilter,
+    viewMode,
+    setViewMode,
+    userDepartmentName,
     openCheckInModal,
     openCheckInHistory,
     currentUser,
     setItems,
     onOpenLinkModal,
     onCancelLink,
+    hideFilters = false, // Add this prop with a default value
 }) {
     const [toast, setToast] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
@@ -50,6 +54,7 @@ export default function ObjectiveList({
     const [archivedCount, setArchivedCount] = useState(0);
     const [loadingArchived, setLoadingArchived] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [viewModeDropdownOpen, setViewModeDropdownOpen] = useState(false);
     const [assignModal, setAssignModal] = useState({
         show: false,
         kr: null,
@@ -60,6 +65,9 @@ export default function ObjectiveList({
     const [assigneeTooltip, setAssigneeTooltip] = useState(null);
     const [archiving, setArchiving] = useState(null);
     const [archivingKR, setArchivingKR] = useState(null);
+
+    const role = currentUser?.role?.role_name?.toLowerCase();
+    const isCeo = role === 'ceo';
 
     const openAssignModal = (kr, objective) => {
         setAssignModal({
@@ -78,17 +86,14 @@ export default function ObjectiveList({
     const handleAssignKR = async () => {
         const { kr, objective, email } = assignModal;
 
-        // 1. Validate email
         if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) {
             setToast({ type: "error", message: "Vui lòng nhập email hợp lệ." });
             return;
         }
 
-        // 2. Bật loading
         setAssignModal((prev) => ({ ...prev, loading: true }));
 
         try {
-            // 3. Lấy CSRF token
             const token = document
                 .querySelector('meta[name="csrf-token"]')
                 ?.getAttribute("content");
@@ -97,7 +102,6 @@ export default function ObjectiveList({
                 throw new Error("Không tìm thấy CSRF token");
             }
 
-            // 4. Gửi request
             const res = await fetch(
                 `/my-key-results/${objective.objective_id}/${kr.kr_id}/assign`,
                 {
@@ -111,7 +115,6 @@ export default function ObjectiveList({
                 }
             );
 
-            // 5. Parse JSON (có thể lỗi nếu server trả HTML)
             let json;
             try {
                 json = await res.json();
@@ -119,34 +122,18 @@ export default function ObjectiveList({
                 throw new Error("Phản hồi từ server không hợp lệ");
             }
 
-            // 6. Kiểm tra HTTP status + success
-            if (!res.ok) {
+            if (!res.ok || !json.success) {
                 throw new Error(
                     json.message || `Lỗi ${res.status}: Giao việc thất bại`
                 );
             }
 
-            if (!json.success) {
-                throw new Error(json.message || "Giao việc thất bại");
-            }
-
-            // Cập nhật giao diện ngay lập tức
-            if (json.data?.assigned_to) {
-                const assignee = json.data.assigned_to;
-
-                setItems((prevItems) =>
-                    prevItems.map((obj) => ({
-                        ...obj,
-                        key_results: obj.key_results.map((kr) =>
-                            kr.kr_id === assignModal.kr.kr_id
-                                ? {
-                                      ...kr,
-                                      assigned_to: assignee.user_id,
-                                      assignee: assignee,
-                                  }
-                                : kr
-                        ),
-                    }))
+            const updatedObjective = json.data.objective;
+            if (updatedObjective) {
+                setItems(prevItems => 
+                    prevItems.map(item => 
+                        item.objective_id === updatedObjective.objective_id ? updatedObjective : item
+                    )
                 );
             }
 
@@ -156,14 +143,12 @@ export default function ObjectiveList({
             });
             closeAssignModal();
         } catch (err) {
-            // 10. Xử lý lỗi
             console.error("Assign KR error:", err);
             setToast({
                 type: "error",
                 message: err.message || "Đã có lỗi xảy ra",
             });
         } finally {
-            // 11. Tắt loading
             setAssignModal((prev) => ({ ...prev, loading: false }));
         }
     };
@@ -606,20 +591,35 @@ export default function ObjectiveList({
 
     return (
         <div className="mx-auto w-full max-w-6xl">
-            <div className="mb-4 flex w-full items-center justify-between">
-                <CycleDropdown
-                    cyclesList={cyclesList}
-                    cycleFilter={cycleFilter}
-                    handleCycleChange={setCycleFilter}
-                    dropdownOpen={dropdownOpen}
-                    setDropdownOpen={setDropdownOpen}
-                />
-                <Tabs
-                    showArchived={showArchived}
-                    setShowArchived={setShowArchived}
-                    setCreatingObjective={setCreatingObjective}
-                />
-            </div>
+            {/* Conditional rendering for the entire filter bar */}
+            {!hideFilters && (
+                <div className="mb-4 flex w-full items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <CycleDropdown
+                            cyclesList={cyclesList}
+                            cycleFilter={cycleFilter}
+                            handleCycleChange={setCycleFilter}
+                            dropdownOpen={dropdownOpen}
+                            setDropdownOpen={setDropdownOpen}
+                        />
+                        {!isCeo && (
+                            <ViewModeDropdown
+                                viewMode={viewMode}
+                                setViewMode={setViewMode}
+                                dropdownOpen={viewModeDropdownOpen}
+                                setDropdownOpen={setViewModeDropdownOpen}
+                                currentUser={currentUser}
+                                userDepartmentName={userDepartmentName}
+                            />
+                        )}
+                    </div>
+                    <Tabs
+                        showArchived={showArchived}
+                        setShowArchived={setShowArchived}
+                        setCreatingObjective={setCreatingObjective}
+                    />
+                </div>
+            )}
 
             {linksLoading && (
                 <div className="mb-3 flex items-center gap-2 text-xs text-indigo-600">
@@ -739,13 +739,10 @@ export default function ObjectiveList({
                 show={assignModal.show}
                 kr={assignModal.kr}
                 objective={assignModal.objective}
-                email={assignModal.email}
-                setEmail={(e) =>
-                    setAssignModal((prev) => ({ ...prev, email: e }))
-                }
                 loading={assignModal.loading}
                 onConfirm={handleAssignKR}
                 onClose={closeAssignModal}
+                currentUserRole={currentUser?.role} // NEW
             />
             {assigneeTooltip && assigneeTooltip.info && (
                 <div

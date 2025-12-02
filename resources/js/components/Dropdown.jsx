@@ -282,3 +282,80 @@ export function CycleDropdown({
 }
 
 export default Dropdown;
+
+export function ViewModeDropdown({
+    viewMode,
+    setViewMode,
+    dropdownOpen,
+    setDropdownOpen,
+    currentUser,
+    userDepartmentName,
+}) {
+    const role = currentUser?.role?.role_name?.toLowerCase();
+
+    const getLevelsLabel = () => {
+        if (role === 'manager') {
+            return `OKR ${userDepartmentName || 'Phòng ban'}`;
+        }
+        if (role === 'admin' || role === 'ceo') {
+            return 'OKR Công ty';
+        }
+        return 'OKR Phòng ban được giao';
+    };
+
+    const options = {
+        levels: getLevelsLabel(),
+        personal: 'OKR cá nhân',
+    };
+
+    const handleSelect = (mode) => {
+        setViewMode(mode);
+        setDropdownOpen(false);
+    };
+
+    return (
+        <div className="relative w-48">
+            <button
+                onClick={() => setDropdownOpen((prev) => !prev)}
+                className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            >
+                <span className="flex items-center gap-2 truncate">
+                    {options[viewMode]}
+                </span>
+                <svg
+                    className={`h-4 w-4 transform transition-transform ${
+                        dropdownOpen ? "rotate-180" : ""
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 9l-7 7-7-7"
+                    />
+                </svg>
+            </button>
+
+            {dropdownOpen && (
+                <div className="absolute top-full left-0 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg z-50">
+                    {Object.entries(options).map(([key, label]) => (
+                        <div
+                            key={key}
+                            onClick={() => handleSelect(key)}
+                            className={`cursor-pointer px-3 py-2 text-sm font-medium hover:bg-blue-50 ${
+                                viewMode === key
+                                    ? "text-blue-600"
+                                    : "text-slate-900"
+                            }`}
+                        >
+                            {label}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}

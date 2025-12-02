@@ -57,7 +57,7 @@ class MyObjectiveController extends Controller
      */
     public function index(Request $request): JsonResponse|View
     {
-        $user = Auth::user();
+        $user = Auth::user()->load('department');
         if (!$user) {
             return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
         }
@@ -91,10 +91,24 @@ class MyObjectiveController extends Controller
             $currentCycle = Cycle::find($request->cycle_id);
             if ($currentCycle) $currentCycleName = $currentCycle->cycle_name;
         }
+        
+        $userId = $user->user_id;
+        $query = Objective::with(['keyResults.assignedUser.department', 'department', 'cycle', 'assignments.user', 'assignments.role', 'user'])
+            ->where(function ($q) use ($userId) {
+                $q->where('user_id', $userId)
+                ->orWhereHas('keyResults', function ($subQuery) use ($userId) {
+                    $subQuery->where('assigned_to', $userId);
+                });
+            });
 
-        $query = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role'])
-            // ->with('assignedUser')
-            ->where('user_id', $user->user_id);
+
+        // Filter by view_mode: 'levels' or 'personal'
+        $viewMode = $request->input('view_mode', 'levels'); 
+        if ($viewMode === 'personal') {
+            $query->where('level', 'person');
+        } else { // 'levels'
+            $query->whereIn('level', ['company', 'unit', 'team']);
+        }
 
         if ($request->has('archived') && $request->archived == '1') {
             $query->whereNotNull('archived_at')
@@ -130,6 +144,7 @@ class MyObjectiveController extends Controller
                 'data' => $objectives,
                 'current_cycle_id' => $currentCycleId,
                 'current_cycle_name' => $currentCycleName,
+                'user_department_name' => $user->department->d_name ?? null,
             ]);
         }
 
@@ -181,7 +196,7 @@ class MyObjectiveController extends Controller
             'key_results.*.kr_title' => 'required|string|max:255',
             'key_results.*.target_value' => 'required|numeric|min:0',
             'key_results.*.current_value' => 'nullable|numeric|min:0',
-            'key_results.*.unit' => 'required|in:number,percent,completion,bai,num,bài',
+            'key_results.*.unit' => 'required|in:number,percent,currency,completion',
             'key_results.*.status' => 'required|in:draft,active,completed',
             'assignments' => 'nullable|array',
             'assignments.*.email' => 'required|email|exists:users,email',
@@ -564,8 +579,9 @@ class MyObjectiveController extends Controller
      */
     private function getAllowedLevels(string $roleName): array
     {
-        return match ($roleName) {
-            'admin' => ['company', 'person'],  
+        return match (strtolower($roleName)) {
+            'admin' => ['company'],  
+            'ceo' => ['company'],
             'manager' => ['unit', 'person'],  
             'member' => ['person'],  
             default => ['person'],
