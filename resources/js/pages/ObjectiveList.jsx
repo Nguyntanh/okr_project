@@ -59,7 +59,6 @@ export default function ObjectiveList({
         show: false,
         kr: null,
         objective: null,
-        email: "",
         loading: false,
     });
     const [assigneeTooltip, setAssigneeTooltip] = useState(null);
@@ -74,7 +73,6 @@ export default function ObjectiveList({
             show: true,
             kr,
             objective,
-            email: "",
             loading: false,
         });
     };
@@ -83,11 +81,11 @@ export default function ObjectiveList({
         setAssignModal((prev) => ({ ...prev, show: false }));
     };
 
-    const handleAssignKR = async () => {
-        const { kr, objective, email } = assignModal;
+    const handleAssignKR = async (userId) => {
+        const { kr, objective } = assignModal;
 
-        if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) {
-            setToast({ type: "error", message: "Vui lòng nhập email hợp lệ." });
+        if (!userId) {
+            setToast({ type: "error", message: "Vui lòng chọn người nhận." });
             return;
         }
 
@@ -111,7 +109,7 @@ export default function ObjectiveList({
                         "X-CSRF-TOKEN": token,
                         Accept: "application/json",
                     },
-                    body: JSON.stringify({ email }),
+                    body: JSON.stringify({ user_id: userId }),
                 }
             );
 
@@ -742,7 +740,7 @@ export default function ObjectiveList({
                 loading={assignModal.loading}
                 onConfirm={handleAssignKR}
                 onClose={closeAssignModal}
-                currentUserRole={currentUser?.role} // NEW
+                currentUserRole={currentUser?.role}
             />
             {assigneeTooltip && assigneeTooltip.info && (
                 <div
