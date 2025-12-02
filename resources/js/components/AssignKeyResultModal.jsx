@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Modal } from "./ui";
 import UserSearchInput from './UserSearchInput';
+import { FaBullseye, FaKey } from "react-icons/fa";
 
 export default function AssignKeyResultModal({
     show,
@@ -29,24 +30,45 @@ export default function AssignKeyResultModal({
         confirmButtonText = "Đã giao";
     }
     
-    // Determine if the submit button should be disabled
     const isSubmitDisabled = loading || isNoChange;
 
-    // Handle form submission
     const handleSubmit = () => {
-        // Pass userId if selected, otherwise pass null for unassigning
         onConfirm(selectedAssignee ? selectedAssignee.user_id : null);
     };
+
+    const getLevelColor = (level) => {
+        const colors = {
+            company: "bg-blue-100 text-blue-600",
+            unit: "bg-purple-100 text-purple-600",
+            team: "bg-green-100 text-green-600",
+            person: "bg-yellow-100 text-yellow-600",
+        };
+        return colors[level] || "bg-gray-100 text-gray-600";
+    };
+    const levelColorClasses = getLevelColor(objective?.level);
 
     if (!show || !kr || !objective) return null;
 
     return (
         <Modal open={show} onClose={onClose} title={modalTitle}>
             <div className="space-y-4">
-                <div className="mb-4">
-                    <p className="text-sm text-slate-700 font-medium">
-                        <span className="font-bold">{objective.obj_title}</span> › {kr.kr_title}
-                    </p>
+                <div className="mb-4 space-y-2">
+                    <div className="flex items-center gap-2">
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${levelColorClasses}`}>
+                            <FaBullseye className="w-4 h-4" />
+                        </div>
+                        <p className="text-sm text-slate-800 font-semibold">
+                            {objective.obj_title}
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2 pl-4">
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100 text-amber-600">
+                            <FaKey className="w-3 h-3" />
+                        </div>
+                        <p className="text-sm text-slate-700 font-medium">
+                            {kr.kr_title}
+                        </p>
+                    </div>
                 </div>
 
                 {/* Display Current Assignee */}
