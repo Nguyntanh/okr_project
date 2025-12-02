@@ -136,12 +136,7 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
 
     // Lọc departments - chỉ hiển thị phòng ban
     const getDepartmentOptions = () => {
-        // Chỉ hiển thị phòng ban (parent_department_id === null và type === "phòng ban")
-        const filteredDepts = departments.filter(d => 
-            d.parent_department_id === null && d.type === "phòng ban"
-        );
-        
-        return filteredDepts.map(d => ({
+        return departments.map(d => ({
             value: String(d.department_id),
             label: d.d_name
         }));
