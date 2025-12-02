@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Toast, Modal } from "../components/ui";
 import { useAuth } from "../hooks/useAuth";
 import Select from "react-select";
@@ -372,7 +372,7 @@ function MembersModal({
     users,
     departmentName,
     canRemove = false,
-    onRemoveUser,
+    onRequestRemoveUser,
     removingUserId = null,
 }) {
     if (!users || users.length === 0) {
@@ -429,7 +429,7 @@ function MembersModal({
                                     )}
                                     {canRemove && (
                                         <button
-                                            onClick={() => onRemoveUser && onRemoveUser(user)}
+                                            onClick={() => onRequestRemoveUser && onRequestRemoveUser(user)}
                                             disabled={removingUserId === user.user_id}
                                             className={`p-1.5 rounded-lg border transition-colors ${
                                                 removingUserId === user.user_id
@@ -513,6 +513,45 @@ export default function DepartmentsPanel() {
     const [showMembersModal, setShowMembersModal] = useState(false);
     const [selectedDepartment, setSelectedDepartment] = useState(null);
     const [removingUserId, setRemovingUserId] = useState(null);
+    const [userPendingRemoval, setUserPendingRemoval] = useState(null);
+    const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+    const [pendingDepartmentId, setPendingDepartmentId] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        return params.get("department") || null;
+    });
+
+    const updateDepartmentQueryParam = useCallback((deptId, replace = false) => {
+        const params = new URLSearchParams(window.location.search);
+        if (deptId) {
+            params.set("department", deptId);
+        } else {
+            params.delete("department");
+        }
+        const newUrl = params.toString()
+            ? `${window.location.pathname}?${params.toString()}`
+            : window.location.pathname;
+        window.history[replace ? "replaceState" : "pushState"]({}, "", newUrl);
+    }, []);
+
+    const openMembersModal = useCallback(
+        (department, options = {}) => {
+            if (!department) return;
+            setSelectedDepartment(department);
+            setShowMembersModal(true);
+            if (!options.skipUrlUpdate) {
+                updateDepartmentQueryParam(department.department_id);
+            }
+        },
+        [updateDepartmentQueryParam]
+    );
+
+    const closeMembersModal = useCallback(() => {
+        setShowMembersModal(false);
+        setSelectedDepartment(null);
+        setShowRemoveConfirm(false);
+        setUserPendingRemoval(null);
+        updateDepartmentQueryParam(null);
+    }, [updateDepartmentQueryParam]);
     const showToast = (type, message) => setToast({ type, message });
 
     const { isAdmin } = useAuth();
@@ -593,17 +632,19 @@ export default function DepartmentsPanel() {
         showToast("success", "Thao tác thành công");
     };
 
-    const handleRemoveUserFromDepartment = async (user) => {
+    const requestRemoveUserFromDepartment = (user) => {
         if (!isAdmin || !selectedDepartment) return;
-        const confirmed = window.confirm(
-            `Bạn có chắc chắn muốn xoá ${user.full_name} khỏi ${selectedDepartment.d_name}?`
-        );
-        if (!confirmed) return;
+        setUserPendingRemoval(user);
+        setShowRemoveConfirm(true);
+    };
+
+    const confirmRemoveUserFromDepartment = async () => {
+        if (!isAdmin || !selectedDepartment || !userPendingRemoval) return;
         try {
-            setRemovingUserId(user.user_id);
+            setRemovingUserId(userPendingRemoval.user_id);
             const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
             const res = await fetch(
-                `/departments/${selectedDepartment.department_id}/users/${user.user_id}`,
+                `/departments/${selectedDepartment.department_id}/users/${userPendingRemoval.user_id}`,
                 {
                     method: "DELETE",
                     headers: {
@@ -624,7 +665,7 @@ export default function DepartmentsPanel() {
                     dep.department_id === selectedDepartment.department_id
                         ? {
                               ...dep,
-                              users: (dep.users || []).filter((u) => u.user_id !== user.user_id),
+                              users: (dep.users || []).filter((u) => u.user_id !== userPendingRemoval.user_id),
                           }
                         : dep
                 )
@@ -633,7 +674,7 @@ export default function DepartmentsPanel() {
                 prev
                     ? {
                           ...prev,
-                          users: (prev.users || []).filter((u) => u.user_id !== user.user_id),
+                          users: (prev.users || []).filter((u) => u.user_id !== userPendingRemoval.user_id),
                       }
                     : prev
             );
@@ -641,8 +682,21 @@ export default function DepartmentsPanel() {
             showToast("error", e.message || "Không thể xoá người dùng");
         } finally {
             setRemovingUserId(null);
+            setShowRemoveConfirm(false);
+            setUserPendingRemoval(null);
         }
     };
+
+    useEffect(() => {
+        if (!pendingDepartmentId || departments.length === 0) return;
+        const dept = departments.find(
+            (d) => String(d.department_id) === String(pendingDepartmentId)
+        );
+        if (dept) {
+            openMembersModal(dept, { skipUrlUpdate: true });
+            setPendingDepartmentId(null);
+        }
+    }, [pendingDepartmentId, departments, openMembersModal]);
 
     return (
         <div className="px-4 py-6">
@@ -710,10 +764,7 @@ export default function DepartmentsPanel() {
                                 >
                                     <td className="px-4 py-3 border-r border-slate-200 font-medium text-slate-800">
                                         <button
-                                            onClick={() => {
-                                                setSelectedDepartment(d);
-                                                setShowMembersModal(true);
-                                            }}
+                                            onClick={() => openMembersModal(d)}
                                             className="hover:text-blue-600 transition-colors cursor-pointer text-left"
                                         >
                                             {d.d_name}
@@ -723,10 +774,7 @@ export default function DepartmentsPanel() {
                                         <MembersDisplay
                                             users={d.users}
                                             departmentName={d.d_name}
-                                            onShowAll={() => {
-                                                setSelectedDepartment(d);
-                                                setShowMembersModal(true);
-                                            }}
+                                            onShowAll={() => openMembersModal(d)}
                                         />
                                     </td>
                                     <td className="px-4 py-3 text-center">
@@ -820,16 +868,56 @@ export default function DepartmentsPanel() {
             />
             <MembersModal
                 open={showMembersModal}
-                onClose={() => {
-                    setShowMembersModal(false);
-                    setSelectedDepartment(null);
-                }}
+                onClose={closeMembersModal}
                 users={selectedDepartment?.users}
                 departmentName={selectedDepartment?.d_name}
                 canRemove={isAdmin}
-                onRemoveUser={handleRemoveUserFromDepartment}
+                onRequestRemoveUser={requestRemoveUserFromDepartment}
                 removingUserId={removingUserId}
             />
+            <Modal
+                open={showRemoveConfirm}
+                onClose={() => {
+                    if (removingUserId) return;
+                    setShowRemoveConfirm(false);
+                    setUserPendingRemoval(null);
+                }}
+                title="Xác nhận xoá"
+                maxWidth="max-w-lg"
+            >
+                <div className="space-y-4">
+                    <p className="text-slate-700">
+                        Bạn có chắc chắn muốn xoá{" "}
+                        <strong>{userPendingRemoval?.full_name}</strong> khỏi{" "}
+                        <strong>{selectedDepartment?.d_name}</strong>?
+                    </p>
+                    <p className="text-sm text-rose-500">
+                        Hành động này sẽ xoá người dùng khỏi phòng ban!
+                    </p>
+                    <div className="flex justify-end gap-3">
+                        <button
+                            onClick={() => {
+                                if (removingUserId) return;
+                                setShowRemoveConfirm(false);
+                                setUserPendingRemoval(null);
+                            }}
+                            className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+                            disabled={!!removingUserId}
+                        >
+                            Hủy
+                        </button>
+                        <button
+                            onClick={confirmRemoveUserFromDepartment}
+                            className={`px-4 py-2 rounded-lg text-white bg-rose-600 hover:bg-rose-700 transition ${
+                                removingUserId ? "opacity-60 cursor-not-allowed" : ""
+                            }`}
+                            disabled={!!removingUserId}
+                        >
+                            {removingUserId ? "Đang xoá..." : "Xoá khỏi phòng ban"}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 }
