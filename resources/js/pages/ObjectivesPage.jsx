@@ -219,19 +219,20 @@ export default function ObjectivesPage() {
     };
 
     const handleOpenLinkModal = (payload) => {
-        // ... (implementation is fine)
+        setLinkModal({
+            open: true,
+            source: payload.source,
+            sourceType: payload.sourceType,
+        });
     };
 
     const closeLinkModal = () => {
-        // ... (implementation is fine)
+        setLinkModal({
+            open: false,
+            source: null,
+            sourceType: "objective",
+        });
     };
-
-    const syncLinkCollections = useCallback(
-        (link) => {
-            // ... (implementation is fine)
-        },
-        [currentUser]
-    );
 
     const handleLinkRequestSuccess = (link) => {
         // ... (implementation is fine)
@@ -239,9 +240,33 @@ export default function ObjectivesPage() {
 
     const performLinkAction = useCallback(
         async (linkId, action, payload = {}, fallbackMessage = "Đã cập nhật trạng thái liên kết") => {
-            // ... (implementation is fine)
+            try {
+                const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
+                if (!token) throw new Error("CSRF token not found");
+
+                const res = await fetch(`/my-links/${linkId}/${action}`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRF-TOKEN": token,
+                        Accept: "application/json",
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                const json = await res.json();
+                if (!res.ok || !json.success) {
+                    throw new Error(json.message || `Hành động ${action} thất bại`);
+                }
+                
+                setToast({ type: "success", message: json.message || fallbackMessage });
+                load(page, cycleFilter, myOKRFilter, viewMode); // Reload data on success
+
+            } catch (err) {
+                setToast({ type: "error", message: err.message });
+            }
         },
-        [syncLinkCollections]
+        [page, cycleFilter, myOKRFilter, viewMode]
     );
 
     const handleCancelLink = (linkId, reason = "", keepOwnership = true) =>
