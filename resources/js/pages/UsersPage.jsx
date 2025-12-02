@@ -22,6 +22,8 @@ export default function UsersPage() {
     const [showInviteModal, setShowInviteModal] = useState(false);
     const [teamId, setTeamId] = useState("");
     const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const perPage = 10; // Số người dùng mỗi trang
 
     // Function để lưu tất cả thay đổi
     const saveAllChanges = async () => {
@@ -155,6 +157,7 @@ export default function UsersPage() {
         setDepartmentId("");
         setStatus("");
         setTeamId("");
+        setCurrentPage(1); // Reset về trang 1 khi reset filter
     };
 
     // Kiểm tra có filter nào đang active không
@@ -186,6 +189,17 @@ export default function UsersPage() {
             matchesTeam
         );
     });
+
+    // Tính toán phân trang
+    const totalPages = Math.ceil(filtered.length / perPage);
+    const startIndex = (currentPage - 1) * perPage;
+    const endIndex = startIndex + perPage;
+    const paginatedUsers = filtered.slice(startIndex, endIndex);
+
+    // Reset về trang 1 khi filter thay đổi
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [q, role, status, departmentId, teamId]);
 
     return (
         <div className="">
@@ -398,7 +412,7 @@ export default function UsersPage() {
                                 </tr>
                             )}
                             {!loading &&
-                                filtered.map((u) => {
+                                paginatedUsers.map((u) => {
                                     const rname = (
                                         u.role?.role_name || ""
                                     ).toLowerCase();
@@ -539,6 +553,98 @@ export default function UsersPage() {
                         </tbody>
                     </table>
                 </div>
+
+                {/* Phân trang */}
+                {!loading && filtered.length > 0 && totalPages > 1 && (
+                    <div className="mt-4 flex items-center justify-center">
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                disabled={currentPage === 1}
+                                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                    currentPage === 1
+                                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                        : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                                }`}
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M15 19l-7-7 7-7"
+                                    />
+                                </svg>
+                            </button>
+                            
+                            <div className="flex items-center gap-1">
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                                    // Chỉ hiển thị một số trang xung quanh trang hiện tại
+                                    if (
+                                        page === 1 ||
+                                        page === totalPages ||
+                                        (page >= currentPage - 1 && page <= currentPage + 1)
+                                    ) {
+                                        return (
+                                            <button
+                                                key={page}
+                                                onClick={() => setCurrentPage(page)}
+                                                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                                    currentPage === page
+                                                        ? "bg-blue-600 text-white"
+                                                        : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                                                }`}
+                                            >
+                                                {page}
+                                            </button>
+                                        );
+                                    } else if (
+                                        page === currentPage - 2 ||
+                                        page === currentPage + 2
+                                    ) {
+                                        return (
+                                            <span key={page} className="px-2 text-gray-400">
+                                                ...
+                                            </span>
+                                        );
+                                    }
+                                    return null;
+                                })}
+                            </div>
+
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                disabled={currentPage === totalPages}
+                                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                    currentPage === totalPages
+                                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                        : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                                }`}
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M9 5l7 7-7 7"
+                                    />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Confirmation Modal */}
