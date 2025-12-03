@@ -257,17 +257,24 @@ export default function KeyResultModal({
                             <label className="mb-1 block text-xs font-semibold text-slate-600">
                                 Trạng thái
                             </label>
-                            <select
-                                value={form.status}
-                                onChange={(e) =>
-                                    handleChange("status", e.target.value)
-                                }
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            >
-                                <option value="draft">Bản nháp</option>
-                                <option value="active">Đang thực hiện</option>
-                                <option value="completed">Hoàn thành</option>
-                            </select>
+                            {creatingFor ? (
+                                <div className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                                    Bản nháp
+                                </div>
+                            ) : (
+                                <select
+                                    value={form.status}
+                                    onChange={(e) =>
+                                        handleChange("status", e.target.value)
+                                    }
+                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                >
+                                    <option value="">-- chọn trạng thái --</option>
+                                    <option value="draft">Bản nháp</option>
+                                    <option value="active">Đang thực hiện</option>
+                                    <option value="completed">Hoàn thành</option>
+                                </select>
+                            )}
                         </div>
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-600">
