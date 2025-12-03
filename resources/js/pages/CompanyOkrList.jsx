@@ -5,6 +5,11 @@ import ToastNotification from "../components/ToastNotification";
 import ObjectiveList from "./ObjectiveList"; // Corrected import
 import ObjectiveModal from "./ObjectiveModal.jsx"; // Import ObjectiveModal
 import KeyResultModal from "./KeyResultModal.jsx"; // Import KeyResultModal
+import CheckInModal from "../components/CheckInModal";
+import CheckInHistory from "../components/CheckInHistory";
+import LinkOkrModal from "../components/LinkOkrModal.jsx";
+import LinkRequestsPanel from "../components/LinkRequestsPanel";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 const pickRelation = (link, camel, snake) =>
     (link && link[camel]) || (link && link[snake]) || null;
@@ -42,6 +47,15 @@ export default function CompanyOkrList() {
     const [editingObjective, setEditingObjective] = useState(null);
     const [editingKR, setEditingKR] = useState(null);
     const [creatingFor, setCreatingFor] = useState(null);
+    const [checkInModal, setCheckInModal] = useState({ open: false, keyResult: null });
+    const [checkInHistory, setCheckInHistory] = useState({ open: false, keyResult: null });
+    const [linkModal, setLinkModal] = useState({
+        open: false,
+        source: null,
+        sourceType: "objective",
+    });
+    const [links, setLinks] = useState([]);
+    const [incomingLinks, setIncomingLinks] = useState([]);
 
     // New state for advanced filtering
     const [filterType, setFilterType] = useState('company'); // 'company' or 'department'
@@ -135,6 +149,8 @@ export default function CompanyOkrList() {
                 const linksJson = await linksRes.json();
                 if (linksJson.success) {
                     setChildLinks(normalizeLinksList(linksJson.data?.children || []));
+                    setLinks(normalizeLinksList(linksJson.data?.outgoing || []));
+                    setIncomingLinks(normalizeLinksList(linksJson.data?.incoming || []));
                 }
             }
 
@@ -160,6 +176,95 @@ export default function CompanyOkrList() {
             setFilterType('department');
             setSelectedDepartment(value);
         }
+    };
+
+    const openCheckInModal = (keyResult) => {
+        setCheckInModal({ open: true, keyResult });
+    };
+
+    const openCheckInHistory = (keyResult) => {
+        setCheckInHistory({ open: true, keyResult });
+    };
+
+    const handleOpenLinkModal = (payload) => {
+        setLinkModal({
+            open: true,
+            source: payload.source,
+            sourceType: payload.sourceType,
+        });
+    };
+
+    const closeLinkModal = () => {
+        setLinkModal({
+            open: false,
+            source: null,
+            sourceType: "objective",
+        });
+    };
+
+    const performLinkAction = useCallback(
+        async (linkId, action, payload = {}, fallbackMessage = "Đã cập nhật trạng thái liên kết") => {
+            try {
+                const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
+                if (!token) throw new Error("CSRF token not found");
+
+                const res = await fetch(`/my-links/${linkId}/${action}`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRF-TOKEN": token,
+                        Accept: "application/json",
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                const json = await res.json();
+                if (!res.ok || !json.success) {
+                    throw new Error(json.message || `Hành động ${action} thất bại`);
+                }
+                
+                setToast({ type: "success", message: json.message || fallbackMessage });
+                fetchData(); // Reload data on success
+
+            } catch (err) {
+                setToast({ type: "error", message: err.message });
+            }
+        },
+        [fetchData]
+    );
+
+    const handleCancelLink = (linkId, reason = "", keepOwnership = true) =>
+        performLinkAction(linkId, "cancel", { reason, keep_ownership: keepOwnership }, "Đã hủy liên kết");
+
+    const handleApproveLink = (linkId, note = "") =>
+        performLinkAction(linkId, "approve", { note }, "Đã chấp thuận yêu cầu");
+
+    const handleRejectLink = (linkId, note) =>
+        performLinkAction(linkId, "reject", { note }, "Đã từ chối yêu cầu");
+    
+    const handleRequestChanges = (linkId, note) =>
+        performLinkAction(linkId, "request-changes", { note }, "Đã yêu cầu chỉnh sửa");
+
+    const handleCheckInSuccess = (responseData) => {
+        const updatedObjective = responseData.objective;
+
+        if (!updatedObjective) return;
+
+        setItems(prevItems => {
+            return prevItems.map(objective => {
+                if (objective.objective_id === updatedObjective.objective_id) {
+                    return updatedObjective; // Replace the old objective with the new one
+                }
+                return objective;
+            });
+        });
+
+        setToast({ type: 'success', message: 'Đã cập nhật tiến độ thành công!' });
+    };
+
+    const handleLinkRequestSuccess = (link) => {
+        setToast({ type: "success", message: "Đã gửi yêu cầu liên kết" });
+        fetchData();
     };
 
     return (
@@ -216,21 +321,21 @@ export default function CompanyOkrList() {
                 setItems={setItems}
                 childLinks={childLinks}
                 linksLoading={linksLoading}
-                // Pass functional props if CEO, otherwise pass no-ops
-                setCreatingFor={isCeo ? setCreatingFor : () => {}}
-                setEditingObjective={isCeo ? setEditingObjective : () => {}}
-                setEditingKR={isCeo ? setEditingKR : () => {}}
-                setCreatingObjective={() => {}} // This is handled by the button outside ObjectiveList
-                openCheckInModal={() => {}}
-                openCheckInHistory={() => {}}
-                onOpenLinkModal={() => {}}
-                onCancelLink={() => {}}
+                setCreatingFor={setCreatingFor}
+                setEditingObjective={setEditingObjective}
+                setEditingKR={setEditingKR}
+                setCreatingObjective={setCreatingObjective}
+                openCheckInModal={openCheckInModal}
+                openCheckInHistory={openCheckInHistory}
+                onOpenLinkModal={handleOpenLinkModal}
+                onCancelLink={handleCancelLink}
                 hideFilters={true}
-                disableActions={true}
+                reloadData={fetchData}
+                links={links}
             />
 
             {/* Modals for CEO actions */}
-            {isCeo && creatingObjective && (
+            {creatingObjective && (
                 <ObjectiveModal
                     creatingObjective={creatingObjective}
                     setCreatingObjective={setCreatingObjective}
@@ -241,7 +346,7 @@ export default function CompanyOkrList() {
                     reloadData={fetchData}
                 />
             )}
-            {isCeo && editingObjective && (
+            {editingObjective && (
                 <ObjectiveModal
                     editingObjective={editingObjective}
                     setEditingObjective={setEditingObjective}
@@ -252,7 +357,7 @@ export default function CompanyOkrList() {
                     reloadData={fetchData}
                 />
             )}
-            {isCeo && editingKR && (
+            {editingKR && (
                 <KeyResultModal
                     editingKR={editingKR}
                     setEditingKR={setEditingKR}
@@ -262,7 +367,7 @@ export default function CompanyOkrList() {
                     setToast={setToast}
                 />
             )}
-            {isCeo && creatingFor && (
+            {creatingFor && (
                 <KeyResultModal
                     creatingFor={creatingFor}
                     setCreatingFor={setCreatingFor}
@@ -271,6 +376,45 @@ export default function CompanyOkrList() {
                     setItems={setItems}
                     setToast={setToast}
                     currentUser={currentUser}
+                />
+            )}
+
+            <LinkRequestsPanel
+                incoming={incomingLinks}
+                children={childLinks}
+                loading={linksLoading}
+                onApprove={handleApproveLink}
+                onReject={handleRejectLink}
+                onRequestChanges={handleRequestChanges}
+                onCancel={handleCancelLink}
+            />
+
+            <ErrorBoundary>
+                <CheckInModal
+                    open={checkInModal.open}
+                    onClose={() => setCheckInModal({ open: false, keyResult: null })}
+                    keyResult={checkInModal.keyResult}
+                    objectiveId={checkInModal.keyResult?.objective_id}
+                    onSuccess={handleCheckInSuccess}
+                />
+            </ErrorBoundary>
+
+            <ErrorBoundary>
+                <CheckInHistory
+                    open={checkInHistory.open}
+                    onClose={() => setCheckInHistory({ open: false, keyResult: null })}
+                    keyResult={checkInHistory.keyResult}
+                    objectiveId={checkInHistory.keyResult?.objective_id}
+                />
+            </ErrorBoundary>
+
+            {linkModal.open && (
+                <LinkOkrModal
+                    open={linkModal.open}
+                    onClose={closeLinkModal}
+                    source={linkModal.source}
+                    sourceType={linkModal.sourceType}
+                    onSuccess={handleLinkRequestSuccess}
                 />
             )}
 
