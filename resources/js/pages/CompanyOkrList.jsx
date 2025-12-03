@@ -296,7 +296,7 @@ export default function CompanyOkrList() {
                 />
             )}
 
-            <ToastNotification toast={toast} />
+            <ToastNotification toast={toast} onClose={() => setToast(null)} />
         </div>
     );
 }

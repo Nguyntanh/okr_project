@@ -545,7 +545,7 @@ export default function ObjectiveList({
                                 setDropdownOpen={setDropdownOpen}
                             />
                         </div>
-                        {!isCeo && (
+                        {role !== 'ceo' && role !== 'admin' && (
                             <div className="flex flex-col gap-1">
                                 <span className="text-xs font-semibold text-slate-600 leading-none">
                                     Phạm vi OKR
@@ -672,7 +672,7 @@ export default function ObjectiveList({
                     setConfirmModal((prev) => ({ ...prev, show: false }))
                 }
             />
-            <ToastNotification toast={toast} />
+            <ToastNotification toast={toast} onClose={() => setToast(null)} />
             <AssignKeyResultModal
                 show={assignModal.show}
                 kr={assignModal.kr}
