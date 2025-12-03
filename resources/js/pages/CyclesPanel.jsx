@@ -54,7 +54,7 @@ const toInputDate = (v) => {
 
 // --- Components ---
 
-function CycleFormModal({ open, onClose, onSubmit, initialData, title }) {
+function CycleFormModal({ open, onClose, onSubmit, initialData, title, existingCycles = [] }) {
     const [form, setForm] = useState({
         cycle_name: "",
         start_date: "",
@@ -129,6 +129,33 @@ function CycleFormModal({ open, onClose, onSubmit, initialData, title }) {
                             name="start_date"
                             value={form.start_date}
                             onChange={(val) => setForm({ ...form, start_date: val })}
+                            isDateDisabled={(date) => {
+                                // Disable ngày thuộc các chu kỳ khác (tránh trùng khoảng)
+                                const currentId = initialData?.cycle_id || initialData?.id || null;
+                                const d = new Date(
+                                    date.getFullYear(),
+                                    date.getMonth(),
+                                    date.getDate()
+                                ).getTime();
+                                return existingCycles.some((c) => {
+                                    const cid = c.cycle_id || c.id;
+                                    if (currentId && cid === currentId) return false;
+                                    const start = parseDateSafe(c.start_date);
+                                    const end = parseDateSafe(c.end_date);
+                                    if (!start || !end) return false;
+                                    const s = new Date(
+                                        start.getFullYear(),
+                                        start.getMonth(),
+                                        start.getDate()
+                                    ).getTime();
+                                    const e = new Date(
+                                        end.getFullYear(),
+                                        end.getMonth(),
+                                        end.getDate()
+                                    ).getTime();
+                                    return d >= s && d <= e;
+                                });
+                            }}
                             required
                         />
                     </div>
@@ -140,6 +167,32 @@ function CycleFormModal({ open, onClose, onSubmit, initialData, title }) {
                             name="end_date"
                             value={form.end_date}
                             onChange={(val) => setForm({ ...form, end_date: val })}
+                            isDateDisabled={(date) => {
+                                const currentId = initialData?.cycle_id || initialData?.id || null;
+                                const d = new Date(
+                                    date.getFullYear(),
+                                    date.getMonth(),
+                                    date.getDate()
+                                ).getTime();
+                                return existingCycles.some((c) => {
+                                    const cid = c.cycle_id || c.id;
+                                    if (currentId && cid === currentId) return false;
+                                    const start = parseDateSafe(c.start_date);
+                                    const end = parseDateSafe(c.end_date);
+                                    if (!start || !end) return false;
+                                    const s = new Date(
+                                        start.getFullYear(),
+                                        start.getMonth(),
+                                        start.getDate()
+                                    ).getTime();
+                                    const e = new Date(
+                                        end.getFullYear(),
+                                        end.getMonth(),
+                                        end.getDate()
+                                    ).getTime();
+                                    return d >= s && d <= e;
+                                });
+                            }}
                             required
                         />
                     </div>
@@ -564,6 +617,7 @@ export default function CyclesPanel() {
                 onClose={() => setCreateModalOpen(false)} 
                 onSubmit={handleCreate} 
                 title="Tạo chu kỳ mới"
+                existingCycles={cycles}
             />
             <CycleFormModal 
                 open={editModalOpen} 
@@ -571,6 +625,7 @@ export default function CyclesPanel() {
                 onSubmit={handleUpdate} 
                 initialData={editingCycle}
                 title="Chỉnh sửa chu kỳ"
+                existingCycles={cycles}
             />
 
             <div className="mx-auto max-w-6xl px-4 py-6">
