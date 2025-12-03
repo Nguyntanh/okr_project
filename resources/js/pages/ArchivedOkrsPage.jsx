@@ -33,13 +33,6 @@ export default function ArchivedOkrsPage() {
     const [confirmModal, setConfirmModal] = useState({ show: false, title: "", message: "", onConfirm: () => {}, confirmText: "OK", cancelText: "Hủy" });
     const [processing, setProcessing] = useState({ type: "", id: null });
 
-    useEffect(() => {
-        if (toast) {
-            const t = setTimeout(() => setToast(null), 3000);
-            return () => clearTimeout(t);
-        }
-    }, [toast]);
-
     const openConfirm = (title, message, onConfirm, confirmText = "OK") => {
         setConfirmModal({ show: true, title, message, onConfirm, confirmText, cancelText: "Hủy" });
     };
@@ -459,7 +452,7 @@ export default function ArchivedOkrsPage() {
                 </table>
             </div>
 
-            <ToastNotification toast={toast} />
+            <ToastNotification toast={toast} onClose={() => setToast(null)} />
             <ConfirmationModal
                 confirmModal={confirmModal}
                 closeConfirm={closeConfirm}
