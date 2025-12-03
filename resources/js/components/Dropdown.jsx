@@ -252,11 +252,12 @@ export function CycleDropdown({
                         const currentYear = now.getFullYear();
                         const isCurrent =
                             quarter === currentQuarter && year === currentYear;
+                        const dateRange = `${formatDate(cycle.start_date)} - ${formatDate(cycle.end_date)}`;
 
                         return (
                             <label
                                 key={cycle.cycle_id}
-                                className={`flex items-center gap-3 px-3 py-2 hover:bg-blue-50 cursor-pointer transition-colors ${
+                                className={`flex items-start gap-3 px-3 py-2 hover:bg-blue-50 cursor-pointer transition-colors ${
                                     String(cycleFilter) === String(cycle.cycle_id)
                                         ? "bg-blue-50 border-l-4 border-l-blue-500"
                                         : ""
@@ -276,7 +277,7 @@ export function CycleDropdown({
                                     }}
                                     className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                                 />
-                                <div className="flex-1">
+                                <div className="flex-1 flex flex-col">
                                     <p className="text-sm font-medium text-slate-900 flex items-center gap-2">
                                         {cycle.cycle_name}
                                         {isCurrent && (
@@ -284,6 +285,9 @@ export function CycleDropdown({
                                                 Hiện tại
                                             </span>
                                         )}
+                                    </p>
+                                    <p className="text-xs text-slate-500">
+                                        {dateRange}
                                     </p>
                                 </div>
                             </label>

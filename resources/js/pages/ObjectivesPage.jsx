@@ -8,6 +8,11 @@ import CheckInHistory from "../components/CheckInHistory";
 import ErrorBoundary from "../components/ErrorBoundary";
 import LinkOkrModal from "../components/LinkOkrModal.jsx";
 import LinkRequestsPanel from "../components/LinkRequestsPanel";
+import OkrTreeCanvas from "../components/okr/OkrTreeCanvas";
+import {
+    mergeChildLinksIntoObjectives,
+    buildTreeFromObjectives,
+} from "../utils/okrHierarchy";
 
 const pickRelation = (link, camel, snake) =>
     (link && link[camel]) || (link && link[snake]) || null;
@@ -61,6 +66,9 @@ export default function ObjectivesPage() {
 
     const [myOKRFilter, setMyOKRFilter] = useState(false);
     const [viewMode, setViewMode] = useState('levels'); // 'levels' or 'personal'
+    const [displayMode, setDisplayMode] = useState("table"); // 'table' | 'tree'
+    const [treeLayout, setTreeLayout] = useState("horizontal");
+    const [treeRootId, setTreeRootId] = useState(null);
 
     // Set default view mode for members
     useEffect(() => {
@@ -514,6 +522,141 @@ export default function ObjectivesPage() {
         [items]
     );
 
+    // Lọc dữ liệu hiển thị cho bảng (không ảnh hưởng tree)
+    // - Manager/Admin/CEO: giữ nguyên
+    // - Member ở chế độ "levels": chỉ thấy các KR/O có liên quan tới mình
+    const displayItems = useMemo(() => {
+        if (!Array.isArray(sortedItems)) return [];
+        if (!currentUser) return sortedItems;
+
+        const roleName = currentUser.role?.role_name?.toLowerCase();
+        const userId = currentUser.user_id;
+
+        // Chỉ giới hạn cho member khi xem theo cấp độ (levels)
+        if (roleName !== "member" || viewMode !== "levels") {
+            return sortedItems;
+        }
+
+        const isKrRelatedToUser = (kr) => {
+            const assignedId =
+                kr.assigned_to ||
+                kr.assigned_user?.user_id ||
+                kr.assignedUser?.user_id;
+
+            if (String(assignedId) === String(userId)) return true;
+
+            // Nếu KR có linked_objectives, check xem có objective/KR nào của user không
+            if (Array.isArray(kr.linked_objectives)) {
+                return kr.linked_objectives.some((linkedObj) => {
+                    if (
+                        String(linkedObj.user_id) === String(userId) ||
+                        String(linkedObj.user?.user_id) === String(userId)
+                    ) {
+                        return true;
+                    }
+
+                    if (Array.isArray(linkedObj.key_results)) {
+                        return linkedObj.key_results.some((linkedKr) => {
+                            const linkedAssignedId =
+                                linkedKr.assigned_to ||
+                                linkedKr.assigned_user?.user_id ||
+                                linkedKr.assignedUser?.user_id;
+                            return (
+                                String(linkedAssignedId) === String(userId)
+                            );
+                        });
+                    }
+
+                    return false;
+                });
+            }
+
+            return false;
+        };
+
+        return sortedItems
+            .map((obj) => {
+                const isPersonLevel = obj.level === "person";
+
+                // Luôn giữ lại Objective cấp cao hơn làm context (company/unit/team),
+                // nhưng chỉ hiển thị các KR liên quan tới user.
+                const filteredKRs = (obj.key_results || []).filter((kr) =>
+                    isKrRelatedToUser(kr)
+                );
+
+                const hasRelevantKR = filteredKRs.length > 0;
+
+                // Với objective cấp cá nhân: chỉ giữ nếu chính user liên quan,
+                // còn không thì ẩn khỏi bảng.
+                if (isPersonLevel && !hasRelevantKR) {
+                    return null;
+                }
+
+                return {
+                    ...obj,
+                    key_results: filteredKRs,
+                };
+            })
+            .filter(Boolean);
+    }, [sortedItems, currentUser, viewMode]);
+
+    const enrichedItems = useMemo(
+        () => mergeChildLinksIntoObjectives(displayItems, childLinks),
+        [displayItems, childLinks]
+    );
+
+    const treeNodes = useMemo(
+        () => buildTreeFromObjectives(enrichedItems),
+        [enrichedItems]
+    );
+
+    // Đồng bộ displayMode, treeRootId, treeLayout vào query params
+    useEffect(() => {
+        try {
+            const url = new URL(window.location.href);
+            if (displayMode === "tree") {
+                url.searchParams.set("display", "tree");
+                if (treeRootId) {
+                    url.searchParams.set("root_objective_id", String(treeRootId));
+                } else {
+                    url.searchParams.delete("root_objective_id");
+                }
+                url.searchParams.set("tree_layout", treeLayout);
+            } else {
+                url.searchParams.delete("display");
+                url.searchParams.delete("root_objective_id");
+                url.searchParams.delete("tree_layout");
+            }
+            window.history.replaceState({}, "", url.toString());
+        } catch (e) {
+            console.error("Failed to sync tree params", e);
+        }
+    }, [displayMode, treeRootId, treeLayout]);
+
+    useEffect(() => {
+        if (!enrichedItems.length) {
+            setTreeRootId(null);
+            return;
+        }
+        if (
+            !treeRootId ||
+            !enrichedItems.some(
+                (obj) => String(obj.objective_id) === String(treeRootId)
+            )
+        ) {
+            setTreeRootId(enrichedItems[0].objective_id);
+        }
+    }, [enrichedItems, treeRootId]);
+
+    const treeDataForRender = useMemo(() => {
+        if (!treeNodes.length) return [];
+        if (!treeRootId) return treeNodes;
+        return treeNodes.filter(
+            (node) =>
+                String(node.objective_id || node.id) === String(treeRootId)
+        );
+    }, [treeNodes, treeRootId]);
+
     const handleCheckInSuccess = (responseData) => {
         const updatedObjective = responseData.objective;
 
@@ -615,54 +758,219 @@ export default function ObjectivesPage() {
                 message={toast.message}
                 onClose={() => setToast((prev) => ({ ...prev, message: "" }))}
             />
-            <ObjectiveList
-                items={sortedItems}
-                setItems={setItems}
-                departments={departments}
-                cyclesList={cyclesList}
-                loading={loading}
-                openObj={openObj}
-                setOpenObj={setOpenObj}
-                setCreatingFor={setCreatingFor}
-                setEditingObjective={setEditingObjective}
-                setEditingKR={setEditingKR}
-                setCreatingObjective={setCreatingObjective}
-                links={links}
-                childLinks={childLinks}
-                linksLoading={linksLoading}
-                openCheckInModal={openCheckInModal}
-                openCheckInHistory={openCheckInHistory}
-                currentUser={currentUser}
-                userDepartmentName={userDepartmentName}
-                cycleFilter={cycleFilter}
-                setCycleFilter={setCycleFilter}
-                myOKRFilter={myOKRFilter}
-                setMyOKRFilter={setMyOKRFilter}
-                viewMode={viewMode}
-                setViewMode={setViewMode}
-                onOpenLinkModal={handleOpenLinkModal}
-                onCancelLink={handleCancelLink}
-                reloadData={load}
-            />
-            <div className="mt-4 flex justify-center gap-2">
-                <button
-                    onClick={() => handlePageChange(page - 1)}
-                    disabled={page === 1}
-                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:bg-slate-300"
-                >
-                    Trước
-                </button>
-                <span className="text-sm text-slate-600">
-                    Trang {page} / {totalPages}
-                </span>
-                <button
-                    onClick={() => handlePageChange(page + 1)}
-                    disabled={page === totalPages}
-                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:bg-slate-300"
-                >
-                    Sau
-                </button>
+            <div className="mb-4 flex items-center justify-between gap-4">
+                {displayMode === "tree" ? (
+                    <div className="flex items-center gap-2">
+                        <label className="text-xs font-semibold text-slate-600">
+                            Objective gốc
+                        </label>
+                        <select
+                            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                            value={treeRootId || ""}
+                            onChange={(e) => setTreeRootId(e.target.value)}
+                        >
+                            {enrichedItems.map((obj) => (
+                                <option key={obj.objective_id} value={obj.objective_id}>
+                                    {obj.obj_title}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                ) : (
+                    <div />
+                )}
+                <div className="flex items-center gap-2">
+                    {displayMode === "tree" && (
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setTreeLayout((prev) =>
+                                    prev === "horizontal" ? "vertical" : "horizontal"
+                                )
+                            }
+                            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                            title={
+                                treeLayout === "horizontal"
+                                    ? "Chuyển sang hiển thị dọc"
+                                    : "Chuyển sang hiển thị ngang"
+                            }
+                        >
+                            <svg
+                                className="h-4 w-4 text-slate-600"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                                />
+                            </svg>
+                            {treeLayout === "horizontal" ? "Xem ngang" : "Xem dọc"}
+                        </button>
+                    )}
+                    <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+                        <button
+                            type="button"
+                            onClick={() => setDisplayMode("table")}
+                            className={`px-3 py-1.5 text-xs font-medium rounded-md ${
+                                displayMode === "table"
+                                    ? "bg-blue-600 text-white shadow-sm"
+                                    : "text-slate-600 hover:bg-slate-50"
+                            }`}
+                        >
+                            Dạng bảng
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setDisplayMode("tree")}
+                            className={`ml-1 px-3 py-1.5 text-xs font-medium rounded-md ${
+                                displayMode === "tree"
+                                    ? "bg-blue-600 text-white shadow-sm"
+                                    : "text-slate-600 hover:bg-slate-50"
+                            }`}
+                        >
+                            Dạng cây
+                        </button>
+                    </div>
+                </div>
             </div>
+
+            {displayMode === "table" ? (
+                <ObjectiveList
+                    items={displayItems}
+                    setItems={setItems}
+                    departments={departments}
+                    cyclesList={cyclesList}
+                    loading={loading}
+                    openObj={openObj}
+                    setOpenObj={setOpenObj}
+                    setCreatingFor={setCreatingFor}
+                    setEditingObjective={setEditingObjective}
+                    setEditingKR={setEditingKR}
+                    setCreatingObjective={setCreatingObjective}
+                    links={links}
+                    childLinks={childLinks}
+                    linksLoading={linksLoading}
+                    openCheckInModal={openCheckInModal}
+                    openCheckInHistory={openCheckInHistory}
+                    currentUser={currentUser}
+                    userDepartmentName={userDepartmentName}
+                    cycleFilter={cycleFilter}
+                    setCycleFilter={setCycleFilter}
+                    myOKRFilter={myOKRFilter}
+                    setMyOKRFilter={setMyOKRFilter}
+                    viewMode={viewMode}
+                    setViewMode={setViewMode}
+                    onOpenLinkModal={handleOpenLinkModal}
+                    onCancelLink={handleCancelLink}
+                    reloadData={load}
+                />
+            ) : (
+                <OkrTreeCanvas
+                    data={treeDataForRender}
+                    loading={loading}
+                    emptyMessage="Không có OKR nào trong danh sách hiện tại"
+                    height={640}
+                    showLayoutToggle={false}
+                    layoutDirection={treeLayout}
+                    onLayoutDirectionChange={setTreeLayout}
+                />
+            )}
+
+            {totalPages > 1 && (
+                <div className="mt-4 flex items-center justify-center">
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => handlePageChange(page - 1)}
+                            disabled={page === 1}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                page === 1
+                                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                    : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                            }`}
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M15 19l-7-7 7-7"
+                                />
+                            </svg>
+                        </button>
+
+                        <div className="flex items-center gap-1">
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                                (pageNumber) => {
+                                    if (
+                                        pageNumber === 1 ||
+                                        pageNumber === totalPages ||
+                                        (pageNumber >= page - 1 && pageNumber <= page + 1)
+                                    ) {
+                                        return (
+                                            <button
+                                                key={pageNumber}
+                                                onClick={() => handlePageChange(pageNumber)}
+                                                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                                    page === pageNumber
+                                                        ? "bg-blue-600 text-white"
+                                                        : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                                                }`}
+                                            >
+                                                {pageNumber}
+                                            </button>
+                                        );
+                                    } else if (
+                                        pageNumber === page - 2 ||
+                                        pageNumber === page + 2
+                                    ) {
+                                        return (
+                                            <span key={pageNumber} className="px-2 text-gray-400">
+                                                ...
+                                            </span>
+                                        );
+                                    }
+                                    return null;
+                                }
+                            )}
+                        </div>
+
+                        <button
+                            onClick={() => handlePageChange(page + 1)}
+                            disabled={page === totalPages}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                page === totalPages
+                                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                    : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                            }`}
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M9 5l7 7-7 7"
+                                />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            )}
             {editingKR && (
                 <KeyResultModal
                     editingKR={editingKR}
