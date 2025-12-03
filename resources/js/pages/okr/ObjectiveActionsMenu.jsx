@@ -11,6 +11,7 @@ export default function ObjectiveActionsMenu({
     disableActions = false,
 }) {
     const menuKey = `menu_obj_${obj.objective_id}`;
+    const isCompanyLevel = obj.level === "company";
 
     return (
         <div
@@ -47,10 +48,29 @@ export default function ObjectiveActionsMenu({
                          <button
                             onClick={(e) => {
                                 e.stopPropagation();
-                                onOpenLinkModal({ sourceType: "objective", source: obj });
-                                setOpenObj((prev) => ({ ...prev, [menuKey]: false }));
+                                if (disableActions || isCompanyLevel) {
+                                    return;
+                                }
+                                onOpenLinkModal({
+                                    sourceType: "objective",
+                                    source: obj,
+                                });
+                                setOpenObj((prev) => ({
+                                    ...prev,
+                                    [menuKey]: false,
+                                }));
                             }}
-                            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                            disabled={disableActions || isCompanyLevel}
+                            title={
+                                isCompanyLevel
+                                    ? "OKR cấp công ty không thể làm mục tiêu liên kết."
+                                    : "Liên kết OKR"
+                            }
+                            className={`flex items-center gap-2 w-full px-3 py-2 text-sm ${
+                                disableActions || isCompanyLevel
+                                    ? "text-slate-400 cursor-not-allowed"
+                                    : "text-slate-700 hover:bg-slate-50"
+                            }`}
                          >
                             Liên kết OKR
                         </button>

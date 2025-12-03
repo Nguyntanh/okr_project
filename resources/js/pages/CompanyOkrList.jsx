@@ -42,6 +42,12 @@ export default function CompanyOkrList() {
     const [editingObjective, setEditingObjective] = useState(null);
     const [editingKR, setEditingKR] = useState(null);
     const [creatingFor, setCreatingFor] = useState(null);
+    const [page, setPage] = useState(1);
+    const [pagination, setPagination] = useState({
+        current_page: 1,
+        last_page: 1,
+        total: 0,
+    });
 
     // New state for advanced filtering
     const [filterType, setFilterType] = useState('company'); // 'company' or 'department'
@@ -65,15 +71,19 @@ export default function CompanyOkrList() {
                     setCurrentUser(userJson.user);
                 }
 
+                // Biến dùng chung cho logic chọn chu kỳ
+                let cycles = [];
+                let selectedCycle = null;
+
                 if (cyclesRes.ok) {
                     const cyclesJson = await cyclesRes.json();
-                    const cycles = cyclesJson.data || [];
+                    cycles = cyclesJson.data || [];
                     setCyclesList(cycles);
                     
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
                     
-                    let selectedCycle = cycles.find(c => {
+                    selectedCycle = cycles.find(c => {
                         const start = c.start_date ? new Date(c.start_date) : null;
                         const end = c.end_date ? new Date(c.end_date) : null;
                         return start && end && today >= start && today <= end;
@@ -90,7 +100,7 @@ export default function CompanyOkrList() {
                     setDepartments(deptsJson.data || []);
                 }
 
-                // An toàn tuyệt đối
+                // An toàn tuyệt đối: đảm bảo luôn có cycle hoặc tắt loading
                 if (selectedCycle?.cycle_id) {
                     setCycleFilter(selectedCycle.cycle_id);
                 } else if (cycles[0]?.cycle_id) {
@@ -120,7 +130,8 @@ export default function CompanyOkrList() {
         try {
             const params = new URLSearchParams({ 
                 cycle_id: cycleFilter,
-                filter_type: filterType 
+                filter_type: filterType,
+                page,
             });
             if (filterType === 'department' && selectedDepartment) {
                 params.append('department_id', selectedDepartment);
@@ -136,7 +147,13 @@ export default function CompanyOkrList() {
             if (okrRes.ok) {
                 const okrJson = await okrRes.json();
                 if (okrJson.success) {
-                    setItems(okrJson.data.objectives.data || []);
+                    const objectiveData = okrJson.data.objectives || {};
+                    setItems(objectiveData.data || []);
+                    setPagination({
+                        current_page: objectiveData.current_page || 1,
+                        last_page: objectiveData.last_page || 1,
+                        total: objectiveData.total || (objectiveData.data?.length || 0),
+                    });
                 } else {
                     throw new Error(okrJson.message || "Không tải được OKR");
                 }
@@ -160,11 +177,16 @@ export default function CompanyOkrList() {
             setLoading(false);
             setLinksLoading(false);
         }
-    }, [cycleFilter, filterType, selectedDepartment]);
+    }, [cycleFilter, filterType, selectedDepartment, page]);
 
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    const handleCycleSelection = useCallback((value) => {
+        setPage(1);
+        setCycleFilter(value);
+    }, []);
 
     const handleFilterChange = (type, value) => {
         if (type === 'company') {
@@ -174,6 +196,7 @@ export default function CompanyOkrList() {
             setFilterType('department');
             setSelectedDepartment(value);
         }
+        setPage(1);
     };
 
     return (
@@ -188,7 +211,7 @@ export default function CompanyOkrList() {
                         <CycleDropdown
                             cyclesList={cyclesList}
                             cycleFilter={cycleFilter}
-                            handleCycleChange={setCycleFilter}
+                            handleCycleChange={handleCycleSelection}
                             dropdownOpen={dropdownOpen}
                             setDropdownOpen={setDropdownOpen}
                         />
@@ -222,9 +245,9 @@ export default function CompanyOkrList() {
                 {isCeo && (
                     <button
                         onClick={() => setCreatingObjective(true)}
-                        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                        className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 shadow-sm transition-all duration-200"
                     >
-                        Tạo Objective
+                        Thêm Objective
                     </button>
                 )}
             </div>
@@ -250,6 +273,102 @@ export default function CompanyOkrList() {
                 hideFilters={true}
                 disableActions={true}
             />
+
+            {pagination.total > 0 && pagination.last_page > 1 && (
+                <div className="mt-4 flex items-center justify-center">
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                            disabled={page === 1}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                page === 1
+                                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                    : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                            }`}
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M15 19l-7-7 7-7"
+                                />
+                            </svg>
+                        </button>
+
+                        <div className="flex items-center gap-1">
+                            {Array.from({ length: pagination.last_page }, (_, i) => i + 1).map(
+                                (pageNumber) => {
+                                    if (
+                                        pageNumber === 1 ||
+                                        pageNumber === pagination.last_page ||
+                                        (pageNumber >= page - 1 && pageNumber <= page + 1)
+                                    ) {
+                                        return (
+                                            <button
+                                                key={pageNumber}
+                                                onClick={() => setPage(pageNumber)}
+                                                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                                    page === pageNumber
+                                                        ? "bg-blue-600 text-white"
+                                                        : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                                                }`}
+                                            >
+                                                {pageNumber}
+                                            </button>
+                                        );
+                                    } else if (
+                                        pageNumber === page - 2 ||
+                                        pageNumber === page + 2
+                                    ) {
+                                        return (
+                                            <span key={pageNumber} className="px-2 text-gray-400">
+                                                ...
+                                            </span>
+                                        );
+                                    }
+                                    return null;
+                                }
+                            )}
+                        </div>
+
+                        <button
+                            onClick={() =>
+                                setPage((prev) =>
+                                    Math.min(pagination.last_page, prev + 1)
+                                )
+                            }
+                            disabled={page === pagination.last_page}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                page === pagination.last_page
+                                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                    : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                            }`}
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M9 5l7 7-7 7"
+                                />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Modals for CEO actions */}
             {isCeo && creatingObjective && (
