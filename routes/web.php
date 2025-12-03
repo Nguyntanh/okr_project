@@ -279,6 +279,11 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         ->middleware('auth')
         ->name('company.okrs.show');
 
+    // Archived OKRs Route - returns React app for frontend routing
+    Route::get('/archived-okrs', function () {
+        return view('app');
+    })->middleware('auth')->name('archived.okrs');
+
     // Check-in Routes
     Route::prefix('check-in')->middleware('auth')->group(function () {
         Route::get('/{objectiveId}/{krId}', [CheckInController::class, 'create'])->name('check-in.create');
