@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import GroupedBarChart from '../components/GroupedBarChart';
-import { jsPDF } from 'jspdf';
+import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
@@ -788,8 +788,8 @@ export default function CompanyOverviewReport() {
                             </div>
                         </div>
 
-                        {/* Nút Export */}
-                        <div className="relative">
+                        {/* Nút Export - Đã ẩn */}
+                        {/* <div className="relative">
                             <button
                                 onClick={() => setExportMenuOpen(prev => !prev)}
                                 className="p-2.5 rounded-lg hover:bg-slate-100 transition-colors"
@@ -830,7 +830,7 @@ export default function CompanyOverviewReport() {
                                     </div>
                                 </>
                             )}
-                        </div>
+                        </div> */}
                     </div>
                 </div>
             </div>
