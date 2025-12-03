@@ -181,15 +181,23 @@ export default function CompanyOkrList() {
             <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex items-center gap-4">
                     {/* Cycle Filter Dropdown */}
-                    <CycleDropdown
-                        cyclesList={cyclesList}
-                        cycleFilter={cycleFilter}
-                        handleCycleChange={setCycleFilter}
-                        dropdownOpen={dropdownOpen}
-                        setDropdownOpen={setDropdownOpen}
-                    />
+                    <div className="flex flex-col gap-1">
+                        <span className="text-xs font-semibold text-slate-600 leading-none">
+                            Chu kỳ OKR
+                        </span>
+                        <CycleDropdown
+                            cyclesList={cyclesList}
+                            cycleFilter={cycleFilter}
+                            handleCycleChange={setCycleFilter}
+                            dropdownOpen={dropdownOpen}
+                            setDropdownOpen={setDropdownOpen}
+                        />
+                    </div>
                     {/* OKR Filter Dropdown */}
-                    <div className="relative">
+                    <div className="relative flex flex-col gap-1">
+                        <span className="text-xs font-semibold text-slate-600 leading-none">
+                            Phạm vi OKR
+                        </span>
                         <select 
                             className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-blue-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                             value={filterType === 'company' ? 'company' : selectedDepartment}

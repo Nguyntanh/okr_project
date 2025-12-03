@@ -532,23 +532,33 @@ export default function ObjectiveList({
             {/* Conditional rendering for the entire filter bar */}
             {!hideFilters && (
                 <div className="mb-4 flex w-full items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <CycleDropdown
-                            cyclesList={cyclesList}
-                            cycleFilter={cycleFilter}
-                            handleCycleChange={setCycleFilter}
-                            dropdownOpen={dropdownOpen}
-                            setDropdownOpen={setDropdownOpen}
-                        />
-                        {!isCeo && (
-                            <ViewModeDropdown
-                                viewMode={viewMode}
-                                setViewMode={setViewMode}
-                                dropdownOpen={viewModeDropdownOpen}
-                                setDropdownOpen={setViewModeDropdownOpen}
-                                currentUser={currentUser}
-                                userDepartmentName={userDepartmentName}
+                    <div className="flex items-center gap-4">
+                        <div className="flex flex-col gap-1">
+                            <span className="text-xs font-semibold text-slate-600 leading-none">
+                                Chu kỳ OKR
+                            </span>
+                            <CycleDropdown
+                                cyclesList={cyclesList}
+                                cycleFilter={cycleFilter}
+                                handleCycleChange={setCycleFilter}
+                                dropdownOpen={dropdownOpen}
+                                setDropdownOpen={setDropdownOpen}
                             />
+                        </div>
+                        {!isCeo && (
+                            <div className="flex flex-col gap-1">
+                                <span className="text-xs font-semibold text-slate-600 leading-none">
+                                    Phạm vi OKR
+                                </span>
+                                <ViewModeDropdown
+                                    viewMode={viewMode}
+                                    setViewMode={setViewMode}
+                                    dropdownOpen={viewModeDropdownOpen}
+                                    setDropdownOpen={setViewModeDropdownOpen}
+                                    currentUser={currentUser}
+                                    userDepartmentName={userDepartmentName}
+                                />
+                            </div>
                         )}
                     </div>
                     <Tabs
