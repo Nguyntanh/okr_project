@@ -758,10 +758,10 @@ function CycleDetailView({ detail, krs, formatDate }) {
     const totalObjectives = objectives.length;
     const totalKRs = objectives.reduce((acc, obj) => acc + (krs[obj.objective_id]?.length || 0), 0);
 
-    // Phân loại Objectives
+    // Phân loại Objectives - chỉ dựa trên trường level
     const companyObjs = objectives.filter(o => !o.level || o.level === 'company');
-    const deptObjs = objectives.filter(o => o.level === 'department' || (o.department_id && !o.user_id));
-    const personalObjs = objectives.filter(o => o.level === 'personal' || o.user_id);
+    const deptObjs = objectives.filter(o => o.level === 'unit');
+    const personalObjs = objectives.filter(o => o.level === 'person');
 
     const renderObjectivesList = (list, emptyMsg) => {
         if (list.length === 0) {
