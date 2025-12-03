@@ -254,7 +254,25 @@ class AdminController extends Controller
                 ]);
             }
 
-            // 3. Lưu temporary password vào result để sử dụng trong email
+            // 3. Chuyển mật khẩu tạm thời thành mật khẩu chính thức
+            //    để user có thể đăng nhập trực tiếp bằng mật khẩu này
+            try {
+                $this->cognitoClient->adminSetUserPassword([
+                    'UserPoolId' => env('AWS_COGNITO_USER_POOL_ID'),
+                    'Username' => $email,
+                    'Password' => $temporaryPassword,
+                    'Permanent' => true,
+                ]);
+            } catch (AwsException $e) {
+                // Nếu không set được mật khẩu permanent, log cảnh báo nhưng vẫn tiếp tục
+                Log::warning('Could not set permanent password for invited user', [
+                    'email' => $email,
+                    'error_code' => $e->getAwsErrorCode(),
+                    'error_message' => $e->getAwsErrorMessage(),
+                ]);
+            }
+
+            // 4. Lưu temporary password vào result để sử dụng trong email
             $result['TemporaryPassword'] = $temporaryPassword;
             
             return $result;

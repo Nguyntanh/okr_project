@@ -37,6 +37,8 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     Route::get('/forgot-password', [AuthController::class, 'showForgotPasswordForm'])->name('forgot-password');
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->name('forgot-password.post');
     Route::post('/confirm-forgot-password', [AuthController::class, 'confirmForgotPassword'])->name('confirm-forgot-password');
+    Route::get('/first-login/change-password', [AuthController::class, 'showFirstLoginChangePassword'])->name('first-login.change.form');
+    Route::post('/first-login/change-password', [AuthController::class, 'handleFirstLoginChangePassword'])->name('first-login.change.submit');
     
     // Google OAuth (redirect trực tiếp đến Google, không qua Cognito Hosted UI)
     Route::get('/auth/google', [AuthController::class, 'redirectToGoogle'])->name('auth.google');

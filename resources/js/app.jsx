@@ -16,6 +16,7 @@ import OKRTreePage from "./pages/OKRTreePage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import FirstLoginChangePasswordPage from "./pages/FirstLoginChangePasswordPage";
 
 function NavBar({ activeTab, onChangeTab }) {
     const go = (tab) => {
@@ -400,6 +401,14 @@ export default function App() {
     // Render forgot password page
     if (p === "/forgot-password" || p.startsWith("/forgot-password")) {
         return <ForgotPasswordPage />;
+    }
+    
+    // Render first login change password page
+    if (
+        p === "/first-login/change-password" ||
+        p.startsWith("/first-login/change-password")
+    ) {
+        return <FirstLoginChangePasswordPage />;
     }
     
     const isAdminArea =
