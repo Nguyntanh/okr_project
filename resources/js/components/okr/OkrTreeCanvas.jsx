@@ -739,7 +739,7 @@ const OkrTreeCanvas = ({
         if (loading) {
             return (
                 <div className="flex items-center justify-center h-full text-slate-500">
-                    Đang tải Tree view...
+                    Đang tải dạng cây...
                 </div>
             );
         }

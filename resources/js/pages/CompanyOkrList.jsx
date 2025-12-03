@@ -341,7 +341,7 @@ export default function CompanyOkrList() {
                                     : "text-slate-600 hover:bg-slate-50"
                             }`}
                         >
-                            Tree view
+                            Dạng cây
                         </button>
                     </div>
                 </div>

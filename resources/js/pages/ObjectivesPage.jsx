@@ -832,7 +832,7 @@ export default function ObjectivesPage() {
                                     : "text-slate-600 hover:bg-slate-50"
                             }`}
                         >
-                            Tree view
+                            Dạng cây
                         </button>
                     </div>
                 </div>
