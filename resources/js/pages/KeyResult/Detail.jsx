@@ -22,6 +22,36 @@ ChartJS.register(
     Legend
 );
 
+// --- Reusable Tabs Component ---
+const Tabs = ({ tabs }) => {
+    const [activeTab, setActiveTab] = useState(0);
+
+    return (
+        <div>
+            <div className="border-b border-gray-200">
+                <nav className="-mb-px flex space-x-6" aria-label="Tabs">
+                    {tabs.map((tab, index) => (
+                        <button
+                            key={tab.name}
+                            onClick={() => setActiveTab(index)}
+                            className={`${
+                                index === activeTab
+                                    ? 'border-indigo-500 text-indigo-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                        >
+                            {tab.name}
+                        </button>
+                    ))}
+                </nav>
+            </div>
+            <div className="py-6">
+                {tabs[activeTab]?.content}
+            </div>
+        </div>
+    );
+};
+
 
 // --- Helper Functions ---
 const getStatusClass = (status) => {
@@ -44,7 +74,6 @@ const getStatusClass = (status) => {
 
 const KrOverviewSection = ({ keyResult }) => {
     const {
-        kr_title,
         progress_percent = 0,
         status = 'N/A',
         objective,
@@ -55,7 +84,7 @@ const KrOverviewSection = ({ keyResult }) => {
     const parentObjectiveUrl = objective ? `/company-okrs/detail/${objective.objective_id}` : '#';
 
     return (
-        <div className="bg-white p-6 rounded-lg shadow-md">
+        <div>
             {/* Parent Objective Link */}
             {objective && (
                 <div className="mb-4">
@@ -64,9 +93,6 @@ const KrOverviewSection = ({ keyResult }) => {
                     </a>
                 </div>
             )}
-
-            {/* KR Title */}
-            <h1 className="text-2xl font-bold text-gray-800 mb-4">{kr_title}</h1>
 
             {/* Progress Bar and Status */}
             <div className="mb-4">
@@ -115,7 +141,7 @@ const KrMetricDetailsSection = ({ keyResult }) => {
     }
 
     return (
-        <div className="bg-white p-6 rounded-lg shadow-md mt-6">
+        <div>
             <h2 className="text-lg font-bold text-gray-800 mb-4">Chi tiết Số liệu</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                 <div>
@@ -183,7 +209,7 @@ const KrProgressVisualizationSection = ({ keyResult }) => {
     };
     
     return (
-        <div className="bg-white p-6 rounded-lg shadow-md mt-6">
+        <div>
             <h2 className="text-lg font-bold text-gray-800 mb-4">Trực quan hóa Tiến độ</h2>
             {check_ins.length > 0 ? (
                 <Line options={chartOptions} data={chartData} />
@@ -332,7 +358,7 @@ const CommentForm = ({ krId, parentId = null, onSubmitted }) => {
 
 const KrHistoryAndInteractionSection = ({ keyResult, onCommentPosted }) => {
     return (
-        <div className="bg-white p-6 rounded-lg shadow-md mt-6">
+        <div>
             <h2 className="text-lg font-bold text-gray-800 mb-4">Lịch sử & Tương tác</h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div>
@@ -406,13 +432,24 @@ const KeyResultDetailPage = () => {
     
     const handleCommentPosted = () => fetchData();
 
+    const krTabs = [
+        { name: 'Tổng quan', content: <KrOverviewSection keyResult={keyResult} /> },
+        { name: 'Chi tiết & Số liệu', content: <KrMetricDetailsSection keyResult={keyResult} /> },
+        { name: 'Biểu đồ Tiến độ', content: <KrProgressVisualizationSection keyResult={keyResult} /> },
+        { name: 'Lịch sử & Tương tác', content: <KrHistoryAndInteractionSection keyResult={keyResult} onCommentPosted={handleCommentPosted} /> },
+    ];
+
     return (
         <div className="bg-gray-50 min-h-screen">
             <div className="container mx-auto p-4 sm:p-6 lg:p-8">
-                <KrOverviewSection keyResult={keyResult} />
-                <KrMetricDetailsSection keyResult={keyResult} />
-                <KrProgressVisualizationSection keyResult={keyResult} />
-                <KrHistoryAndInteractionSection keyResult={keyResult} onCommentPosted={handleCommentPosted} />
+                <div className="mb-6">
+                    <p className="text-sm text-gray-500">Key Result Detail</p>
+                    <h1 className="text-2xl font-bold text-gray-800">{keyResult.kr_title}</h1>
+                </div>
+                
+                <div className="bg-white p-6 rounded-lg shadow-md">
+                   <Tabs tabs={krTabs} />
+                </div>
             </div>
         </div>
     );
