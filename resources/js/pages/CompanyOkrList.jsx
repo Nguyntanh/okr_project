@@ -36,11 +36,14 @@ export default function CompanyOkrList() {
     const [currentUser, setCurrentUser] = useState(null);
     const [childLinks, setChildLinks] = useState([]);
     const [linksLoading, setLinksLoading] = useState(false);
+    const [creatingObjective, setCreatingObjective] = useState(false); // New state
 
     // New state for advanced filtering
     const [filterType, setFilterType] = useState('company'); // 'company' or 'department'
     const [selectedDepartment, setSelectedDepartment] = useState('');
     const [departments, setDepartments] = useState([]);
+
+    const isCeo = currentUser?.role?.role_name?.toLowerCase() === 'ceo'; // Determine if current user is CEO
 
     // Fetch initial data (user, cycles, departments)
     useEffect(() => {
@@ -189,6 +192,14 @@ export default function CompanyOkrList() {
                         </select>
                     </div>
                 </div>
+                {isCeo && (
+                    <button
+                        onClick={() => setCreatingObjective(true)}
+                        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    >
+                        Tạo Objective
+                    </button>
+                )}
             </div>
             
             <ObjectiveList
@@ -200,7 +211,7 @@ export default function CompanyOkrList() {
                 setItems={setItems}
                 childLinks={childLinks}
                 linksLoading={linksLoading}
-                // Stub interactive props as this is a read-only view for now
+                // Revert to read-only props as creation is handled above
                 setCreatingFor={() => {}}
                 setEditingObjective={() => {}}
                 setEditingKR={() => {}}
@@ -209,9 +220,22 @@ export default function CompanyOkrList() {
                 openCheckInHistory={() => {}}
                 onOpenLinkModal={() => {}}
                 onCancelLink={() => {}}
-                hideFilters={true} // Hide internal filters of ObjectiveList
+                hideFilters={true}
                 disableActions={true}
             />
+
+            {/* Objective Modal for CEO */}
+            {isCeo && creatingObjective && (
+                <ObjectiveModal
+                    creatingObjective={creatingObjective}
+                    setCreatingObjective={setCreatingObjective}
+                    departments={departments}
+                    cyclesList={cyclesList}
+                    setItems={setItems}
+                    setToast={setToast}
+                    reloadData={fetchData}
+                />
+            )}
 
             <ToastNotification toast={toast} />
         </div>
