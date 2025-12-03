@@ -754,6 +754,53 @@ function CycleDetailView({ detail, krs, formatDate }) {
     // Safe check cho list objectives
     const objectives = detail?.objectives || [];
     
+    // Đọc query parameter khi component mount hoặc detail thay đổi
+    useEffect(() => {
+        if (!objectives.length) return;
+        
+        try {
+            const url = new URL(window.location.href);
+            const objectiveId = url.searchParams.get('objective_id');
+            
+            if (objectiveId) {
+                const obj = objectives.find(o => String(o.objective_id) === String(objectiveId));
+                if (obj) {
+                    const objWithKRs = {
+                        ...obj,
+                        key_results: krs[obj.objective_id] || []
+                    };
+                    setSelectedObjective(objWithKRs);
+                    
+                    // Tự động chuyển tab phù hợp
+                    if (obj.level === 'unit') {
+                        setActiveObjTab('department');
+                    } else if (obj.level === 'person') {
+                        setActiveObjTab('personal');
+                    } else {
+                        setActiveObjTab('company');
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Failed to read objective_id from URL", e);
+        }
+    }, [objectives, krs]);
+    
+    // Đồng bộ selectedObjective với URL query parameter
+    useEffect(() => {
+        try {
+            const url = new URL(window.location.href);
+            if (selectedObjective) {
+                url.searchParams.set('objective_id', String(selectedObjective.objective_id));
+            } else {
+                url.searchParams.delete('objective_id');
+            }
+            window.history.replaceState({}, "", url.toString());
+        } catch (e) {
+            console.error("Failed to sync objective_id to URL", e);
+        }
+    }, [selectedObjective]);
+    
     // Tính toán thống kê đơn giản
     const totalObjectives = objectives.length;
     const totalKRs = objectives.reduce((acc, obj) => acc + (krs[obj.objective_id]?.length || 0), 0);
