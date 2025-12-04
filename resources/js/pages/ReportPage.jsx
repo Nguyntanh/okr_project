@@ -62,14 +62,23 @@ export default function ReportPage() {
     };
 
     // --- DERIVED METRICS ---
+    const activeOkrs = useMemo(() => {
+        if (!reportData?.team_okrs) return [];
+        return reportData.team_okrs.filter(okr => okr.status !== 'archived');
+    }, [reportData]);
+
     const metrics = useMemo(() => {
         const data = reportData || {};
-        const teamOkrs = data.team_okrs || [];
+        // activeOkrs is now available here
         
         // Tính toán trạng thái dựa trên status từ API (Time-based)
         let onTrack = 0, atRisk = 0, behind = 0;
+        let totalProgressSum = 0;
         
-        teamOkrs.forEach(okr => {
+        activeOkrs.forEach(okr => {
+            // Cộng tổng tiến độ để tính lại trung bình
+            totalProgressSum += (Number(okr.progress) || 0);
+
             const s = okr.status; // Status từ API: completed, on_track, at_risk, behind, pending
             if (s === 'completed' || s === 'on_track') {
                 onTrack++;
@@ -80,23 +89,34 @@ export default function ReportPage() {
             }
         });
         
-        const total = teamOkrs.length || 1; 
+        const total = activeOkrs.length || 1;
+        // 2. Tự tính lại tiến độ trung bình dựa trên danh sách Active
+        const calculatedAvg = activeOkrs.length > 0 ? (totalProgressSum / activeOkrs.length) : 0;
         
+        // 3. Tính toán chi tiết cho từng cấp độ (Dept vs Team)
+        const deptOkrs = activeOkrs.filter(o => o.level !== 'team');
+        const subTeamOkrs = activeOkrs.filter(o => o.level === 'team');
+        
+        const calcAvg = (list) => list.length ? (list.reduce((sum, item) => sum + (Number(item.progress) || 0), 0) / list.length) : 0;
+
+        // Lấy Top 3 OKR rủi ro nhất (tiến độ thấp nhất hoặc trạng thái xấu)
+        const topRisks = activeOkrs
+            .filter(o => o.status === 'at_risk' || o.status === 'behind' || o.progress < 50)
+            .sort((a, b) => a.progress - b.progress)
+            .slice(0, 3);
+
         return {
-            avgProgress: data.team_average_completion || 0,
-            totalOkrs: data.team_okrs?.length || 0,
+            avgProgress: calculatedAvg,
+            expectedProgress: data.expected_progress || 0,
+            totalOkrs: activeOkrs.length,
             memberCount: data.members?.length || 0,
             onTrackPct: (onTrack / total) * 100,
             atRiskPct: (atRisk / total) * 100,
             behindPct: (behind / total) * 100,
-            atRiskCount: atRisk + behind // Tổng số cần chú ý
+            atRiskCount: atRisk + behind,
+            topRisks: topRisks
         };
-    }, [reportData]);
-
-    const activeOkrs = useMemo(() => {
-        if (!reportData?.team_okrs) return [];
-        return reportData.team_okrs.filter(okr => okr.status !== 'archived');
-    }, [reportData]);
+    }, [reportData, activeOkrs]);
 
     const filteredMembers = useMemo(() => {
         if (!reportData?.members) return [];
@@ -281,51 +301,82 @@ export default function ReportPage() {
                         {/* 3. MAIN DASHBOARD AREA */}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                             
-                            {/* LEFT: Status Distribution & Risks */}
+                            {/* LEFT: Health & Insights (Replaced Donut Chart) */}
                             <div className="lg:col-span-1 space-y-6">
-                                <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100 h-full">
-                                    <h3 className="text-lg font-bold text-slate-800 mb-6">Phân bổ trạng thái</h3>
+                                <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 h-full flex flex-col">
+                                    <h3 className="text-lg font-bold text-slate-800 mb-6">Sức khỏe & Phân bổ</h3>
                                     
-                                    {/* Custom Donut Chart Representation */}
-                                    <div className="relative w-48 h-48 mx-auto mb-8">
-                                        <div className="w-full h-full rounded-full border-[16px] border-slate-100 relative"
-                                             style={{
-                                                 background: `conic-gradient(
-                                                     #10b981 0% ${metrics.onTrackPct}%, 
-                                                     #f59e0b ${metrics.onTrackPct}% ${metrics.onTrackPct + metrics.atRiskPct}%, 
-                                                     #f43f5e ${metrics.onTrackPct + metrics.atRiskPct}% 100%
-                                                 )`
-                                             }}
-                                        >
-                                             {/* Inner White Circle to make it a Donut */}
-                                            <div className="absolute inset-0 m-4 bg-white rounded-full flex flex-col items-center justify-center">
-                                                <span className="text-3xl font-bold text-slate-800">{metrics.totalOkrs}</span>
-                                                <span className="text-xs text-slate-400 uppercase font-bold">OKRs</span>
+                                    <div className="flex-1 space-y-8">
+                                        {/* 1. Velocity: Time vs Reality */}
+                                        <div>
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tiến độ thực tế</span>
+                                                <span className={`text-sm font-bold ${metrics.avgProgress >= metrics.expectedProgress ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                    {metrics.avgProgress.toFixed(1)}%
+                                                </span>
                                             </div>
-                                        </div>
-                                    </div>
+                                            <div className="relative h-2.5 bg-slate-100 rounded-full overflow-hidden mb-4">
+                                                <div 
+                                                    className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ${
+                                                        metrics.avgProgress >= metrics.expectedProgress ? 'bg-emerald-500' : 'bg-rose-500'
+                                                    }`}
+                                                    style={{ width: `${Math.min(metrics.avgProgress, 100)}%` }}
+                                                />
+                                            </div>
 
-                                    <div className="space-y-3">
-                                        <div className="flex justify-between items-center text-sm">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                                                <span className="text-slate-600">Đúng tiến độ</span>
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Thời gian trôi qua</span>
+                                                <span className="text-sm font-medium text-slate-500">{metrics.expectedProgress}%</span>
                                             </div>
-                                            <span className="font-semibold text-slate-900">{Math.round(metrics.onTrackPct)}%</span>
+                                            <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden">
+                                                <div 
+                                                    className="h-full bg-slate-300 rounded-full"
+                                                    style={{ width: `${Math.min(metrics.expectedProgress, 100)}%` }}
+                                                />
+                                            </div>
+                                            
+                                            <div className="mt-3 text-xs text-slate-400 flex items-center gap-1">
+                                                {metrics.avgProgress >= metrics.expectedProgress 
+                                                    ? <FiTrendingUp className="text-emerald-500" /> 
+                                                    : <FiAlertCircle className="text-rose-500" />
+                                                }
+                                                {metrics.avgProgress >= metrics.expectedProgress 
+                                                    ? "Đang chạy trước kế hoạch" 
+                                                    : `Đang chậm ${(metrics.expectedProgress - metrics.avgProgress).toFixed(1)}% so với kế hoạch`
+                                                }
+                                            </div>
                                         </div>
-                                        <div className="flex justify-between items-center text-sm">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-                                                <span className="text-slate-600">Rủi ro</span>
+
+                                        <hr className="border-slate-50" />
+
+                                        {/* 2. Top Risks (Updated from Level Breakdown) */}
+                                        <div>
+                                            <h4 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                                <HiExclamationTriangle className="text-amber-500 w-4 h-4" />
+                                                Cần chú ý (Top 3)
+                                            </h4>
+                                            <div className="space-y-4">
+                                                {metrics.topRisks.length > 0 ? metrics.topRisks.map((okr, i) => (
+                                                    <div key={i} className="group">
+                                                        <div className="flex justify-between text-xs mb-1.5">
+                                                            <span className="font-medium text-slate-600 truncate max-w-[70%]" title={okr.obj_title}>
+                                                                {okr.obj_title}
+                                                            </span>
+                                                            <span className="font-bold text-rose-600">{okr.progress}%</span>
+                                                        </div>
+                                                        <div className="h-1.5 bg-rose-50 rounded-full overflow-hidden">
+                                                            <div 
+                                                                className="h-full bg-rose-500 rounded-full"
+                                                                style={{ width: `${okr.progress}%` }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )) : (
+                                                    <div className="text-xs text-slate-400 italic text-center py-2">
+                                                        Không có mục tiêu rủi ro nào. Làm tốt lắm!
+                                                    </div>
+                                                )}
                                             </div>
-                                            <span className="font-semibold text-slate-900">{Math.round(metrics.atRiskPct)}%</span>
-                                        </div>
-                                        <div className="flex justify-between items-center text-sm">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-3 h-3 rounded-full bg-rose-500"></div>
-                                                <span className="text-slate-600">Chậm trễ</span>
-                                            </div>
-                                            <span className="font-semibold text-slate-900">{Math.round(metrics.behindPct)}%</span>
                                         </div>
                                     </div>
                                 </div>
