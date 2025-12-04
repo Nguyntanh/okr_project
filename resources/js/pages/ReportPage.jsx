@@ -15,6 +15,11 @@ export default function ReportPage() {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [reportName, setReportName] = useState("");
 
+    // --- MEMBER FILTER LOGIC ---
+    const [memberSearch, setMemberSearch] = useState("");
+    const [memberStatusFilter, setMemberStatusFilter] = useState("all"); // all, on_track, at_risk, behind
+    const [showMemberFilter, setShowMemberFilter] = useState(false);
+
     // --- DATA FETCHING ---
     useEffect(() => {
         (async () => {
@@ -73,7 +78,6 @@ export default function ReportPage() {
             } else if (s === 'behind') {
                 behind++;
             }
-            // pending có thể không tính hoặc tính vào onTrack tuỳ logic, ở đây tạm bỏ qua hoặc coi như onTrack nếu muốn
         });
         
         const total = teamOkrs.length || 1; 
@@ -88,6 +92,31 @@ export default function ReportPage() {
             atRiskCount: atRisk + behind // Tổng số cần chú ý
         };
     }, [reportData]);
+
+    const filteredMembers = useMemo(() => {
+        if (!reportData?.members) return [];
+        return reportData.members.filter(member => {
+            // Filter by Name
+            const matchName = member.full_name.toLowerCase().includes(memberSearch.toLowerCase());
+            
+            // Filter by Status
+            if (memberStatusFilter === 'all') return matchName;
+            
+            // Logic mapping status (fallback logic if API status is inconsistent)
+            let status = member.status || 'pending';
+            if (!member.status) {
+                 if (member.average_completion >= 70) status = 'on_track';
+                 else if (member.average_completion >= 40) status = 'at_risk';
+                 else status = 'behind';
+            }
+            
+            // Allow 'completed' to show in 'on_track' filter if desired, or strictly match
+            const matchStatus = (status === memberStatusFilter) || 
+                                (memberStatusFilter === 'on_track' && status === 'completed');
+
+            return matchName && matchStatus;
+        });
+    }, [reportData, memberSearch, memberStatusFilter]);
 
     // --- SUB-COMPONENTS ---
 
@@ -297,149 +326,215 @@ export default function ReportPage() {
                                 </div>
                             </div>
 
-                            {/* RIGHT: Team Members Leaderboard */}
+                            {/* RIGHT: Detailed OKR List (Moved Up) */}
                             <div className="lg:col-span-2">
-                                <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-                                    <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                                        <h3 className="text-lg font-bold text-slate-800">Hiệu suất thành viên</h3>
-                                        <div className="flex gap-2">
-                                            <button className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors">
-                                                <FiFilter className="w-4 h-4" />
-                                            </button>
+                                {reportData?.team_okrs && reportData.team_okrs.length > 0 ? (
+                                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden h-full flex flex-col">
+                                        <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
+                                            <div className="flex items-center gap-2">
+                                                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                                                    <HiDocumentCheck className="w-5 h-5" />
+                                                </div>
+                                                <h3 className="text-lg font-bold text-slate-800">Chi tiết OKRs Nhóm</h3>
+                                            </div>
+                                            <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-medium">
+                                                {reportData.team_okrs.length} Mục tiêu
+                                            </span>
+                                        </div>
+                                        <div className="divide-y divide-slate-50 overflow-y-auto max-h-[500px] scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+                                            {reportData.team_okrs.map((okr, index) => (
+                                                <div key={okr.objective_id || index} className="p-6 hover:bg-slate-50 transition-colors group">
+                                                    <div className="flex flex-col gap-4">
+                                                        {/* Top Row: Title & Meta */}
+                                                        <div className="flex justify-between items-start gap-4">
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                                                                        okr.level === 'team' ? 'bg-indigo-50 text-indigo-600' : 'bg-purple-50 text-purple-600'
+                                                                    }`}>
+                                                                        {okr.level === 'team' ? 'Team' : 'Dept'}
+                                                                    </span>
+                                                                </div>
+                                                                <h4 className="text-sm font-bold text-slate-900 line-clamp-2 group-hover:text-indigo-600 transition-colors" title={okr.obj_title}>
+                                                                    {okr.obj_title}
+                                                                </h4>
+                                                            </div>
+                                                            <StatusBadge progress={okr.progress} status={okr.status} />
+                                                        </div>
+
+                                                        {/* Bottom Row: Progress */}
+                                                        <div className="space-y-1.5">
+                                                            <div className="flex justify-between text-xs text-slate-500">
+                                                                <span>{okr.completed_kr_count}/{okr.key_results_count} KRs</span>
+                                                                <span className="font-bold text-slate-900">{okr.progress}%</span>
+                                                            </div>
+                                                            <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                                <div 
+                                                                    className={`h-full rounded-full transition-all duration-500 ${
+                                                                        okr.progress >= 70 ? 'bg-emerald-500' : 
+                                                                        okr.progress >= 40 ? 'bg-amber-500' : 'bg-rose-500'
+                                                                    }`} 
+                                                                    style={{ width: `${okr.progress}%` }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
-                                    
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full">
-                                            <thead className="bg-slate-50 text-xs uppercase font-semibold text-slate-500">
-                                                <tr>
-                                                    <th className="px-6 py-4 text-left">Thành viên</th>
-                                                    <th className="px-6 py-4 text-center">OKRs</th>
-                                                    <th className="px-6 py-4 text-left w-1/3">Tiến độ</th>
-                                                    <th className="px-6 py-4 text-left">Check-in cuối</th>
-                                                    <th className="px-6 py-4 text-right">Hành động</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100">
-                                                {reportData?.members?.map((member) => (
-                                                    <tr key={member.user_id} className="hover:bg-slate-50/50 transition-colors group">
-                                                        <td className="px-6 py-4">
-                                                            <div className="flex items-center gap-3">
-                                                                <img 
-                                                                    src={member.avatar || `https://ui-avatars.com/api/?name=${member.full_name}&background=random`} 
-                                                                    alt={member.full_name}
-                                                                    className="w-10 h-10 rounded-full object-cover border border-slate-200"
-                                                                />
-                                                                <div>
-                                                                    <div className="font-medium text-slate-900">{member.full_name}</div>
-                                                                    <div className="text-xs text-slate-500">{member.role || "Member"}</div>
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-6 py-4 text-center">
-                                                            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold text-xs">
-                                                                {member.total_kr_contributed || 0}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-6 py-4">
-                                                            <div className="flex items-center justify-between mb-1">
-                                                                <span className="text-sm font-medium text-slate-700">{member.average_completion?.toFixed(0)}%</span>
-                                                                <StatusBadge progress={member.average_completion} status={member.status} />
-                                                            </div>
-                                                            <ProgressBar 
-                                                                value={member.average_completion} 
-                                                                color={member.average_completion < 40 ? 'bg-rose-500' : (member.average_completion < 70 ? 'bg-amber-500' : 'bg-emerald-500')} 
-                                                            />
-                                                        </td>
-                                                        <td className="px-6 py-4">
-                                                            <div className="flex items-center gap-2 text-sm text-slate-500">
-                                                                <FiClock className="w-4 h-4 text-slate-400" />
-                                                                <span>{member.last_checkin || "Chưa check-in"}</span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-6 py-4 text-right">
-                                                            <button className="text-indigo-600 hover:text-indigo-800 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                Nhắc nhở
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                                {(!reportData?.members || reportData.members.length === 0) && (
-                                                    <tr>
-                                                        <td colSpan="5" className="px-6 py-8 text-center text-slate-500">
-                                                            Chưa có dữ liệu thành viên trong chu kỳ này
-                                                        </td>
-                                                    </tr>
-                                                )}
-                                            </tbody>
-                                        </table>
+                                ) : (
+                                    <div className="h-full flex items-center justify-center bg-white rounded-2xl border border-slate-100 text-slate-400 p-8">
+                                        Chưa có dữ liệu OKR
                                     </div>
-                                </div>
+                                )}
                             </div>
                         </div>
 
-                        {/* 4. DETAILED OKR LIST */}
-                        {reportData?.team_okrs && reportData.team_okrs.length > 0 && (
-                            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                                <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white">
-                                    <div className="flex items-center gap-2">
-                                        <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
-                                            <HiDocumentCheck className="w-5 h-5" />
-                                        </div>
-                                        <h3 className="text-lg font-bold text-slate-800">Chi tiết OKRs Nhóm</h3>
+                        {/* 4. TEAM MEMBERS LEADERBOARD (Moved Down - Full Width) */}
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-visible">
+                            <div className="p-6 border-b border-slate-100 flex justify-between items-center relative z-10">
+                                <div className="flex items-center gap-2">
+                                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                                        <HiUserGroup className="w-5 h-5" />
                                     </div>
-                                    <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-medium">
-                                        {reportData.team_okrs.length} Mục tiêu
-                                    </span>
+                                    <h3 className="text-lg font-bold text-slate-800">Hiệu suất thành viên</h3>
                                 </div>
-                                <div className="divide-y divide-slate-50">
-                                    {reportData.team_okrs.map((okr, index) => (
-                                        <div key={okr.objective_id || index} className="p-6 hover:bg-slate-50 transition-colors group">
-                                            <div className="flex flex-col md:flex-row md:items-center gap-6">
-                                                {/* Info Section */}
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                                                            okr.level === 'team' ? 'bg-indigo-50 text-indigo-600' : 'bg-purple-50 text-purple-600'
-                                                        }`}>
-                                                            {okr.level === 'team' ? 'Team' : 'Dept'}
-                                                        </span>
-                                                        <span className="text-xs text-slate-400 font-medium">
-                                                            • {okr.completed_kr_count}/{okr.key_results_count} Kết quả then chốt đã hoàn thành
-                                                        </span>
-                                                    </div>
-                                                    <h4 className="text-base font-bold text-slate-900 mb-1 truncate group-hover:text-indigo-600 transition-colors" title={okr.obj_title}>
-                                                        {okr.obj_title}
-                                                    </h4>
-                                                </div>
+                                
+                                {/* FILTER DROPDOWN */}
+                                <div className="relative">
+                                    <button 
+                                        onClick={() => setShowMemberFilter(!showMemberFilter)}
+                                        className={`p-2 rounded-lg transition-all flex items-center gap-2 ${
+                                            showMemberFilter || memberStatusFilter !== 'all' || memberSearch 
+                                            ? 'bg-indigo-50 text-indigo-600 ring-2 ring-indigo-100' 
+                                            : 'hover:bg-slate-100 text-slate-400'
+                                        }`}
+                                    >
+                                        <FiFilter className="w-4 h-4" />
+                                        {(memberStatusFilter !== 'all' || memberSearch) && <span className="text-xs font-bold">Đang lọc</span>}
+                                    </button>
 
-                                                {/* Progress Section */}
-                                                <div className="w-full md:w-64 shrink-0 flex flex-col gap-1.5">
-                                                    <div className="flex justify-between text-xs">
-                                                        <span className="text-slate-500 font-medium">Tiến độ</span>
-                                                        <span className="text-slate-900 font-bold">{okr.progress}%</span>
-                                                    </div>
-                                                    <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                                                        <div 
-                                                            className={`h-full rounded-full transition-all duration-500 ${
-                                                                okr.progress >= 70 ? 'bg-emerald-500' : 
-                                                                okr.progress >= 40 ? 'bg-amber-500' : 'bg-rose-500'
-                                                            }`} 
-                                                            style={{ width: `${okr.progress}%` }}
-                                                        />
-                                                    </div>
+                                    {showMemberFilter && (
+                                        <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-xl border border-slate-100 p-4 animate-in fade-in zoom-in duration-200 origin-top-right">
+                                            <div className="space-y-4">
+                                                <div>
+                                                    <label className="text-xs font-semibold text-slate-500 uppercase mb-1.5 block">Tìm kiếm</label>
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="Nhập tên thành viên..." 
+                                                        value={memberSearch}
+                                                        onChange={(e) => setMemberSearch(e.target.value)}
+                                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                        autoFocus
+                                                    />
                                                 </div>
-
-                                                {/* Status Badge */}
-                                                <div className="shrink-0 min-w-[100px] flex justify-end">
-                                                    <StatusBadge progress={okr.progress} status={okr.status} />
+                                                <div>
+                                                    <label className="text-xs font-semibold text-slate-500 uppercase mb-1.5 block">Trạng thái</label>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        {[
+                                                            { id: 'all', label: 'Tất cả', color: 'bg-slate-100 text-slate-600 hover:bg-slate-200' },
+                                                            { id: 'on_track', label: 'Ổn định', color: 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' },
+                                                            { id: 'at_risk', label: 'Rủi ro', color: 'bg-amber-50 text-amber-600 hover:bg-amber-100' },
+                                                            { id: 'behind', label: 'Chậm trễ', color: 'bg-rose-50 text-rose-600 hover:bg-rose-100' }
+                                                        ].map(opt => (
+                                                            <button
+                                                                key={opt.id}
+                                                                onClick={() => setMemberStatusFilter(opt.id)}
+                                                                className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                                                                    memberStatusFilter === opt.id 
+                                                                    ? 'ring-2 ring-offset-1 ring-indigo-500 ' + opt.color 
+                                                                    : 'opacity-60 hover:opacity-100 ' + opt.color
+                                                                }`}
+                                                            >
+                                                                {opt.label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    ))}
+                                    )}
                                 </div>
                             </div>
-                        )}
+                            
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead className="bg-slate-50 text-xs uppercase font-semibold text-slate-500 sticky top-0">
+                                        <tr>
+                                            <th className="px-6 py-4 text-left">Thành viên</th>
+                                            <th className="px-6 py-4 text-center">OKRs</th>
+                                            <th className="px-6 py-4 text-left w-1/3">Tiến độ</th>
+                                            <th className="px-6 py-4 text-left">Check-in cuối</th>
+                                            <th className="px-6 py-4 text-right">Hành động</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {filteredMembers.map((member) => (
+                                            <tr key={member.user_id} className="hover:bg-slate-50/50 transition-colors group">
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <img 
+                                                            src={member.avatar || `https://ui-avatars.com/api/?name=${member.full_name}&background=random`} 
+                                                            alt={member.full_name}
+                                                            className="w-10 h-10 rounded-full object-cover border border-slate-200 shadow-sm"
+                                                        />
+                                                        <div>
+                                                            <div className="font-bold text-slate-900">{member.full_name}</div>
+                                                            <div className="text-xs text-slate-500">{member.role || "Member"}</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold text-xs">
+                                                        {member.total_kr_contributed || 0}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <span className="text-sm font-bold text-slate-700">{member.average_completion?.toFixed(0)}%</span>
+                                                        <StatusBadge progress={member.average_completion} status={member.status} />
+                                                    </div>
+                                                    <ProgressBar 
+                                                        value={member.average_completion} 
+                                                        color={member.average_completion < 40 ? 'bg-rose-500' : (member.average_completion < 70 ? 'bg-amber-500' : 'bg-emerald-500')} 
+                                                    />
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                                                        <FiClock className="w-4 h-4 text-slate-400" />
+                                                        <span>{member.last_checkin || "Chưa check-in"}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <button className="text-indigo-600 hover:text-indigo-800 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        Nhắc nhở
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {filteredMembers.length === 0 && (
+                                            <tr>
+                                                <td colSpan="5" className="px-6 py-12 text-center text-slate-400">
+                                                    <div className="flex flex-col items-center justify-center gap-2">
+                                                        <FiFilter className="w-8 h-8 opacity-20" />
+                                                        <p>Không tìm thấy thành viên phù hợp</p>
+                                                        {(memberSearch || memberStatusFilter !== 'all') && (
+                                                            <button 
+                                                                onClick={() => { setMemberSearch(''); setMemberStatusFilter('all'); }}
+                                                                className="text-indigo-600 hover:underline text-sm mt-1"
+                                                            >
+                                                                Xóa bộ lọc
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </>
                 )}
 
