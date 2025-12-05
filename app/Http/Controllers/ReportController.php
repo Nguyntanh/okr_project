@@ -1120,6 +1120,54 @@ class ReportController extends Controller
             'message' => 'Đã xóa báo cáo thành công.',
         ]);
     }
+
+    /**
+     * Gửi nhắc nhở check-in cho thành viên
+     */
+    public function remindMember(Request $request)
+    {
+        $user = $request->user();
+        $memberId = $request->input('member_id');
+        $cycleId = $request->input('cycle_id');
+
+        if (!$memberId) {
+             return response()->json(['success' => false, 'message' => 'Thiếu thông tin thành viên'], 400);
+        }
+
+        // Ensure cycle_id is present as it is required by the notifications table
+        if (!$cycleId) {
+            $currentCycle = $this->resolveCycle();
+            if ($currentCycle) {
+                $cycleId = $currentCycle->cycle_id;
+            }
+        }
+
+        if (!$cycleId) {
+            return response()->json(['success' => false, 'message' => 'Không xác định được chu kỳ để tạo thông báo'], 400);
+        }
+
+        $targetUser = User::find($memberId);
+        if (!$targetUser) {
+            return response()->json(['success' => false, 'message' => 'Không tìm thấy thành viên'], 404);
+        }
+
+        // Basic check: same department
+        if ($user->department_id !== $targetUser->department_id && !$user->is_admin) {
+             return response()->json(['success' => false, 'message' => 'Thành viên không thuộc đội nhóm của bạn'], 403);
+        }
+
+        // Gửi noti - Service sẽ lưu vào bảng notifications
+        \App\Services\NotificationService::send(
+            $targetUser->user_id,
+            "Quản lý {$user->full_name} nhắc bạn cập nhật tiến độ OKR.",
+            'reminder',
+            (int) $cycleId,
+            '/my-objectives', // Action URL
+            'Check-in ngay'
+        );
+
+        return response()->json(['success' => true, 'message' => 'Đã gửi nhắc nhở thành công']);
+    }
 }
 
 

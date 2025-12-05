@@ -44,7 +44,6 @@ class NotificationService
                 'user_id' => $userId,
                 'message' => $message,
                 'type' => $type,
-                'action_url' => $actionUrl,
                 'is_read' => false,
                 'cycle_id' => $cycleId,
             ]);

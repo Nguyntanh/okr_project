@@ -156,14 +156,14 @@ export default function NotificationBell() {
         }
     }, [isOpen]);
 
-    // Poll for new notifications every 30 seconds
+    // Poll for new notifications every 5 seconds for near real-time updates
     useEffect(() => {
         const interval = setInterval(() => {
             fetchUnreadCount();
             if (isOpen) {
                 fetchNotifications();
             }
-        }, 30000);
+        }, 5000);
 
         return () => clearInterval(interval);
     }, [isOpen]);

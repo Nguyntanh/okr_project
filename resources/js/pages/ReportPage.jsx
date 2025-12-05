@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { Select } from "../components/ui";
+import ToastNotification from "../components/ToastNotification";
+import ConfirmationModal from "../components/ConfirmationModal";
 import { FiDownload, FiFilter, FiAlertCircle, FiCheckCircle, FiClock, FiTrendingUp, FiTrendingDown, FiMinus, FiUsers, FiMoreHorizontal } from "react-icons/fi";
 import { HiChartPie, HiExclamationTriangle, HiUserGroup, HiDocumentCheck } from "react-icons/hi2";
 
@@ -19,6 +21,18 @@ export default function ReportPage() {
     const [memberSearch, setMemberSearch] = useState("");
     const [memberStatusFilter, setMemberStatusFilter] = useState("all"); // all, on_track, at_risk, behind
     const [showMemberFilter, setShowMemberFilter] = useState(false);
+
+    // --- UI/UX ENHANCEMENTS ---
+    const [toast, setToast] = useState({ message: null, type: null });
+    const [confirmModal, setConfirmModal] = useState({
+        show: false,
+        title: "",
+        message: "",
+        onConfirm: () => {},
+        confirmText: "Xác nhận",
+        cancelText: "Hủy"
+    });
+    const [remindingMap, setRemindingMap] = useState({}); // Track loading state per member ID
 
     // --- DATA FETCHING ---
     useEffect(() => {
@@ -228,6 +242,46 @@ export default function ReportPage() {
         if (trend === 'increasing') return <FiTrendingUp className="w-4 h-4 text-emerald-500" title="Mức độ tự tin đang tăng" />;
         if (trend === 'decreasing') return <FiTrendingDown className="w-4 h-4 text-rose-500" title="Mức độ tự tin đang giảm" />;
         return null; // Ẩn nếu ổn định để giao diện sạch hơn
+    };
+
+    const executeRemind = async (memberId) => {
+        setRemindingMap(prev => ({ ...prev, [memberId]: true }));
+        try {
+            const res = await fetch("/api/reports/remind", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ""
+                },
+                body: JSON.stringify({ 
+                    member_id: memberId,
+                    cycle_id: selectedCycle 
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setToast({ message: data.message, type: "success" });
+            } else {
+                setToast({ message: data.message || "Có lỗi xảy ra", type: "error" });
+            }
+        } catch (e) {
+            console.error(e);
+            setToast({ message: "Lỗi kết nối server", type: "error" });
+        } finally {
+            setRemindingMap(prev => ({ ...prev, [memberId]: false }));
+        }
+    };
+
+    const handleRemindClick = (memberId, memberName) => {
+        setConfirmModal({
+            show: true,
+            title: "Xác nhận nhắc nhở",
+            message: `Bạn có chắc chắn muốn gửi thông báo nhắc nhở check-in đến ${memberName}?`,
+            confirmText: "Gửi ngay",
+            cancelText: "Hủy bỏ",
+            onConfirm: () => executeRemind(memberId)
+        });
     };
 
     return (
@@ -609,8 +663,16 @@ export default function ReportPage() {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
-                                                    <button className="text-indigo-600 hover:text-indigo-800 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        Nhắc nhở
+                                                    <button 
+                                                        onClick={() => handleRemindClick(member.user_id, member.full_name)}
+                                                        disabled={remindingMap[member.user_id]}
+                                                        className={`text-sm font-medium transition-all ${
+                                                            remindingMap[member.user_id] 
+                                                            ? "text-slate-400 cursor-wait"
+                                                            : "text-indigo-600 hover:text-indigo-800 opacity-0 group-hover:opacity-100"
+                                                        }`}
+                                                    >
+                                                        {remindingMap[member.user_id] ? "Đang gửi..." : "Nhắc nhở"}
                                                     </button>
                                                 </td>
                                             </tr>
@@ -680,6 +742,16 @@ export default function ReportPage() {
                         </div>
                     </div>
                 )}
+
+                <ToastNotification 
+                    toast={toast}
+                    onClose={() => setToast({ message: null, type: null })}
+                />
+
+                <ConfirmationModal 
+                    confirmModal={confirmModal}
+                    closeConfirm={() => setConfirmModal(prev => ({ ...prev, show: false }))}
+                />
             </div>
         </div>
     );

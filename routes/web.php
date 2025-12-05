@@ -127,6 +127,7 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     Route::get('/api/reports/my-team', [App\Http\Controllers\ReportController::class, 'getMyTeamReport'])->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])->name('api.reports.my-team');
     Route::get('/api/reports/cycles', [App\Http\Controllers\ReportController::class, 'getCycles'])->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])->name('api.reports.cycles');
     Route::get('/api/reports/progress-trend', [App\Http\Controllers\ReportController::class, 'getTeamProgressTrend'])->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])->name('api.reports.progress-trend');
+    Route::post('/api/reports/remind', [App\Http\Controllers\ReportController::class, 'remindMember'])->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])->name('api.reports.remind');
 
     // Routes cho Profile - trả về React app
     Route::get('/profile', function () {
