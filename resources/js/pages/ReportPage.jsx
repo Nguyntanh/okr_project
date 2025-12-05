@@ -17,10 +17,21 @@ export default function ReportPage() {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [reportName, setReportName] = useState("");
 
-    // --- MEMBER FILTER LOGIC ---
-    const [memberSearch, setMemberSearch] = useState("");
-    const [memberStatusFilter, setMemberStatusFilter] = useState("all"); // all, on_track, at_risk, behind
-    const [showMemberFilter, setShowMemberFilter] = useState(false);
+    // --- MEMBER LIST LOGIC ---
+    // Simplified for small teams (removed complex filtering)
+    const memberList = useMemo(() => {
+        if (!reportData?.members) return [];
+        return reportData.members.map(member => {
+            // Logic mapping status (fallback logic if API status is inconsistent)
+            let status = member.status || 'pending';
+            if (!member.status) {
+                 if (member.average_completion >= 70) status = 'on_track';
+                 else if (member.average_completion >= 40) status = 'at_risk';
+                 else status = 'behind';
+            }
+            return { ...member, status };
+        });
+    }, [reportData]);
 
     // --- UI/UX ENHANCEMENTS ---
     const [toast, setToast] = useState({ message: null, type: null });
@@ -33,47 +44,6 @@ export default function ReportPage() {
         cancelText: "Hủy"
     });
     const [remindingMap, setRemindingMap] = useState({}); // Track loading state per member ID
-
-    // --- DATA FETCHING ---
-    useEffect(() => {
-        (async () => {
-            try {
-                const res = await fetch("/api/reports/cycles", { headers: { Accept: "application/json" } });
-                const data = await res.json();
-                if (data.success && data.data.length > 0) {
-                    setCycles(data.data);
-                    const defaultCycleId = data.meta?.default_cycle_id ?? data.data[0].cycle_id;
-                    setSelectedCycle(String(defaultCycleId));
-                }
-            } catch (e) {
-                console.error("Error loading cycles:", e);
-            }
-        })();
-    }, []);
-
-    useEffect(() => {
-        if (selectedCycle) loadReportData(selectedCycle);
-    }, [selectedCycle]);
-
-    const loadReportData = async (cycleId) => {
-        setLoading(true);
-        setError(null);
-        try {
-            const res = await fetch(`/api/reports/my-team?cycle_id=${cycleId}`, { headers: { Accept: "application/json" } });
-            const json = await res.json();
-            if (json.success) {
-                setReportData(json.data);
-                setDepartmentName(json.department_name);
-            } else {
-                setError(json.message);
-            }
-        } catch (e) {
-            console.error("Error loading report:", e);
-            setError("Lỗi kết nối server");
-        } finally {
-            setLoading(false);
-        }
-    };
 
     // --- DERIVED METRICS ---
     
@@ -135,30 +105,47 @@ export default function ReportPage() {
         };
     }, [reportData, activeOkrs]);
 
-    const filteredMembers = useMemo(() => {
-        if (!reportData?.members) return [];
-        return reportData.members.filter(member => {
-            // Filter by Name
-            const matchName = member.full_name.toLowerCase().includes(memberSearch.toLowerCase());
-            
-            // Filter by Status
-            if (memberStatusFilter === 'all') return matchName;
-            
-            // Logic mapping status (fallback logic if API status is inconsistent)
-            let status = member.status || 'pending';
-            if (!member.status) {
-                 if (member.average_completion >= 70) status = 'on_track';
-                 else if (member.average_completion >= 40) status = 'at_risk';
-                 else status = 'behind';
+    // --- DATA FETCHING ---
+    
+    const loadReportData = async (cycleId) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await fetch(`/api/reports/my-team?cycle_id=${cycleId}`, { headers: { Accept: "application/json" } });
+            const json = await res.json();
+            if (json.success) {
+                setReportData(json.data);
+                setDepartmentName(json.department_name);
+            } else {
+                setError(json.message);
             }
-            
-            // Allow 'completed' to show in 'on_track' filter if desired, or strictly match
-            const matchStatus = (status === memberStatusFilter) || 
-                                (memberStatusFilter === 'on_track' && status === 'completed');
+        } catch (e) {
+            console.error("Error loading report:", e);
+            setError("Lỗi kết nối server");
+        } finally {
+            setLoading(false);
+        }
+    };
 
-            return matchName && matchStatus;
-        });
-    }, [reportData, memberSearch, memberStatusFilter]);
+    useEffect(() => {
+        (async () => {
+            try {
+                const res = await fetch("/api/reports/cycles", { headers: { Accept: "application/json" } });
+                const data = await res.json();
+                if (data.success && data.data.length > 0) {
+                    setCycles(data.data);
+                    const defaultCycleId = data.meta?.default_cycle_id ?? data.data[0].cycle_id;
+                    setSelectedCycle(String(defaultCycleId));
+                }
+            } catch (e) {
+                console.error("Error loading cycles:", e);
+            }
+        })();
+    }, []);
+
+    useEffect(() => {
+        if (selectedCycle) loadReportData(selectedCycle);
+    }, [selectedCycle]);
 
     // --- SUB-COMPONENTS ---
 
@@ -492,7 +479,7 @@ export default function ReportPage() {
                                                 <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
                                                     <HiDocumentCheck className="w-5 h-5" />
                                                 </div>
-                                                <h3 className="text-lg font-bold text-slate-800">Chi tiết OKRs Nhóm</h3>
+                                                <h3 className="text-lg font-bold text-slate-800">Chi tiết OKRs phòng ban</h3>
                                             </div>
                                             <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-medium">
                                                 {activeOkrs.length} Mục tiêu
@@ -508,7 +495,7 @@ export default function ReportPage() {
                                                                 <div className="flex items-center gap-2 mb-1">
                                                                     <span className="text-xs text-slate-400 font-medium flex items-center gap-1">
                                                                         <HiDocumentCheck className="w-3 h-3" />
-                                                                        {okr.completed_kr_count}/{okr.key_results_count} Kết quả then chốt
+                                                                        {okr.completed_kr_count}/{okr.key_results_count} Kết quả then chốt đã hoàn thành
                                                                     </span>
                                                                 </div>
                                                                 <h4 className="text-sm font-bold text-slate-900 line-clamp-2 group-hover:text-indigo-600 transition-colors" title={okr.obj_title}>
@@ -556,62 +543,6 @@ export default function ReportPage() {
                                     </div>
                                     <h3 className="text-lg font-bold text-slate-800">Hiệu suất thành viên</h3>
                                 </div>
-                                
-                                {/* FILTER DROPDOWN */}
-                                <div className="relative">
-                                    <button 
-                                        onClick={() => setShowMemberFilter(!showMemberFilter)}
-                                        className={`p-2 rounded-lg transition-all flex items-center gap-2 ${
-                                            showMemberFilter || memberStatusFilter !== 'all' || memberSearch 
-                                            ? 'bg-indigo-50 text-indigo-600 ring-2 ring-indigo-100' 
-                                            : 'hover:bg-slate-100 text-slate-400'
-                                        }`}
-                                    >
-                                        <FiFilter className="w-4 h-4" />
-                                        {(memberStatusFilter !== 'all' || memberSearch) && <span className="text-xs font-bold">Đang lọc</span>}
-                                    </button>
-
-                                    {showMemberFilter && (
-                                        <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-xl border border-slate-100 p-4 animate-in fade-in zoom-in duration-200 origin-top-right">
-                                            <div className="space-y-4">
-                                                <div>
-                                                    <label className="text-xs font-semibold text-slate-500 uppercase mb-1.5 block">Tìm kiếm</label>
-                                                    <input 
-                                                        type="text" 
-                                                        placeholder="Nhập tên thành viên..." 
-                                                        value={memberSearch}
-                                                        onChange={(e) => setMemberSearch(e.target.value)}
-                                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                                        autoFocus
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="text-xs font-semibold text-slate-500 uppercase mb-1.5 block">Trạng thái</label>
-                                                    <div className="grid grid-cols-2 gap-2">
-                                                        {[
-                                                            { id: 'all', label: 'Tất cả', color: 'bg-slate-100 text-slate-600 hover:bg-slate-200' },
-                                                            { id: 'on_track', label: 'Ổn định', color: 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' },
-                                                            { id: 'at_risk', label: 'Rủi ro', color: 'bg-amber-50 text-amber-600 hover:bg-amber-100' },
-                                                            { id: 'behind', label: 'Chậm trễ', color: 'bg-rose-50 text-rose-600 hover:bg-rose-100' }
-                                                        ].map(opt => (
-                                                            <button
-                                                                key={opt.id}
-                                                                onClick={() => setMemberStatusFilter(opt.id)}
-                                                                className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${
-                                                                    memberStatusFilter === opt.id 
-                                                                    ? 'ring-2 ring-offset-1 ring-indigo-500 ' + opt.color 
-                                                                    : 'opacity-60 hover:opacity-100 ' + opt.color
-                                                                }`}
-                                                            >
-                                                                {opt.label}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
                             </div>
                             
                             <div className="overflow-x-auto">
@@ -626,7 +557,7 @@ export default function ReportPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {filteredMembers.map((member) => (
+                                        {memberList.map((member) => (
                                             <tr key={member.user_id} className="hover:bg-slate-50/50 transition-colors group">
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center gap-3">
@@ -677,24 +608,6 @@ export default function ReportPage() {
                                                 </td>
                                             </tr>
                                         ))}
-                                        {filteredMembers.length === 0 && (
-                                            <tr>
-                                                <td colSpan="5" className="px-6 py-12 text-center text-slate-400">
-                                                    <div className="flex flex-col items-center justify-center gap-2">
-                                                        <FiFilter className="w-8 h-8 opacity-20" />
-                                                        <p>Không tìm thấy thành viên phù hợp</p>
-                                                        {(memberSearch || memberStatusFilter !== 'all') && (
-                                                            <button 
-                                                                onClick={() => { setMemberSearch(''); setMemberStatusFilter('all'); }}
-                                                                className="text-indigo-600 hover:underline text-sm mt-1"
-                                                            >
-                                                                Xóa bộ lọc
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        )}
                                     </tbody>
                                 </table>
                             </div>
