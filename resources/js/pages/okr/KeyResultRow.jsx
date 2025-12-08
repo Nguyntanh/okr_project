@@ -38,7 +38,7 @@ export default function KeyResultRow({
         return (
             <>
                 <tr className="bg-white hover:bg-slate-50/70 transition-colors duration-150">
-<td className="px-8 py-3">
+<td className="pl-12 pr-4 py-3">
                         <div className="flex items-center gap-2">
                             <div className="w-6 h-6 flex items-center justify-center">
                                 {kr.key_results?.length > 0 && (
@@ -135,7 +135,7 @@ export default function KeyResultRow({
                                 key={`source_kr_${sourceKr.kr_id}`}
                                 className="bg-white"
                             >
-                                <td className="pl-18 pr-8 py-3 text-base text-slate-800">
+                                <td className="pl-20 pr-8 py-3 text-base text-slate-800">
                                     <div className="flex items-center gap-2">
                                         <FaKey
                                             className="h-4 w-4 text-amber-600 flex-shrink-0"
@@ -235,7 +235,7 @@ export default function KeyResultRow({
                 className="bg-white hover:bg-slate-50/70 transition-colors duration-150"
                 data-kr-id={kr.kr_id}
             >
-                <td className="px-8 py-3">
+                <td className="pl-12 pr-4 py-3">
                     <div className="flex items-center gap-2">
                         <div className="w-6 flex-shrink-0">
                             {hasLinkedChildren && (

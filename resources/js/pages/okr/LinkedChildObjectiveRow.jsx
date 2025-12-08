@@ -23,7 +23,7 @@ export default function LinkedChildObjectiveRow({
         <>
             <tr className="bg-white">
                 {/* Cột Tiêu đề */}
-                <td className="px-13 py-3">
+                <td className="pl-20 pr-4 py-3">
                     <div className="flex items-center gap-1">
                         {hasKRs && (
                             <button
@@ -121,7 +121,7 @@ export default function LinkedChildObjectiveRow({
                     const userInfo = getAssigneeInfo(kr);
                     return (
                         <tr key={kr.kr_id} className="bg-white">
-                            <td className="pl-23 py-3">
+                            <td className="pl-28 pr-4 py-3">
                                 <div className="flex items-center gap-2">
                                     <FaKey
                                         className="h-4 w-4 text-amber-600 flex-shrink-0"
