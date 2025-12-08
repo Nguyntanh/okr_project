@@ -8,7 +8,7 @@ use App\Models\Cycle;
 use App\Models\CheckIn;
 use App\Models\KeyResult;
 use App\Models\User;
-use App\Models\Report;
+use App\Services\ReportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\URL;
@@ -17,6 +17,13 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
 {
+    protected $reportService;
+
+    public function __construct(ReportService $reportService)
+    {
+        $this->reportService = $reportService;
+    }
+
     /**
      * Trang báo cáo cho quản lý (render React app).
      */
@@ -54,6 +61,7 @@ class ReportController extends Controller
         /** @var User $user */
         $user = $request->user();
         $department = $user?->department;
+        
         if (!$department) {
             return response()->json([
                 'success' => false,
@@ -69,118 +77,11 @@ class ReportController extends Controller
             ], 404);
         }
 
-        $objectiveQuery = Objective::query()
-            ->select([
-                'objective_id',
-                'obj_title',
-                'description',
-                'level',
-                'status',
-                'progress_percent',
-                'user_id',
-                'department_id',
-            ])
-            ->where('department_id', $department->department_id)
-            ->where('cycle_id', $cycle->cycle_id);
-
-        $objectives = $objectiveQuery->get();
-        $objectiveIds = $objectives->pluck('objective_id');
-
-        $keyResults = $objectiveIds->isEmpty()
-            ? collect()
-            : KeyResult::query()
-                ->select([
-                    'kr_id',
-                    'objective_id',
-                    'progress_percent',
-                    'current_value',
-                    'target_value',
-                ])
-                ->whereIn('objective_id', $objectiveIds)
-                ->get();
-
-        $krIds = $keyResults->pluck('kr_id');
-        $latestCheckIns = $krIds->isEmpty()
-            ? collect()
-            : CheckIn::query()
-                ->whereIn('kr_id', $krIds)
-                ->orderByDesc('created_at')
-                ->get()
-                ->unique('kr_id')
-                ->keyBy('kr_id');
-
-        $objectiveDetails = $objectives->map(function ($objective) use ($keyResults, $latestCheckIns) {
-            $krs = $keyResults->where('objective_id', $objective->objective_id);
-            $krStats = $krs->map(function ($kr) use ($latestCheckIns) {
-                $latest = $latestCheckIns->get($kr->kr_id);
-                $progress = $latest?->progress_percent;
-                if ($progress === null) {
-                    $progress = $kr->progress_percent;
-                }
-                if ($progress === null && $kr->target_value > 0) {
-                    $progress = ($kr->current_value / max(1, $kr->target_value)) * 100;
-                }
-                $progress = $this->clampProgress((float) ($progress ?? 0));
-
-                return [
-                    'kr_id' => $kr->kr_id,
-                    'progress' => $progress,
-                ];
-            });
-
-            $avgProgress = $krStats->isEmpty()
-                ? $this->clampProgress((float) ($objective->progress_percent ?? 0))
-                : $this->clampProgress((float) $krStats->avg('progress'));
-
-            $completedKrCount = $krStats->where('progress', '>=', 100)->count();
-
-            return [
-                'objective_id' => (int) $objective->objective_id,
-                'obj_title' => $objective->obj_title ?? 'OKR',
-                'description' => $objective->description,
-                'level' => strtolower((string) ($objective->level ?? 'personal')),
-                'user_id' => $objective->user_id ? (int) $objective->user_id : null,
-                'progress' => $avgProgress,
-                'key_results_count' => $krStats->count(),
-                'completed_kr_count' => $completedKrCount,
-            ];
-        });
-
-        $teamAverage = $objectiveDetails->isEmpty()
-            ? 0.0
-            : round($objectiveDetails->avg('progress'), 1);
-
-        $teamOkrs = $objectiveDetails
-            ->filter(function ($obj) {
-                return !$obj['user_id'] || in_array($obj['level'], ['team', 'unit', 'department', 'company'], true);
-            })
-            ->values();
-
-        $members = User::query()
-            ->select(['user_id', 'full_name', 'email'])
-            ->where('department_id', $department->department_id)
-            ->orderBy('full_name')
-            ->get();
-
-        $memberStats = $members->map(function ($member) use ($objectiveDetails) {
-            $memberObjectives = $objectiveDetails->where('user_id', (int) $member->user_id);
-            $avg = $memberObjectives->isEmpty()
-                ? 0.0
-                : round($memberObjectives->avg('progress'), 1);
-            $completedObjectives = $memberObjectives->where('progress', '>=', 100)->count();
-            $totalKr = $memberObjectives->sum('key_results_count');
-            $completedKr = $memberObjectives->sum('completed_kr_count');
-
-            return [
-                'user_id' => (int) $member->user_id,
-                'full_name' => $member->full_name,
-                'email' => $member->email,
-                'completed_okr_count' => $completedObjectives,
-                'average_completion' => $avg,
-                'total_kr_contributed' => (int) $totalKr,
-                'completed_kr_count' => (int) $completedKr,
-            ];
-        })->sortByDesc('average_completion')->values();
+        // Sử dụng Service để tính toán dữ liệu
+        $reportData = $this->reportService->getTeamPerformance(
+            $department->department_id, 
+            $cycle->cycle_id
+        );
 
         return response()->json([
             'success' => true,
@@ -189,12 +90,7 @@ class ReportController extends Controller
                 'cycle_id' => $cycle->cycle_id,
                 'cycle_name' => $cycle->cycle_name,
             ],
-            'data' => [
-                'team_average_completion' => $teamAverage,
-                'total_okr_count' => $objectiveDetails->count(),
-                'team_okrs' => $teamOkrs,
-                'members' => $memberStats,
-            ],
+            'data' => $reportData,
         ]);
     }
 
@@ -305,6 +201,7 @@ class ReportController extends Controller
                 $krs = DB::table('key_results')
                     ->select(['progress_percent','current_value','target_value'])
                     ->where('objective_id', $obj->objective_id)
+                    ->whereNull('archived_at') // Only count non-archived KeyResults
                     ->get();
                 if ($krs->count() === 0) {
                     $progress = 0.0;
@@ -400,6 +297,7 @@ class ReportController extends Controller
         $departmentId = $request->integer('department_id');
         $status = $request->string('status')->toString(); // on_track | at_risk | off_track
         $ownerId = $request->integer('owner_id');
+        $level = $request->input('level'); // company | departments
 
         // Determine current cycle if missing
         if (!$cycleId) {
@@ -414,10 +312,21 @@ class ReportController extends Controller
 
         // Base objectives with optional filters
         $objectivesQuery = Objective::query()
-            ->select(['objective_id','obj_title','department_id','cycle_id','progress_percent','user_id'])
+            ->select(['objective_id','obj_title','department_id','cycle_id','progress_percent','user_id', 'level'])
+            ->whereNull('archived_at') // Only count active objectives
             ->when($cycleId, fn ($q) => $q->where('cycle_id', $cycleId))
             ->when($departmentId, fn ($q) => $q->where('department_id', $departmentId))
             ->when($ownerId, fn ($q) => $q->where('user_id', $ownerId));
+        
+        // Filter by level - must be explicit
+        if ($level === 'company') {
+            $objectivesQuery->where('level', 'company');
+        } elseif ($level === 'departments') {
+            $objectivesQuery->where('level', 'unit');
+        } else {
+            // Default: exclude person level, include both company and unit
+            $objectivesQuery->whereIn('level', ['company', 'unit']);
+        }
 
         $objectives = $objectivesQuery->get();
 
@@ -428,6 +337,7 @@ class ReportController extends Controller
                 DB::raw('AVG(CASE WHEN progress_percent IS NOT NULL THEN progress_percent ELSE CASE WHEN target_value IS NOT NULL AND target_value > 0 THEN LEAST(100, GREATEST(0, (current_value/target_value)*100)) ELSE 0 END END) as avg_progress')
             )
             ->whereIn('objective_id', $objectiveIds)
+            ->whereNull('archived_at') // Only count non-archived KeyResults
             ->groupBy('objective_id')
             ->pluck('avg_progress', 'objective_id');
 
@@ -1209,6 +1119,54 @@ class ReportController extends Controller
             'success' => true,
             'message' => 'Đã xóa báo cáo thành công.',
         ]);
+    }
+
+    /**
+     * Gửi nhắc nhở check-in cho thành viên
+     */
+    public function remindMember(Request $request)
+    {
+        $user = $request->user();
+        $memberId = $request->input('member_id');
+        $cycleId = $request->input('cycle_id');
+
+        if (!$memberId) {
+             return response()->json(['success' => false, 'message' => 'Thiếu thông tin thành viên'], 400);
+        }
+
+        // Ensure cycle_id is present as it is required by the notifications table
+        if (!$cycleId) {
+            $currentCycle = $this->resolveCycle();
+            if ($currentCycle) {
+                $cycleId = $currentCycle->cycle_id;
+            }
+        }
+
+        if (!$cycleId) {
+            return response()->json(['success' => false, 'message' => 'Không xác định được chu kỳ để tạo thông báo'], 400);
+        }
+
+        $targetUser = User::find($memberId);
+        if (!$targetUser) {
+            return response()->json(['success' => false, 'message' => 'Không tìm thấy thành viên'], 404);
+        }
+
+        // Basic check: same department
+        if ($user->department_id !== $targetUser->department_id && !$user->is_admin) {
+             return response()->json(['success' => false, 'message' => 'Thành viên không thuộc đội nhóm của bạn'], 403);
+        }
+
+        // Gửi noti - Service sẽ lưu vào bảng notifications
+        \App\Services\NotificationService::send(
+            $targetUser->user_id,
+            "Quản lý {$user->full_name} nhắc bạn cập nhật tiến độ OKR.",
+            'reminder',
+            (int) $cycleId,
+            '/my-objectives', // Action URL
+            'Check-in ngay'
+        );
+
+        return response()->json(['success' => true, 'message' => 'Đã gửi nhắc nhở thành công']);
     }
 }
 
