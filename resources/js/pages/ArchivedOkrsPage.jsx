@@ -280,13 +280,13 @@ export default function ArchivedOkrsPage() {
                 <table className="min-w-full divide-y divide-slate-200 table-fixed">
                     <thead className="bg-slate-50 text-left font-semibold text-slate-700">
                         <tr>
-                            <th className="px-3 py-2 text-left border-r border-slate-200">
+                            <th className="px-3 py-2 text-left">
                                 Tiêu đề
                             </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200" style={{width: '180px'}}>
+                            <th className="px-3 py-2 text-center" style={{width: '180px'}}>
                                 Người thực hiện
                             </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200" style={{width: '150px'}}>
+                            <th className="px-3 py-2 text-center" style={{width: '150px'}}>
                                 Tiến độ (%)
                             </th>
                             <th className="px-3 py-2 text-center" style={{width: '100px'}}>
@@ -312,7 +312,7 @@ export default function ArchivedOkrsPage() {
                                 {/* HÀNG OBJECTIVE */}
                                 <tr className={`transition-colors duration-150 ${obj.archived_at ? 'bg-slate-200/30' : 'bg-white'} hover:bg-slate-50/70`}>
                                     {/* Cột "Tiêu đề" (kéo dài 3 cột) */}
-                                    <td colSpan={3} className="px-3 py-3 border-r border-slate-200">
+                                    <td colSpan={3} className="px-3 py-3">
                                         <div className="flex items-center justify-between w-full">
                                             <div className="flex items-center gap-2">
                                                 <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
@@ -380,7 +380,7 @@ export default function ArchivedOkrsPage() {
                                 {openObj[obj.objective_id] && obj.key_results?.filter(kr => kr.archived_at).map(kr => (
                                     <tr key={`archived-kr-${kr.kr_id}`} className="bg-white hover:bg-slate-50/70 transition-colors duration-150">
                                         {/* Cột Tiêu đề KR */}
-                                        <td className="px-8 py-3 border-r border-slate-200">
+                                        <td className="px-8 py-3">
                                             <div className="flex items-center gap-2">
                                                 <div className="w-6 flex-shrink-0"></div> {/* Để thụt vào */}
                                                 <FaKey className="h-4 w-4 text-slate-500 flex-shrink-0" title="Key Result" />
@@ -388,11 +388,11 @@ export default function ArchivedOkrsPage() {
                                             </div>
                                         </td>
                                         {/* Cột Người thực hiện */}
-                                        <td className="px-3 py-3 text-center border-r border-slate-200 text-sm text-slate-500">
+                                        <td className="px-3 py-3 text-center text-sm text-slate-500">
                                             {kr.assigned_user?.name || ''}
                                         </td>
                                         {/* Cột Tiến độ */}
-                                        <td className="px-3 py-3 text-center border-r border-slate-200">
+                                        <td className="px-3 py-3 text-center">
                                             <div className="flex flex-col items-center">
                                                 <div className="w-full bg-gray-300 rounded-full h-4 relative overflow-hidden">
                                                     <div
