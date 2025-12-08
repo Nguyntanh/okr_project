@@ -2,23 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from './ui';
 import CheckInProgressChart from './CheckInProgressChart';
 
-export default function CheckInModal({ 
-    open, 
-    onClose, 
-    keyResult, 
-    objectiveId, 
-    onSuccess 
+export default function CheckInModal({
+    open,
+    onClose,
+    keyResult,
+    objectiveId,
+    onSuccess,
+    initialTab = 'chart' // Add new prop with default value
 }) {
-    console.log('🔧 CheckInModal: Props received:', { open, keyResult, objectiveId });
-    console.log('🔧 CheckInModal: keyResult details:', {
-        kr_id: keyResult?.kr_id,
-        current_value: keyResult?.current_value,
-        target_value: keyResult?.target_value,
-        progress_percent: keyResult?.progress_percent,
-        unit: keyResult?.unit,
-        status: keyResult?.status
-    });
+    // ... (rest of the component)
 
+    const [error, setError] = useState('');
+    const [checkIns, setCheckIns] = useState([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
+    const [activeTab, setActiveTab] = useState(initialTab);
+    const [isInputFocused, setIsInputFocused] = useState(false);
+    const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         progress_value: 0,
         progress_percent: 0,
@@ -26,13 +25,13 @@ export default function CheckInModal({
         notes: ''
     });
 
-    const [isInputFocused, setIsInputFocused] = useState(false);
+    useEffect(() => {
+        if (open) {
+            setActiveTab(initialTab);
+        }
+    }, [open, initialTab]);
 
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [checkIns, setCheckIns] = useState([]);
-    const [loadingHistory, setLoadingHistory] = useState(false);
-
+    // ... (rest of the component)
     // Load checkin history function
     // Chỉ phụ thuộc vào kr_id thay vì toàn bộ keyResult object để tránh re-render không cần thiết
     const krId = keyResult?.kr_id;
@@ -353,17 +352,79 @@ export default function CheckInModal({
                     </div>
                 </div>
 
-                {/* Biểu đồ tiến độ Check-in */}
-                {!loadingHistory && checkIns && checkIns.length > 0 && keyResult && (
-                    <div className="w-full overflow-x-auto">
-                        <CheckInProgressChart
-                            checkIns={checkIns}
-                            width={700}
-                            height={280}
-                            keyResult={keyResult}
-                        />
-                    </div>
-                )}
+                {/* Tabs for Chart and History */}
+                <div className="border-b border-slate-200">
+                    <nav className="-mb-px flex space-x-4" aria-label="Tabs">
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('chart')}
+                            className={`${
+                                activeTab === 'chart'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                            } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}
+                        >
+                            Biểu đồ
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('history')}
+                            className={`${
+                                activeTab === 'history'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                            } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}
+                        >
+                            Lịch sử
+                        </button>
+                    </nav>
+                </div>
+
+                {/* Tab Content */}
+                <div>
+                    {activeTab === 'chart' && (
+                        <>
+                            {!loadingHistory && checkIns && checkIns.length > 0 && keyResult && (
+                                <div className="w-full overflow-x-auto">
+                                    <CheckInProgressChart
+                                        checkIns={checkIns}
+                                        width={700}
+                                        height={280}
+                                        keyResult={keyResult}
+                                    />
+                                </div>
+                            )}
+                            {loadingHistory && <div className="text-center py-4">Đang tải biểu đồ...</div>}
+                            {!loadingHistory && (!checkIns || checkIns.length === 0) && (
+                                <div className="text-center py-4 text-slate-500">Chưa có dữ liệu check-in.</div>
+                            )}
+                        </>
+                    )}
+                    {activeTab === 'history' && (
+                        <div className="max-h-64 overflow-y-auto">
+                            <table className="min-w-full divide-y divide-slate-200">
+                                <thead className="bg-slate-50">
+                                    <tr>
+                                        <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Ngày</th>
+                                        <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Giá trị</th>
+                                        <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Tiến độ</th>
+                                        <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Ghi chú</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-slate-200">
+                                    {checkIns.map(checkin => (
+                                        <tr key={checkin.id}>
+                                            <td className="px-4 py-2 whitespace-nowrap text-sm text-slate-500">{new Date(checkin.created_at).toLocaleDateString()}</td>
+                                            <td className="px-4 py-2 whitespace-nowrap text-sm text-slate-900 font-medium">{checkin.progress_value}</td>
+                                            <td className="px-4 py-2 whitespace-nowrap text-sm text-slate-500">{checkin.progress_percent.toFixed(1)}%</td>
+                                            <td className="px-4 py-2 text-sm text-slate-500">{checkin.notes}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
 
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">

@@ -4,7 +4,6 @@ import ObjectiveModal from "./ObjectiveModal.jsx";
 import KeyResultModal from "./KeyResultModal.jsx";
 import ToastComponent from "./ToastComponent.jsx";
 import CheckInModal from "../components/CheckInModal";
-import CheckInHistory from "../components/CheckInHistory";
 import ErrorBoundary from "../components/ErrorBoundary";
 import LinkOkrModal from "../components/LinkOkrModal.jsx";
 import LinkRequestsPanel from "../components/LinkRequestsPanel";
@@ -56,8 +55,7 @@ export default function ObjectivesPage() {
     const [openObj, setOpenObj] = useState({});
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
-    const [checkInModal, setCheckInModal] = useState({ open: false, keyResult: null });
-    const [checkInHistory, setCheckInHistory] = useState({ open: false, keyResult: null });
+    const [checkInModal, setCheckInModal] = useState({ open: false, keyResult: null, initialTab: 'chart' });
     const [currentUser, setCurrentUser] = useState(null);
 
     const urlParamsHandledRef = React.useRef(false);
@@ -315,7 +313,7 @@ export default function ObjectivesPage() {
 
                     // Mở check-in history modal
                     console.log('🔗 Opening check-in history for:', krToHighlight);
-                    setCheckInHistory({ open: true, keyResult: krToHighlight });
+                    openCheckInHistory(krToHighlight);
                 }, 800);
 
                 // Xóa URL parameters sau khi xử lý (delay để đảm bảo state đã được set)
@@ -742,7 +740,7 @@ export default function ObjectivesPage() {
     };
 
     const openCheckInHistory = (keyResult) => {
-        setCheckInHistory({ open: true, keyResult });
+        setCheckInModal({ open: true, keyResult, initialTab: 'history' });
     };
 
     const handlePageChange = (newPage) => {
@@ -1029,19 +1027,11 @@ export default function ObjectivesPage() {
             <ErrorBoundary>
                 <CheckInModal
                     open={checkInModal.open}
-                    onClose={() => setCheckInModal({ open: false, keyResult: null })}
+                    onClose={() => setCheckInModal({ open: false, keyResult: null, initialTab: 'chart' })}
                     keyResult={checkInModal.keyResult}
                     objectiveId={checkInModal.keyResult?.objective_id}
                     onSuccess={handleCheckInSuccess}
-                />
-            </ErrorBoundary>
-
-            <ErrorBoundary>
-                <CheckInHistory
-                    open={checkInHistory.open}
-                    onClose={() => setCheckInHistory({ open: false, keyResult: null })}
-                    keyResult={checkInHistory.keyResult}
-                    objectiveId={checkInHistory.keyResult?.objective_id}
+                    initialTab={checkInModal.initialTab}
                 />
             </ErrorBoundary>
 
