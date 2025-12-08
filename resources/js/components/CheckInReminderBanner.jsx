@@ -132,21 +132,40 @@ export default function CheckInReminderBanner({ onDismiss }) {
                         onClick={() => {
                             // Lấy Key Result đầu tiên cần check-in
                             const firstReminder = reminderList[0];
-                            if (firstReminder && firstReminder.key_results && firstReminder.key_results.length > 0) {
-                                const firstKR = firstReminder.key_results[0];
-                                // Lưu thông tin Key Result vào localStorage để auto-open check-in modal
-                                localStorage.setItem('autoOpenCheckIn', JSON.stringify({
-                                    kr_id: firstKR.kr_id,
-                                    objective_id: firstReminder.objective_id,
-                                    kr_title: firstKR.kr_title,
-                                    current_value: firstKR.current_value,
-                                    target_value: firstKR.target_value,
-                                    progress_percent: firstKR.progress_percent,
-                                    unit: firstKR.unit,
-                                }));
+                            if (!firstReminder || !firstReminder.key_results || firstReminder.key_results.length === 0) {
+                                console.warn('🔔 No key results found in reminder');
+                                return;
                             }
-                            // Chuyển đến trang mục tiêu
-                            window.location.href = '/my-objectives';
+
+                            const firstKR = firstReminder.key_results[0];
+                            const checkInData = {
+                                kr_id: firstKR.kr_id,
+                                objective_id: firstReminder.objective_id,
+                                kr_title: firstKR.kr_title,
+                                current_value: firstKR.current_value,
+                                target_value: firstKR.target_value,
+                                progress_percent: firstKR.progress_percent,
+                                unit: firstKR.unit,
+                            };
+
+                            console.log('🔔 Opening check-in for KR:', checkInData);
+
+                            // Kiểm tra xem đang ở trang nào
+                            const currentPath = window.location.pathname;
+                            const isOnMyObjectives = currentPath === '/my-objectives' || currentPath.startsWith('/my-objectives');
+
+                            if (isOnMyObjectives) {
+                                // Đã ở trang my-objectives - dispatch event để mở modal mà không reload
+                                console.log('🔔 Already on my-objectives, dispatching event');
+                                window.dispatchEvent(new CustomEvent('open-checkin-from-reminder', {
+                                    detail: checkInData
+                                }));
+                            } else {
+                                // Chưa ở trang my-objectives - lưu vào localStorage và chuyển trang
+                                console.log('🔔 Not on my-objectives, saving to localStorage and navigating');
+                                localStorage.setItem('autoOpenCheckIn', JSON.stringify(checkInData));
+                                window.location.href = '/my-objectives';
+                            }
                         }}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-md hover:bg-amber-700 transition-colors"
                     >

@@ -424,8 +424,8 @@ class MyKeyResultController extends Controller
     {
         $user = Auth::user();
         $keyResult = KeyResult::where('objective_id', $objectiveId)
-
-            ->findOrFail($keyResultId);
+            ->where('kr_id', $keyResultId)
+            ->firstOrFail();
 
         $objective = Objective::findOrFail($objectiveId);
 

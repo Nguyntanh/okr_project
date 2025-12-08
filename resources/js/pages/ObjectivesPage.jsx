@@ -221,25 +221,60 @@ export default function ObjectivesPage() {
 
             // Tìm Key Result trong items
             let foundKR = null;
+            let foundObjective = null;
             for (const obj of items) {
-                if (obj.objective_id === autoOpen.objective_id) {
-                    const kr = (obj.key_results || []).find(k => k.kr_id === autoOpen.kr_id);
-                    if (kr) {
+                if (String(obj.objective_id) === String(autoOpen.objective_id)) {
+                    foundObjective = obj;
+                    const foundKeyResult = (obj.key_results || []).find(k => String(k.kr_id) === String(autoOpen.kr_id));
+                    if (foundKeyResult) {
+                        // Đảm bảo KR có đầy đủ thông tin
                         foundKR = {
-                            ...kr,
+                            ...foundKeyResult,
                             objective_id: obj.objective_id,
+                            // Đảm bảo có các fields cần thiết
+                            kr_id: foundKeyResult.kr_id || autoOpen.kr_id,
+                            assigned_to: foundKeyResult.assigned_to || autoOpen.assigned_to,
+                            user_id: foundKeyResult.user_id || autoOpen.user_id,
                         };
                         break;
                     }
                 }
             }
 
-            if (foundKR) {
-                // Đợi một chút để đảm bảo component đã render xong
+            if (foundKR && foundObjective) {
+                // Mở objective để hiển thị KR
+                setOpenObj((prev) => ({
+                    ...prev,
+                    [foundObjective.objective_id]: true,
+                }));
+
+                // Đợi một chút để đảm bảo component đã render xong và objective đã mở
                 setTimeout(() => {
-                    openCheckInModal(foundKR);
-                    // Xóa localStorage sau khi đã mở modal
-                    localStorage.removeItem('autoOpenCheckIn');
+                    // Tìm element của KR và scroll đến đó
+                    const krElement = document.querySelector(`[data-kr-id="${autoOpen.kr_id}"]`);
+                    if (krElement) {
+                        // Scroll đến element với offset để không bị che bởi header
+                        const elementPosition = krElement.getBoundingClientRect().top;
+                        const offsetPosition = elementPosition + window.pageYOffset - 100; // 100px offset từ top
+
+                        window.scrollTo({
+                            top: offsetPosition,
+                            behavior: 'smooth'
+                        });
+
+                        // Highlight element tạm thời
+                        krElement.style.backgroundColor = '#fef3c7';
+                        setTimeout(() => {
+                            krElement.style.backgroundColor = '';
+                        }, 2000);
+                    }
+
+                    // Mở modal check-in sau khi scroll
+                    setTimeout(() => {
+                        setCheckInModal({ open: true, keyResult: foundKR });
+                        // Xóa localStorage sau khi đã mở modal
+                        localStorage.removeItem('autoOpenCheckIn');
+                    }, 800);
                 }, 500);
             } else {
                 console.warn('🔔 Key Result not found in items, clearing autoOpen');
@@ -263,7 +298,7 @@ export default function ObjectivesPage() {
             const urlParams = new URLSearchParams(window.location.search);
             const highlightKrId = urlParams.get('highlight_kr');
             const objectiveId = urlParams.get('objective_id');
-            const action = urlParams.get('action'); // 'checkin' hoặc null
+            const action = urlParams.get('action'); // 'checkin', 'checkin_history' hoặc null
 
             if (!highlightKrId) return;
 
@@ -277,11 +312,11 @@ export default function ObjectivesPage() {
                 const objId = String(obj.objective_id);
                 if (objectiveId && objId !== String(objectiveId)) continue;
 
-                const kr = (obj.key_results || []).find(k => String(k.kr_id) === String(highlightKrId));
-                if (kr) {
+                const foundKeyResult = (obj.key_results || []).find(k => String(k.kr_id) === String(highlightKrId));
+                if (foundKeyResult) {
                     foundObjective = obj;
                     foundKR = {
-                        ...kr,
+                        ...foundKeyResult,
                         objective_id: obj.objective_id,
                     };
                     break;
@@ -308,26 +343,38 @@ export default function ObjectivesPage() {
                 setTimeout(() => {
                     const krElement = document.querySelector(`[data-kr-id="${highlightKrId}"]`);
                     if (krElement) {
-                        krElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        krElement.classList.add('ring-2', 'ring-blue-500', 'ring-offset-2', 'bg-blue-50');
+                        // Scroll với offset để không bị che bởi header
+                        const elementPosition = krElement.getBoundingClientRect().top;
+                        const offsetPosition = elementPosition + window.pageYOffset - 100; // 100px offset từ top
+
+                        window.scrollTo({
+                            top: offsetPosition,
+                            behavior: 'smooth'
+                        });
+
+                        // Highlight element tạm thời
+                        krElement.style.backgroundColor = '#dbeafe';
+                        krElement.style.transition = 'background-color 0.3s ease';
                         
-                        // Xóa highlight sau 5 giây
+                        // Xóa highlight sau 3 giây
                         setTimeout(() => {
-                            krElement.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2', 'bg-blue-50');
-                        }, 5000);
+                            krElement.style.backgroundColor = '';
+                        }, 3000);
                     }
 
                     // Mở modal tùy theo action
-                    if (action === 'checkin') {
-                        // Mở check-in modal để member cập nhật tiến độ
-                        console.log('🔗 Opening check-in modal for:', krToHighlight);
-                        setCheckInModal({ open: true, keyResult: krToHighlight });
-                    } else {
-                        // Mở check-in history modal (mặc định cho thông báo check-in)
-                        console.log('🔗 Opening check-in history for:', krToHighlight);
-                        setCheckInHistory({ open: true, keyResult: krToHighlight });
-                    }
-                }, 800);
+                    setTimeout(() => {
+                        if (action === 'checkin') {
+                            // Mở check-in modal để member cập nhật tiến độ
+                            console.log('🔗 Opening check-in modal for:', krToHighlight);
+                            setCheckInModal({ open: true, keyResult: krToHighlight });
+                        } else {
+                            // Mở check-in history modal (mặc định cho thông báo check-in từ manager)
+                            console.log('🔗 Opening check-in history for:', krToHighlight);
+                            setCheckInHistory({ open: true, keyResult: krToHighlight });
+                        }
+                    }, 600); // Đợi scroll xong rồi mới mở modal
+                }, 500); // Đợi objective mở xong
 
                 // Xóa URL parameters sau khi xử lý (delay để đảm bảo state đã được set)
                 setTimeout(() => {
@@ -438,10 +485,10 @@ export default function ObjectivesPage() {
     }, [items, loading, incomingLinks, linksLoading]);
 
     // Helper function để highlight KR (dùng chung cho URL params và event)
-    const highlightKR = React.useCallback((highlightKrId, objectiveId) => {
+    const highlightKR = React.useCallback((highlightKrId, objectiveId, action = null) => {
         if (!highlightKrId || items.length === 0) return;
 
-        console.log('🔗 Highlighting KR:', highlightKrId, 'in objective:', objectiveId);
+        console.log('🔗 Highlighting KR:', highlightKrId, 'in objective:', objectiveId, 'action:', action);
 
         // Tìm objective và KR
         let foundObjective = null;
@@ -451,11 +498,11 @@ export default function ObjectivesPage() {
             const objId = String(obj.objective_id);
             if (objectiveId && objId !== String(objectiveId)) continue;
 
-            const kr = (obj.key_results || []).find(k => String(k.kr_id) === String(highlightKrId));
-            if (kr) {
+            const foundKeyResult = (obj.key_results || []).find(k => String(k.kr_id) === String(highlightKrId));
+            if (foundKeyResult) {
                 foundObjective = obj;
                 foundKR = {
-                    ...kr,
+                    ...foundKeyResult,
                     objective_id: obj.objective_id,
                 };
                 break;
@@ -476,19 +523,38 @@ export default function ObjectivesPage() {
             setTimeout(() => {
                 const krElement = document.querySelector(`[data-kr-id="${highlightKrId}"]`);
                 if (krElement) {
-                    krElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    krElement.classList.add('ring-2', 'ring-blue-500', 'ring-offset-2', 'bg-blue-50');
+                    // Scroll với offset để không bị che bởi header
+                    const elementPosition = krElement.getBoundingClientRect().top;
+                    const offsetPosition = elementPosition + window.pageYOffset - 100; // 100px offset từ top
+
+                    window.scrollTo({
+                        top: offsetPosition,
+                        behavior: 'smooth'
+                    });
+
+                    // Highlight element tạm thời
+                    krElement.style.backgroundColor = '#dbeafe';
+                    krElement.style.transition = 'background-color 0.3s ease';
                     
-                    // Xóa highlight sau 5 giây
+                    // Xóa highlight sau 3 giây
                     setTimeout(() => {
-                        krElement.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2', 'bg-blue-50');
-                    }, 5000);
+                        krElement.style.backgroundColor = '';
+                    }, 3000);
                 }
 
-                // Mở check-in history modal
-                console.log('🔗 Opening check-in history for:', krToHighlight);
-                setCheckInHistory({ open: true, keyResult: krToHighlight });
-            }, 300);
+                // Mở modal tùy theo action
+                setTimeout(() => {
+                    if (action === 'checkin') {
+                        // Mở check-in modal để member cập nhật tiến độ
+                        console.log('🔗 Opening check-in modal for:', krToHighlight);
+                        setCheckInModal({ open: true, keyResult: krToHighlight });
+                    } else {
+                        // Mở check-in history modal (mặc định cho thông báo check-in từ manager)
+                        console.log('🔗 Opening check-in history for:', krToHighlight);
+                        setCheckInHistory({ open: true, keyResult: krToHighlight });
+                    }
+                }, 600); // Đợi scroll xong rồi mới mở modal
+            }, 500); // Đợi objective mở xong
         }
     }, [items]);
 
@@ -533,20 +599,106 @@ export default function ObjectivesPage() {
     // Lắng nghe custom event để điều hướng trong trang (không reload)
     useEffect(() => {
         const handleOkrNavigate = (event) => {
-            const { highlight_kr, highlight_link, objective_id } = event.detail;
+            const { highlight_kr, highlight_link, objective_id, action } = event.detail;
             
             console.log('🔔 Received okr-navigate event:', event.detail);
             
             if (highlight_kr) {
-                highlightKR(highlight_kr, objective_id);
+                highlightKR(highlight_kr, objective_id, action);
             } else if (highlight_link) {
                 highlightLinkRequest(highlight_link, objective_id);
             }
         };
 
+        // Lắng nghe event để mở check-in modal từ reminder banner (không reload)
+        const handleOpenCheckInFromReminder = (event) => {
+            const checkInData = event.detail;
+            console.log('🔔 Received open-checkin-from-reminder event:', checkInData);
+            
+            if (!checkInData || !checkInData.kr_id) {
+                console.warn('🔔 Invalid check-in data in event');
+                return;
+            }
+
+            // Tìm Key Result trong items
+            let foundKR = null;
+            let foundObjective = null;
+            
+            for (const obj of items) {
+                if (String(obj.objective_id) === String(checkInData.objective_id)) {
+                    foundObjective = obj;
+                    const foundKeyResult = (obj.key_results || []).find(k => String(k.kr_id) === String(checkInData.kr_id));
+                    if (foundKeyResult) {
+                        // Đảm bảo KR có đầy đủ thông tin
+                        foundKR = {
+                            ...foundKeyResult,
+                            objective_id: obj.objective_id,
+                            // Đảm bảo có các fields cần thiết
+                            kr_id: foundKeyResult.kr_id || checkInData.kr_id,
+                            assigned_to: foundKeyResult.assigned_to || checkInData.assigned_to,
+                            user_id: foundKeyResult.user_id || checkInData.user_id,
+                        };
+                        break;
+                    }
+                }
+            }
+
+            if (foundKR && foundObjective) {
+                console.log('🔔 Found KR for check-in:', foundKR);
+                // Mở objective để hiển thị KR
+                setOpenObj((prev) => ({
+                    ...prev,
+                    [foundObjective.objective_id]: true,
+                }));
+
+                // Đợi một chút để đảm bảo component đã render xong và objective đã mở
+                setTimeout(() => {
+                    // Tìm element của KR và scroll đến đó
+                    const krElement = document.querySelector(`[data-kr-id="${checkInData.kr_id}"]`);
+                    if (krElement) {
+                        // Scroll đến element với offset để không bị che bởi header
+                        const elementPosition = krElement.getBoundingClientRect().top;
+                        const offsetPosition = elementPosition + window.pageYOffset - 100; // 100px offset từ top
+
+                        window.scrollTo({
+                            top: offsetPosition,
+                            behavior: 'smooth'
+                        });
+
+                        // Highlight element tạm thời
+                        krElement.style.backgroundColor = '#fef3c7';
+                        setTimeout(() => {
+                            krElement.style.backgroundColor = '';
+                        }, 2000);
+                    }
+
+                    // Mở modal check-in sau khi scroll
+                    setTimeout(() => {
+                        console.log('🔔 Opening check-in modal with KR:', foundKR);
+                        setCheckInModal({ open: true, keyResult: foundKR });
+                    }, 600);
+                }, 500);
+            } else {
+                console.warn('🔔 Key Result not found in items for reminder check-in', {
+                    checkInData,
+                    itemsCount: items.length,
+                    objectiveIds: items.map(o => o.objective_id)
+                });
+                // Fallback: thử reload trang với localStorage
+                localStorage.setItem('autoOpenCheckIn', JSON.stringify(checkInData));
+                window.location.href = '/my-objectives';
+            }
+        };
+
         window.addEventListener('okr-navigate', handleOkrNavigate);
-        return () => window.removeEventListener('okr-navigate', handleOkrNavigate);
-    }, [highlightKR, highlightLinkRequest]);
+        window.addEventListener('open-checkin-from-reminder', handleOpenCheckInFromReminder);
+        
+        return () => {
+            window.removeEventListener('okr-navigate', handleOkrNavigate);
+            window.removeEventListener('open-checkin-from-reminder', handleOpenCheckInFromReminder);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [items]);
 
     const sortedItems = useMemo(
         () => (Array.isArray(items) ? items : []),
@@ -688,22 +840,88 @@ export default function ObjectivesPage() {
         );
     }, [treeNodes, treeRootId]);
 
-    const handleCheckInSuccess = (responseData) => {
-        const updatedObjective = responseData.objective;
+    const handleCheckInSuccess = useCallback((responseData) => {
+        console.log('🔧 handleCheckInSuccess called with:', responseData);
+        
+        // Backend trả về: { objective: ... } trong data.data
+        const updatedObjective = responseData?.objective;
 
-        if (!updatedObjective) return;
+        if (!updatedObjective) {
+            console.warn('🔧 handleCheckInSuccess: No objective in response, reloading data', responseData);
+            // Nếu không có objective trong response, reload lại data
+            setTimeout(() => {
+                load(page, cycleFilter, myOKRFilter, viewMode);
+            }, 100);
+            setToast({ type: 'success', message: 'Đã cập nhật tiến độ thành công!' });
+            return;
+        }
+
+        console.log('🔧 Updating objective:', updatedObjective.objective_id);
+        
+        // Lấy keyResults mới từ backend (backend trả về key_results - snake_case)
+        const newKeyResults = updatedObjective.key_results || updatedObjective.keyResults;
+        
+        console.log('🔧 Updated objective from backend:', {
+            objective_id: updatedObjective.objective_id,
+            has_key_results: !!updatedObjective.key_results,
+            has_keyResults: !!updatedObjective.keyResults,
+            key_results_count: newKeyResults?.length || 0,
+            sample_kr: newKeyResults?.[0] ? {
+                kr_id: newKeyResults[0].kr_id,
+                progress_percent: newKeyResults[0].progress_percent,
+                current_value: newKeyResults[0].current_value
+            } : null
+        });
 
         setItems(prevItems => {
-            return prevItems.map(objective => {
-                if (objective.objective_id === updatedObjective.objective_id) {
-                    return updatedObjective; // Replace the old objective with the new one
+            const updatedItems = prevItems.map(objective => {
+                if (String(objective.objective_id) === String(updatedObjective.objective_id)) {
+                    // Nếu có keyResults mới từ backend, dùng trực tiếp (đã là dữ liệu fresh từ DB)
+                    // Nếu không có, giữ lại keyResults cũ
+                    const finalKeyResults = (newKeyResults && Array.isArray(newKeyResults) && newKeyResults.length > 0) 
+                        ? newKeyResults 
+                        : (objective.keyResults || objective.key_results || []);
+                    
+                    console.log('🔧 Using keyResults:', {
+                        source: (newKeyResults && Array.isArray(newKeyResults) && newKeyResults.length > 0) ? 'backend' : 'existing',
+                        count: finalKeyResults.length,
+                        sample_kr: finalKeyResults[0] ? {
+                            kr_id: finalKeyResults[0].kr_id,
+                            progress_percent: finalKeyResults[0].progress_percent,
+                            current_value: finalKeyResults[0].current_value
+                        } : null
+                    });
+
+                    // Merge với objective cũ để giữ các thông tin khác (như links, relationships, etc.)
+                    // Nhưng thay thế keyResults bằng dữ liệu mới từ backend
+                    const mergedObjective = {
+                        ...objective,
+                        ...updatedObjective,
+                        // Sử dụng finalKeyResults (từ backend nếu có, không thì giữ cũ)
+                        key_results: finalKeyResults,
+                        keyResults: finalKeyResults
+                    };
+                    
+                    console.log('🔧 Merged objective:', {
+                        objective_id: mergedObjective.objective_id,
+                        key_results_count: mergedObjective.key_results?.length || 0,
+                        sample_kr: mergedObjective.key_results?.[0] ? {
+                            kr_id: mergedObjective.key_results[0].kr_id,
+                            progress_percent: mergedObjective.key_results[0].progress_percent,
+                            current_value: mergedObjective.key_results[0].current_value
+                        } : null
+                    });
+                    
+                    return mergedObjective;
                 }
                 return objective;
             });
+            console.log('🔧 Updated items count:', updatedItems.length);
+            return updatedItems;
         });
 
         setToast({ type: 'success', message: 'Đã cập nhật tiến độ thành công!' });
-    };
+    }, [page, cycleFilter, myOKRFilter, viewMode, load]);
 
     const handleOpenLinkModal = (payload) => {
         setLinkModal({
@@ -769,6 +987,26 @@ export default function ObjectivesPage() {
         performLinkAction(linkId, "request-changes", { note }, "Đã yêu cầu chỉnh sửa");
 
     const openCheckInModal = (keyResult) => {
+        console.log('🔧 openCheckInModal called with:', {
+            kr_id: keyResult?.kr_id,
+            key_result_id: keyResult?.key_result_id,
+            id: keyResult?.id,
+            objective_id: keyResult?.objective_id,
+            assigned_to: keyResult?.assigned_to,
+            user_id: keyResult?.user_id,
+            fullKeyResult: keyResult
+        });
+        
+        if (!keyResult) {
+            console.error('🔧 openCheckInModal: keyResult is null/undefined');
+            return;
+        }
+        
+        // Đảm bảo có objective_id
+        if (!keyResult.objective_id && keyResult.objective) {
+            keyResult.objective_id = keyResult.objective.objective_id || keyResult.objective.id;
+        }
+        
         setCheckInModal({ open: true, keyResult });
     };
 

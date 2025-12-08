@@ -330,7 +330,8 @@ export default function NotificationBell() {
                                                 detail: {
                                                     highlight_kr: params.get('highlight_kr'),
                                                     highlight_link: params.get('highlight_link'),
-                                                    objective_id: params.get('objective_id')
+                                                    objective_id: params.get('objective_id'),
+                                                    action: params.get('action') // Thêm action parameter
                                                 }
                                             }));
                                             return;

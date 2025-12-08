@@ -22,7 +22,7 @@ class CheckInController extends Controller
     public function create($objectiveId, $krId): View
     {
         $user = Auth::user();
-        $keyResult = KeyResult::with(['objective.cycle', 'cycle', 'checkIns' => function($query) {
+        $keyResult = KeyResult::with(['objective.cycle', 'cycle', 'assignedUser', 'checkIns' => function($query) {
             $query->latest()->limit(5);
         }])->findOrFail($krId);
 
@@ -50,7 +50,35 @@ class CheckInController extends Controller
     public function store(Request $request, $objectiveId, $krId)
     {
         $user = Auth::user();
-        $keyResult = KeyResult::with(['objective.cycle', 'cycle'])->findOrFail($krId);
+        
+        // Debug logging
+        Log::info('Check-in store called', [
+            'user_id' => $user->user_id,
+            'objective_id' => $objectiveId,
+            'kr_id' => $krId,
+        ]);
+        
+        // Load KeyResult với tất cả thông tin cần thiết
+        // Đảm bảo load assigned_to từ database
+        $keyResult = KeyResult::with(['objective.cycle', 'cycle', 'assignedUser'])
+            ->findOrFail($krId);
+        
+        // Đảm bảo load lại assigned_to từ database để có giá trị mới nhất
+        // Không dùng refresh() vì nó có thể làm mất relationships
+        $freshAssignedTo = KeyResult::where('kr_id', $krId)->value('assigned_to');
+        if ($freshAssignedTo !== null) {
+            $keyResult->setAttribute('assigned_to', $freshAssignedTo);
+        }
+        
+        Log::info('KeyResult loaded for check-in', [
+            'kr_id' => $keyResult->kr_id,
+            'user_id' => $keyResult->user_id,
+            'assigned_to' => $keyResult->assigned_to,
+            'fresh_assigned_to' => $freshAssignedTo,
+            'assigned_to_type' => gettype($keyResult->assigned_to),
+            'objective_id' => $keyResult->objective_id,
+            'has_objective' => $keyResult->relationLoaded('objective'),
+        ]);
 
         // Load user relationship nếu chưa có
         if (!$user->relationLoaded('role')) {
@@ -332,22 +360,57 @@ class CheckInController extends Controller
      */
     private function canCheckIn($user, $keyResult): bool
     {
+        // Đảm bảo lấy giá trị mới nhất từ database cho assigned_to
+        // Nhưng không refresh toàn bộ để tránh mất relationship
+        $freshAssignedTo = KeyResult::where('kr_id', $keyResult->kr_id)
+            ->value('assigned_to');
+        
+        // Debug logging
+        Log::info('Checking check-in permission', [
+            'user_id' => $user->user_id,
+            'kr_id' => $keyResult->kr_id,
+            'kr_user_id' => $keyResult->user_id,
+            'kr_assigned_to' => $keyResult->assigned_to,
+            'fresh_assigned_to' => $freshAssignedTo,
+            'objective_user_id' => $keyResult->objective?->user_id,
+        ]);
+
         // 1. Người sở hữu Key Result có thể check-in
-        if ($keyResult->user_id == $user->user_id) {
+        if ($keyResult->user_id && (int)$keyResult->user_id === (int)$user->user_id) {
+            Log::info('Check-in allowed: User is owner of Key Result');
             return true;
         }
 
         // 2. Người được giao Key Result có thể check-in
-        if ($keyResult->assigned_to == $user->user_id) {
-            return true;
+        // Sử dụng giá trị fresh từ database để đảm bảo chính xác
+        $assignedTo = $freshAssignedTo ?? $keyResult->assigned_to;
+        if ($assignedTo !== null) {
+            $assignedToInt = (int)$assignedTo;
+            $userIdInt = (int)$user->user_id;
+            if ($assignedToInt === $userIdInt) {
+                Log::info('Check-in allowed: User is assigned to Key Result', [
+                    'assigned_to' => $assignedToInt,
+                    'user_id' => $userIdInt,
+                ]);
+                return true;
+            }
         }
 
         // 3. Người sở hữu Objective chứa Key Result có thể check-in
-        if ($keyResult->objective && $keyResult->objective->user_id == $user->user_id) {
+        if ($keyResult->objective && $keyResult->objective->user_id && 
+            (int)$keyResult->objective->user_id === (int)$user->user_id) {
+            Log::info('Check-in allowed: User is owner of Objective');
             return true;
         }
 
         // Tất cả các trường hợp khác đều không có quyền check-in
+        Log::warning('Check-in denied: No matching permission', [
+            'user_id' => $user->user_id,
+            'kr_id' => $keyResult->kr_id,
+            'kr_user_id' => $keyResult->user_id,
+            'kr_assigned_to' => $keyResult->assigned_to,
+            'fresh_assigned_to' => $freshAssignedTo,
+        ]);
         return false;
     }
 
@@ -422,10 +485,10 @@ class CheckInController extends Controller
 
             $message = "{$memberName} đã check-in Key Result '{$krTitle}' trong Objective '{$objectiveTitle}' với tiến độ {$progressPercent}%";
 
-            // Tạo URL đến trang objective với KR cụ thể
+            // Tạo URL đến trang objective với KR cụ thể và action để mở lịch sử check-in
             $objectiveId = $keyResult->objective->objective_id ?? null;
             $krId = $keyResult->kr_id ?? null;
-            $actionUrl = config('app.url') . "/my-objectives?highlight_kr={$krId}&objective_id={$objectiveId}";
+            $actionUrl = config('app.url') . "/my-objectives?highlight_kr={$krId}&objective_id={$objectiveId}&action=checkin_history";
 
             foreach ($managers as $manager) {
                 NotificationService::send(

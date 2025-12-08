@@ -112,7 +112,6 @@ export default function CompanyOkrList() {
                     if (!selectedCycle && cycles.length > 0) {
                         selectedCycle = cycles[0];
                     }
-                    setCycleFilter(selectedCycle?.cycle_id || null);
                 }
 
                 if (deptsRes.ok) {
@@ -120,8 +119,6 @@ export default function CompanyOkrList() {
                     setDepartments(deptsJson.data || []);
                 }
 
-<<<<<<< HEAD
-=======
                 // An toàn tuyệt đối: đảm bảo luôn có cycle hoặc tắt loading
                 if (selectedCycle?.cycle_id) {
                     setCycleFilter(selectedCycle.cycle_id);
@@ -135,7 +132,6 @@ export default function CompanyOkrList() {
                 } else {
                     setLoading(false);
                 }
->>>>>>> 9b4fc851c3f868668f83fe0550851729c1154e18
             } catch (err) {
                 console.error("Failed to fetch initial data:", err);
                 setToast({

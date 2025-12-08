@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Modal } from './ui';
 import CheckInProgressChart from './CheckInProgressChart';
 
@@ -33,11 +33,25 @@ export default function CheckInModal({
     const [checkIns, setCheckIns] = useState([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
 
+    // Lưu keyResult vào ref để tránh mất khi re-render
+    const keyResultRef = useRef(keyResult);
+    useEffect(() => {
+        if (keyResult) {
+            keyResultRef.current = keyResult;
+        }
+    }, [keyResult]);
+
     // Load checkin history function
-    // Chỉ phụ thuộc vào kr_id thay vì toàn bộ keyResult object để tránh re-render không cần thiết
-    const krId = keyResult?.kr_id;
     const loadCheckInHistory = React.useCallback(async () => {
-        if (!objectiveId || !krId) {
+        const currentKeyResult = keyResult || keyResultRef.current;
+        const currentObjectiveId = objectiveId || currentKeyResult?.objective_id;
+        
+        if (!currentObjectiveId || !currentKeyResult) {
+            return;
+        }
+
+        const currentKrId = currentKeyResult?.kr_id || currentKeyResult?.key_result_id || currentKeyResult?.id;
+        if (!currentKrId) {
             return;
         }
 
@@ -45,7 +59,7 @@ export default function CheckInModal({
         try {
             const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
             
-            const response = await fetch(`/api/check-in/${objectiveId}/${krId}/history`, {
+            const response = await fetch(`/api/check-in/${currentObjectiveId}/${currentKrId}/history`, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
@@ -73,27 +87,45 @@ export default function CheckInModal({
         } finally {
             setLoadingHistory(false);
         }
-    }, [objectiveId, krId]);
+    }, [objectiveId, keyResult]);
 
     // Cập nhật formData khi keyResult thay đổi
     useEffect(() => {
-        if (keyResult) {
+        const currentKeyResult = keyResult || keyResultRef.current;
+        if (currentKeyResult) {
+            console.log('🔧 CheckInModal: keyResult updated:', {
+                kr_id: currentKeyResult.kr_id,
+                key_result_id: currentKeyResult.key_result_id,
+                id: currentKeyResult.id,
+                objective_id: currentKeyResult.objective_id,
+                assigned_to: currentKeyResult.assigned_to,
+                user_id: currentKeyResult.user_id,
+                fullKeyResult: currentKeyResult
+            });
+            
             setFormData({
-                progress_value: parseFloat(keyResult.current_value) || 0,
-                progress_percent: parseFloat(keyResult.progress_percent) || 0,
+                progress_value: parseFloat(currentKeyResult.current_value) || 0,
+                progress_percent: parseFloat(currentKeyResult.progress_percent) || 0,
                 check_in_type: 'quantity',
                 notes: ''
             });
             setError(''); // Reset error khi keyResult thay đổi
+        } else if (open) {
+            // Chỉ warning nếu modal đang mở
+            console.warn('🔧 CheckInModal: keyResult is null or undefined but modal is open');
         }
-    }, [keyResult]);
+    }, [keyResult, open]);
 
     // Load checkin history khi modal mở
     useEffect(() => {
-        if (open && keyResult && objectiveId) {
+        const currentKeyResult = keyResult || keyResultRef.current;
+        const currentObjectiveId = objectiveId || currentKeyResult?.objective_id;
+        
+        if (open && currentKeyResult && currentObjectiveId) {
             loadCheckInHistory();
         }
-    }, [open, keyResult, objectiveId, loadCheckInHistory]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, keyResult, objectiveId]);
 
     // Debug: Log formData changes
     useEffect(() => {
@@ -119,28 +151,28 @@ export default function CheckInModal({
 
     // Auto-calculate progress_percent when progress_value changes (giá trị hiện tại → thanh tiến độ)
     useEffect(() => {
-        if (keyResult?.target_value) {
-            const targetValue = parseFloat(keyResult.target_value);
-            if (targetValue > 0) {
-                const calculatedPercent = (formData.progress_value / targetValue) * 100;
-                console.log('🔧 Auto-calculate progress_percent from value:', {
-                    progress_value: formData.progress_value,
-                    target_value: targetValue,
-                    calculated_percent: calculatedPercent,
-                    current_percent: formData.progress_percent
-                });
-                
-                setFormData(prev => ({
-                    ...prev,
-                    progress_percent: calculatedPercent
-                }));
-            }
+        const currentKeyResult = keyResult || keyResultRef.current;
+        const targetValue = currentKeyResult?.target_value ? parseFloat(currentKeyResult.target_value) : null;
+        if (targetValue && targetValue > 0) {
+            const calculatedPercent = (formData.progress_value / targetValue) * 100;
+            console.log('🔧 Auto-calculate progress_percent from value:', {
+                progress_value: formData.progress_value,
+                target_value: targetValue,
+                calculated_percent: calculatedPercent,
+                current_percent: formData.progress_percent
+            });
+            
+            setFormData(prev => ({
+                ...prev,
+                progress_percent: calculatedPercent
+            }));
         }
-    }, [formData.progress_value, keyResult?.target_value]);
+    }, [formData.progress_value, keyResult]);
 
     // Null check for keyResult - hiển thị message thay vì return null
     // Phải đặt sau tất cả hooks để tuân thủ Rules of Hooks
-    if (!keyResult) {
+    const currentKeyResult = keyResult || keyResultRef.current;
+    if (!currentKeyResult) {
         return (
             <Modal open={open} onClose={onClose} title="Cập nhật tiến độ Key Result">
                 <div className="text-center py-8">
@@ -157,6 +189,7 @@ export default function CheckInModal({
     }
 
     const handleInputChange = (field, value) => {
+        const currentKeyResult = keyResult || keyResultRef.current;
         console.log('🔧 handleInputChange called:', { field, value, type: typeof value });
         
         if (field === 'progress_value') {
@@ -164,7 +197,7 @@ export default function CheckInModal({
             console.log('🔧 Progress value change:', { 
                 old_value: formData.progress_value, 
                 new_value: numValue,
-                target_value: keyResult?.target_value 
+                target_value: currentKeyResult?.target_value 
             });
             
             setFormData(prev => {
@@ -180,7 +213,7 @@ export default function CheckInModal({
             console.log('🔧 Progress percent change:', { 
                 old_percent: formData.progress_percent, 
                 new_percent: numValue,
-                target_value: keyResult?.target_value 
+                target_value: currentKeyResult?.target_value 
             });
             
             setFormData(prev => {
@@ -204,18 +237,33 @@ export default function CheckInModal({
         setLoading(true);
         setError('');
 
-        // Validation
-        if (!objectiveId) {
-            setError('Không tìm thấy Objective ID');
+        // Sử dụng keyResult từ ref nếu prop bị null
+        const currentKeyResult = keyResult || keyResultRef.current;
+
+        // Kiểm tra keyResult trước
+        if (!currentKeyResult) {
+            setError('Không tìm thấy thông tin Key Result. Vui lòng đóng và mở lại modal.');
             setLoading(false);
             return;
         }
 
-        if (!keyResult?.kr_id) {
-            setError('Không tìm thấy Key Result ID');
+        // Đảm bảo có objective_id
+        const currentObjectiveId = objectiveId || currentKeyResult.objective_id;
+        if (!currentObjectiveId) {
+            console.error('CheckInModal: Missing objective_id:', currentKeyResult);
+            setError('Không tìm thấy Objective ID. Vui lòng thử lại.');
             setLoading(false);
             return;
         }
+
+        const krId = currentKeyResult.kr_id || currentKeyResult.key_result_id || currentKeyResult.id;
+        if (!krId) {
+            console.error('CheckInModal: keyResult missing ID:', currentKeyResult);
+            setError('Không tìm thấy Key Result ID. Vui lòng thử lại.');
+            setLoading(false);
+            return;
+        }
+
 
         if (formData.progress_value < 0) {
             setError('Giá trị tiến độ không thể âm');
@@ -224,11 +272,22 @@ export default function CheckInModal({
         }
 
         // Debug: Log form data before submit
-        console.log('🔧 Submitting form data:', {
-            progress_value: formData.progress_value,
-            progress_percent: formData.progress_percent,
-            check_in_type: formData.check_in_type,
-            notes: formData.notes
+        console.log('🔧 Submitting check-in:', {
+            objectiveId: currentObjectiveId,
+            krId: krId,
+            keyResult: {
+                kr_id: currentKeyResult.kr_id,
+                key_result_id: currentKeyResult.key_result_id,
+                id: currentKeyResult.id,
+                assigned_to: currentKeyResult.assigned_to,
+                user_id: currentKeyResult.user_id,
+            },
+            formData: {
+                progress_value: formData.progress_value,
+                progress_percent: formData.progress_percent,
+                check_in_type: formData.check_in_type,
+                notes: formData.notes
+            }
         });
 
         try {
@@ -238,7 +297,10 @@ export default function CheckInModal({
                 throw new Error('Không tìm thấy CSRF token. Vui lòng tải lại trang.');
             }
             
-            const response = await fetch(`/check-in/${objectiveId}/${keyResult.kr_id}`, {
+            const checkInUrl = `/check-in/${currentObjectiveId}/${krId}`;
+            console.log('🔧 Check-in URL:', checkInUrl);
+            
+            const response = await fetch(checkInUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -261,8 +323,18 @@ export default function CheckInModal({
                 throw new Error(`Lỗi phản hồi từ server: ${response.status} ${response.statusText}`);
             }
 
+            console.log('🔧 Check-in response:', {
+                ok: response.ok,
+                status: response.status,
+                success: data.success,
+                message: data.message,
+                data: data.data
+            });
+
             if (!response.ok || !data.success) {
-                throw new Error(data.message || `Cập nhật tiến độ thất bại (${response.status})`);
+                const errorMessage = data.message || `Cập nhật tiến độ thất bại (${response.status})`;
+                console.error('🔧 Check-in failed:', errorMessage, data);
+                throw new Error(errorMessage);
             }
 
             // Reload checkin history để cập nhật chart
@@ -270,7 +342,13 @@ export default function CheckInModal({
 
             // Gọi callback để cập nhật UI
             if (onSuccess) {
-                onSuccess(data.data?.key_result || data.key_result || data.data);
+                // Backend trả về: { success: true, message: "...", data: { objective: ... } }
+                // Cần truyền data.data (chứa objective) cho onSuccess
+                const responseData = data.data || {};
+                console.log('🔧 Calling onSuccess with:', responseData);
+                onSuccess(responseData);
+            } else {
+                console.warn('🔧 onSuccess callback is not provided');
             }
 
             onClose();
@@ -297,7 +375,7 @@ export default function CheckInModal({
                         Key Result
                     </label>
                     <div className="p-3 bg-slate-50 rounded-lg text-slate-600 text-sm">
-                        {keyResult.kr_title}
+                        {currentKeyResult.kr_title}
                     </div>
                 </div>
 
@@ -348,19 +426,19 @@ export default function CheckInModal({
                             Mục tiêu
                         </label>
                         <div className="p-3 bg-slate-50 rounded-lg text-slate-600 text-sm">
-                            {keyResult.target_value} {keyResult.unit || ''}
+                            {currentKeyResult.target_value} {currentKeyResult.unit || ''}
                         </div>
                     </div>
                 </div>
 
                 {/* Biểu đồ tiến độ Check-in */}
-                {!loadingHistory && checkIns && checkIns.length > 0 && keyResult && (
+                {!loadingHistory && checkIns && checkIns.length > 0 && currentKeyResult && (
                     <div className="w-full overflow-x-auto">
                         <CheckInProgressChart
                             checkIns={checkIns}
                             width={700}
                             height={280}
-                            keyResult={keyResult}
+                            keyResult={currentKeyResult}
                         />
                     </div>
                 )}
