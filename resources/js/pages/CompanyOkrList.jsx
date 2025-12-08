@@ -90,19 +90,6 @@ export default function CompanyOkrList() {
                     setDepartments(deptsJson.data || []);
                 }
 
-                // An toàn tuyệt đối
-                if (selectedCycle?.cycle_id) {
-                    setCycleFilter(selectedCycle.cycle_id);
-                } else if (cycles[0]?.cycle_id) {
-                    setCycleFilter(cycles[0].cycle_id);
-                    setToast({
-                        type: "warning",
-                        message: "Không tìm thấy quý phù hợp. Vui lòng chọn quý thủ công.",
-                    });
-                } else {
-                    setLoading(false);
-                }
-
             } catch (err) {
                 console.error("Failed to fetch initial data:", err);
                 setToast({ type: "error", message: "Không thể tải dữ liệu ban đầu." });
