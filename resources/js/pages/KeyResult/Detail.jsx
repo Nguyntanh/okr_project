@@ -11,7 +11,7 @@ import {
     Legend,
 } from 'chart.js';
 import { format } from 'date-fns';
-import { PlayIcon, ArrowTrendingUpIcon, TrophyIcon, TagIcon } from '@heroicons/react/24/outline';
+import { PlayIcon, ArrowTrendingUpIcon, TrophyIcon, TagIcon, InformationCircleIcon, UserCircleIcon } from '@heroicons/react/24/outline';
 
 ChartJS.register(
     CategoryScale,
@@ -135,7 +135,10 @@ const KrOverviewSection = ({ keyResult }) => {
 
             <dl className="space-y-2 text-sm">
                 <div className="flex items-center">
-                    <dt className="font-semibold w-24">Trạng thái:</dt>
+                    <dt className="font-semibold w-32 flex items-center">
+                        <InformationCircleIcon className="h-5 w-5 text-gray-400 mr-2" />
+                        Trạng thái:
+                    </dt>
                     <dd>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusClass(status)}`}>
                             {status.replace('_', ' ').toUpperCase()}
@@ -143,7 +146,10 @@ const KrOverviewSection = ({ keyResult }) => {
                     </dd>
                 </div>
                 <div className="flex items-center">
-                    <dt className="font-semibold w-24">Chủ sở hữu:</dt>
+                    <dt className="font-semibold w-32 flex items-center">
+                        <UserCircleIcon className="h-5 w-5 text-gray-400 mr-2" />
+                        Chủ sở hữu:
+                    </dt>
                     <dd className="text-gray-800">{ownerName}</dd>
                 </div>
             </dl>
