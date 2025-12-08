@@ -19,14 +19,15 @@ use Illuminate\Support\Facades\File;
 use App\Http\Controllers\LinkController;
 
 
-Route::get('/', function () {
+// Landing Page
+Route::get('/home', function () {
     return view('app');
-});
+})->name('home');
 
-// Landing Page - hiển thị nút đăng nhập
-Route::get('/landingpage', function () {
-    return view('app');
-})->name('landingpage');
+// Redirect root to home
+Route::get('/', function () {
+    return redirect('/home');
+});
 
 Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () {
     // Route xác thực - Sử dụng giao diện riêng (không qua Cognito Hosted UI)
