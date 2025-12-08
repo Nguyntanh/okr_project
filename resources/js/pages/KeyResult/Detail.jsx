@@ -11,7 +11,7 @@ import {
     Legend,
 } from 'chart.js';
 import { format } from 'date-fns';
-import { PlayIcon, ArrowTrendingUpIcon, TrophyIcon, TagIcon, InformationCircleIcon, UserCircleIcon } from '@heroicons/react/24/outline';
+import { PlayIcon, ArrowTrendingUpIcon, TrophyIcon, TagIcon, InformationCircleIcon, UserCircleIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
 
 ChartJS.register(
     CategoryScale,
@@ -73,6 +73,8 @@ const getStatusClass = (status) => {
 
 // --- Section Components ---
 
+import { FaBullseye } from 'react-icons/fa';
+
 const KrOverviewSection = ({ keyResult }) => {
     const {
         progress_percent = 0,
@@ -91,9 +93,8 @@ const KrOverviewSection = ({ keyResult }) => {
             {objective && (
                 <div className="mb-4">
                     <a href={parentObjectiveUrl} className="text-sm text-blue-600 hover:underline flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                        </svg>
+                        <ArrowLeftIcon className="h-4 w-4 mr-1" />
+                        <FaBullseye className="h-4 w-4 mr-2 text-indigo-600" />
                         {objective.obj_title}
                     </a>
                 </div>
