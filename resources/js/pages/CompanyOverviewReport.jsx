@@ -10,6 +10,7 @@ import KeyResultsTable from '../components/reports/KeyResultsTable';
 import OwnersTable from '../components/reports/OwnersTable';
 import CheckInsTable from '../components/reports/CheckInsTable';
 import SnapshotModal from '../components/reports/SnapshotModal';
+import SnapshotHistoryModal from '../components/reports/SnapshotHistoryModal';
 import OverviewCards from '../components/reports/OverviewCards';
 import ChartSection from '../components/reports/ChartSection';
 import DepartmentTable from '../components/reports/DepartmentTable';
@@ -527,79 +528,85 @@ export default function CompanyOverviewReport() {
         }
     };
 
-    // Export to Excel
-    const exportToExcel = async () => {
-        // Kiểm tra đã tạo snapshot chưa
-        if (!isReportReady || snapshots.length === 0) {
-            showNotification('error', '⚠ Vui lòng tạo snapshot (Tạo báo cáo) trước khi xuất file');
-            return;
+    // Export Excel từ snapshot đang chọn (hoặc snapshot mới nhất)
+    const exportSnapshotToExcel = async (snapshot) => {
+        let targetSnapshot = snapshot || selectedSnapshot;
+
+        // Nếu chưa chọn snapshot (từ modal), lấy snapshot mới nhất theo chu kỳ hiện tại (hoặc mới nhất tổng thể)
+        if (!targetSnapshot) {
+            if (!snapshots || snapshots.length === 0) {
+                showNotification('error', '⚠ Chưa có báo cáo để xuất file');
+                return;
+            }
+            const filtered = filters.cycleId
+                ? snapshots.filter(s => String(s.cycle_id) === String(filters.cycleId))
+                : snapshots;
+            if (filtered.length === 0) {
+                showNotification('error', '⚠ Chưa có báo cáo cho chu kỳ hiện tại');
+                return;
+            }
+            targetSnapshot = [...filtered].sort((a, b) => new Date(b.snapshotted_at || b.created_at) - new Date(a.snapshotted_at || a.created_at))[0];
         }
 
         try {
-            // Fetch dữ liệu cho cả hai level (giống như khi tạo snapshot)
-            const fetchDataForLevel = async (levelToFetch) => {
-                // Fetch report data
-                const params = new URLSearchParams();
-                if (filters.cycleId) params.set('cycle_id', filters.cycleId);
-                if (filters.departmentId) params.set('department_id', filters.departmentId);
-                if (filters.ownerId) params.set('owner_id', filters.ownerId);
-                params.set('level', levelToFetch);
-                
-                const reportRes = await fetch(`/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`, {
-                    headers: { Accept: 'application/json' }
-                });
-                const reportJson = await reportRes.json();
-                if (!reportRes.ok || !reportJson.success) {
-                    throw new Error(`Không thể tải dữ liệu cho ${levelToFetch === 'company' ? 'công ty' : 'phòng ban'}`);
-                }
+            const cycleId = targetSnapshot.cycle_id;
 
-                // Fetch detailed data
-                const detailedData = await fetchDetailedDataForSnapshot(
-                    filters.cycleId,
-                    filters.departmentId,
-                    filters.ownerId,
-                    levelToFetch
-                );
+            // Ưu tiên dùng dữ liệu có sẵn trong snapshots (nhanh, không gọi API)
+            const snapsSameCycle = snapshots?.filter(s => String(s.cycle_id) === String(cycleId)) || [];
+            const companySnap = snapsSameCycle.find(s => (s.data_snapshot?.level || 'departments') === 'company');
+            const deptSnap = snapsSameCycle.find(s => (s.data_snapshot?.level || 'departments') === 'departments');
 
-                return {
-                    report: reportJson.data,
-                    detailedData: detailedData,
+            let companyData;
+            let departmentsData;
+
+            if (companySnap && deptSnap) {
+                // Dùng thẳng data_snapshot đã lưu
+                companyData = {
+                    report: companySnap.data_snapshot,
+                    detailedData: companySnap.data_snapshot?.detailedData || {},
                 };
-            };
-
-            // Fetch cả hai level
-            const [companyData, departmentsData] = await Promise.all([
-                fetchDataForLevel('company'),
-                fetchDataForLevel('departments'),
-            ]);
-
-            // Lấy tên báo cáo chốt kỳ từ snapshot mới nhất của chu kỳ hiện tại
-            let snapshotTitle = null;
-            try {
-                if (filters.cycleId && snapshots.length > 0) {
-                    // Tìm snapshot mới nhất của chu kỳ hiện tại
-                    const latestSnapshot = snapshots
-                        .filter(s => s.cycle_id === parseInt(filters.cycleId))
-                        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
-                    if (latestSnapshot) {
-                        snapshotTitle = latestSnapshot.title;
+                departmentsData = {
+                    report: deptSnap.data_snapshot,
+                    detailedData: deptSnap.data_snapshot?.detailedData || {},
+                };
+            } else {
+                // Trường hợp thiếu snapshot một trong hai cấp, fallback gọi API như cũ
+                const fetchDataForLevel = async (levelToFetch) => {
+                    const params = new URLSearchParams();
+                    if (cycleId) params.set('cycle_id', cycleId);
+                    params.set('level', levelToFetch);
+                    const reportRes = await fetch(`/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`, {
+                        headers: { Accept: 'application/json' }
+                    });
+                    const reportJson = await reportRes.json();
+                    if (!reportRes.ok || !reportJson.success) {
+                        throw new Error(`Không thể tải dữ liệu cho ${levelToFetch === 'company' ? 'công ty' : 'phòng ban'}`);
                     }
-                }
-            } catch (e) {
-                console.warn('Không thể lấy tên snapshot:', e);
+                    const detailedData = await fetchDetailedDataForSnapshot(
+                        cycleId,
+                        null,
+                        null,
+                        levelToFetch
+                    );
+                    return { report: reportJson.data, detailedData };
+                };
+
+                [companyData, departmentsData] = await Promise.all([
+                    fetchDataForLevel('company'),
+                    fetchDataForLevel('departments'),
+                ]);
             }
 
-            // Xuất Excel với cả 2 report và detailed data
             exportToExcelUtil(
                 companyData,
                 departmentsData,
                 currentCycleMeta,
-                snapshotTitle, // Truyền tên snapshot
+                targetSnapshot.title,
                 (message) => showNotification('success', message),
                 (message) => showNotification('error', message)
             );
         } catch (error) {
-            console.error('Lỗi khi xuất Excel:', error);
+            console.error('Lỗi khi xuất Excel từ lịch sử:', error);
             showNotification('error', 'Xuất Excel thất bại: ' + (error.message || 'Lỗi không xác định'));
         }
     };
@@ -669,7 +676,7 @@ export default function CompanyOverviewReport() {
 
                         {/* Nút Export Excel - Chỉ cho phép sau khi đã tạo snapshot */}
                             <button
-                            onClick={exportToExcel}
+                            onClick={() => exportSnapshotToExcel()}
                             disabled={!isReportReady || snapshots.length === 0}
                             className={`p-2.5 rounded-lg transition-colors ${
                                 !isReportReady || snapshots.length === 0
@@ -766,831 +773,26 @@ export default function CompanyOverviewReport() {
                 isSubmitting={isCreatingSnapshot}
             />
 
-            {/* Snapshots Modal */}
+            {/* Snapshots Modal (lịch sử + chi tiết) */}
             {showSnapshots && (
-            <>
-                {/* Backdrop + cố định trang + click ngoài để đóng */}
-                <div 
-                className="fixed inset-0 absolute inset-0 bg-black/30 bg-opacity-70 flex items-center justify-center z-50 p-4"
-                onClick={(e) => {
-                    if (e.target === e.currentTarget) {
+                <SnapshotHistoryModal
+                    isOpen={showSnapshots}
+                    onClose={() => { 
                         setShowSnapshots(false);
                         setSelectedSnapshot(null);
-                        setSnapshotPage(1); // Reset về trang 1 khi đóng modal
-                    }
-                }}
-                >
-                {/* Modal chính - ngăn sự kiện click lan ra ngoài */}
-                <div 
-                    className="bg-white rounded-xl shadow-2xl max-w-[80vw] w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200"
-                    onClick={(e) => e.stopPropagation()} 
-                >
-                    {/* Header */}
-                    <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between rounded-t-xl">
-                    <h2 className="text-xl font-bold text-gray-900">Lịch sử chốt kỳ</h2>
-                    <button 
-                        onClick={() => { 
-                            setShowSnapshots(false); 
-                            setSelectedSnapshot(null);
-                            setSnapshotPage(1); // Reset về trang 1 khi đóng modal
-                        }} 
-                        className="text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg p-2 transition"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                    </div>
-
-                    <div className="p-6">
-                    {selectedSnapshot ? (
-                        /* ==================== XEM CHI TIẾT SNAPSHOT ==================== */
-                        <div>
-                        <div className="flex items-center justify-between mb-4 gap-3">
-                            <button 
-                                onClick={() => setSelectedSnapshot(null)} 
-                                className="text-blue-600 hover:text-blue-800 flex items-center gap-2 font-medium transition"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
-                                </svg>
-                                Quay lại danh sách
-                            </button>
-
-                            <button
-                                onClick={async () => {
-                                    if (!selectedSnapshot) return;
-                                    try {
-                                        const cycleId = selectedSnapshot.cycle_id;
-                                        const fetchDataForLevel = async (levelToFetch) => {
-                                            const params = new URLSearchParams();
-                                            if (cycleId) params.set('cycle_id', cycleId);
-                                            params.set('level', levelToFetch);
-                                            const reportRes = await fetch(`/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`, {
-                                                headers: { Accept: 'application/json' }
-                                            });
-                                            const reportJson = await reportRes.json();
-                                            if (!reportRes.ok || !reportJson.success) {
-                                                throw new Error(`Không thể tải dữ liệu cho ${levelToFetch === 'company' ? 'công ty' : 'phòng ban'}`);
-                                            }
-                                            const detailedData = await fetchDetailedDataForSnapshot(
-                                                cycleId,
-                                                null,
-                                                null,
-                                                levelToFetch
-                                            );
-                                            return { report: reportJson.data, detailedData };
-                                        };
-
-                                        const [companyData, departmentsData] = await Promise.all([
-                                            fetchDataForLevel('company'),
-                                            fetchDataForLevel('departments'),
-                                        ]);
-
-                                        exportToExcelUtil(
-                                            companyData,
-                                            departmentsData,
-                                            currentCycleMeta,
-                                            selectedSnapshot.title,
-                                            (message) => showNotification('success', message),
-                                            (message) => showNotification('error', message)
-                                        );
-                                    } catch (error) {
-                                        console.error('Lỗi khi xuất Excel từ lịch sử:', error);
-                                        showNotification('error', 'Xuất Excel thất bại: ' + (error.message || 'Lỗi không xác định'));
-                                    }
-                                }}
-                                className="inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 hover:border-slate-400 active:bg-slate-100 transition-colors"
-                                title="Xuất báo cáo"
-                            >
-                                <svg 
-                                    className="h-4 w-4 text-slate-600" 
-                                    viewBox="0 0 24 24" 
-                                    fill="none" 
-                                    stroke="currentColor" 
-                                    strokeWidth="2" 
-                                    strokeLinecap="round" 
-                                    strokeLinejoin="round"
-                                >
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                    <polyline points="7 10 12 15 17 10"/>
-                                    <line x1="12" y1="15" x2="12" y2="3"/>
-                                </svg>
-                                Xuất file
-                            </button>
-                        </div>
-
-                        <h4 className="text-lg font-bold text-slate-900 mb-2">{selectedSnapshot.title}</h4>
-
-                        {/* Thông tin snapshot */}
-                        <div className="bg-slate-50 rounded-lg p-6 mb-6 border border-slate-200 shadow-sm">
-                            <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div>
-                                    <span className="text-slate-600">Chu kỳ:</span>
-                                    <span className="ml-2 font-semibold text-slate-900">{selectedSnapshot.cycle_name}</span>
-                                </div>
-                                <div>
-                                    <span className="text-slate-600">Ngày chốt:</span>
-                                    <span className="ml-2 font-semibold text-slate-900">
-                                        {new Date(selectedSnapshot.snapshotted_at).toLocaleDateString('vi-VN')}
-                                    </span>
-                                </div>
-                                <div>
-                                    <span className="text-slate-600">Tạo bởi:</span>
-                                    <span className="ml-2 font-semibold text-slate-900">
-                                        {selectedSnapshot.creator?.full_name || 'N/A'}
-                                    </span>
-                                </div>
-                                <div>
-                                    <span className="text-slate-600">Thời gian:</span>
-                                    <span className="ml-2 font-semibold text-slate-900">
-                                        {new Date(selectedSnapshot.created_at).toLocaleTimeString('vi-VN')}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Nội dung báo cáo - giữ nguyên logic cũ nhưng đẹp hơn */}
-                        {selectedSnapshot.data_snapshot && (
-                        <div className="space-y-8">
-
-                            {/* Tổng quan - ĐÃ THÊM At Risk */}
-                            <div>
-                            <h4 className="text-lg font-bold text-gray-900 mb-4">Tổng quan</h4>
-                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                                {[
-                                { label: "Tổng OKR", value: selectedSnapshot.data_snapshot.overall?.totalObjectives || 0, color: "gray" },
-                                { label: "Tiến độ TB", value: `${(selectedSnapshot.data_snapshot.overall?.averageProgress ?? 0).toFixed(1)}%`, color: "blue" },
-                                { label: "Đúng tiến độ", value: selectedSnapshot.data_snapshot.overall?.statusCounts?.onTrack || 0, percent: selectedSnapshot.data_snapshot.overall?.statusDistribution?.onTrack || 0, color: "emerald" },
-                                { label: "Có nguy cơ", value: selectedSnapshot.data_snapshot.overall?.statusCounts?.atRisk || 0, percent: selectedSnapshot.data_snapshot.overall?.statusDistribution?.atRisk || 0, color: "amber" },
-                                { label: "Chậm tiến độ", value: selectedSnapshot.data_snapshot.overall?.statusCounts?.offTrack || 0, percent: selectedSnapshot.data_snapshot.overall?.statusDistribution?.offTrack || 0, color: "red" },
-                                ].map((item, i) => (
-                                <div 
-                                    key={i} 
-                                    className={`
-                                    rounded-xl p-5 shadow-sm bg-white border
-                                    ${i <= 1 ? 'border-gray-200' : 
-                                        item.color === 'emerald' ? 'border-emerald-200' :
-                                        item.color === 'amber' ? 'border-amber-200' :
-                                        'border-red-200'}
-                                    `}
-                                >
-                                    <div className={`
-                                    text-sm font-medium
-                                    ${i <= 1 ? 'text-gray-600' : 
-                                        item.color === 'emerald' ? 'text-emerald-600' :
-                                        item.color === 'amber' ? 'text-amber-600' :
-                                        'text-red-600'}
-                                    `}>
-                                    {item.label}
-                                    </div>
-                                    <div className={`
-                                    text-xl font-bold mt-1
-                                    ${i <= 1 ? 'text-gray-900' : 
-                                        item.color === 'emerald' ? 'text-emerald-700' :
-                                        item.color === 'amber' ? 'text-amber-700' :
-                                        'text-red-700'}
-                                    `}>
-                                    {item.value}
-                                    {item.percent !== undefined && (
-                                        <span className="ml-2 text-sm font-normal text-gray-600">
-                                        ({item.percent}%)
-                                        </span>
-                                    )}
-                                    </div>
-                                </div>
-                                ))}
-                            </div>
-                            </div>
-
-                            {/* Biểu đồ phân bổ trạng thái */}
-                            <div>
-                                <h4 className="text-lg font-bold text-gray-900 mb-4">Phân bổ trạng thái</h4>
-                                {(() => {
-                                    const snapshotLevel = selectedSnapshot.data_snapshot.level || 'departments';
-                                    let chartData;
-                                    if (snapshotLevel === 'company') {
-                                        const ov = selectedSnapshot.data_snapshot.overall || { statusCounts: {} };
-                                        chartData = {
-                                            categories: ['Công ty'],
-                                            series: [
-                                                { name: 'Đúng tiến độ', color: '#22c55e', data: [ov.statusCounts?.onTrack || 0] },
-                                                { name: 'Có nguy cơ', color: '#f59e0b', data: [ov.statusCounts?.atRisk || 0] },
-                                                { name: 'Chậm tiến độ', color: '#ef4444', data: [ov.statusCounts?.offTrack || 0] },
-                                            ],
-                                        };
-                                    } else {
-                                        const list = (selectedSnapshot.data_snapshot.departments || [])
-                                            .filter(d => d.departmentId && (d.departmentName || '').toLowerCase() !== 'công ty');
-                                        chartData = {
-                                            categories: list.map(d => d.departmentName),
-                                            series: [
-                                                { name: 'Đúng tiến độ', color: '#22c55e', data: list.map(d => d.onTrack || 0) },
-                                                { name: 'Có nguy cơ', color: '#f59e0b', data: list.map(d => d.atRisk || 0) },
-                                                { name: 'Chậm tiến độ', color: '#ef4444', data: list.map(d => d.offTrack || 0) },
-                                            ],
-                                        };
-                                    }
-                                    return (
-                                        <GroupedBarChart
-                                            categories={chartData.categories}
-                                            series={chartData.series}
-                                            label={`Phân bổ trạng thái theo ${snapshotLevel === 'company' ? 'công ty' : 'phòng ban'}`}
-                                        />
-                                    );
-                                })()}
-                            </div>
-
-                            {/* Bảng chi tiết theo cấp độ */}
-                            <div className="rounded-xl border border-slate-200 bg-white">
-                                <div className="bg-blue-50 border-b-2 border-blue-200 px-6 py-4 text-sm font-bold text-slate-800">
-                                    {selectedSnapshot.data_snapshot.level === 'company' ? 'Chi tiết công ty' : 'Chi tiết theo đơn vị'}
-                                </div>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left text-sm">
-                                        <thead className="bg-white text-slate-700 font-semibold border-b-2 border-slate-200">
-                                            <tr>
-                                                <th className="px-6 py-3 text-left">Đơn vị</th>
-                                                <th className="px-6 py-3 text-center">Số OKR</th>
-                                                <th className="px-6 py-3 text-center">Tiến độ TB</th>
-                                                <th className="px-6 py-3 text-center">Đúng tiến độ</th>
-                                                <th className="px-6 py-3 text-center">Có nguy cơ</th>
-                                                <th className="px-6 py-3 text-center">Chậm tiến độ</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {(selectedSnapshot.data_snapshot.level === 'company'
-                                                ? [
-                                                    {
-                                                        departmentName: 'Công ty',
-                                                        count: selectedSnapshot.data_snapshot.overall?.totalObjectives || 0,
-                                                        averageProgress: selectedSnapshot.data_snapshot.overall?.averageProgress || 0,
-                                                        onTrack: selectedSnapshot.data_snapshot.overall?.statusCounts?.onTrack || 0,
-                                                        atRisk: selectedSnapshot.data_snapshot.overall?.statusCounts?.atRisk || 0,
-                                                        offTrack: selectedSnapshot.data_snapshot.overall?.statusCounts?.offTrack || 0,
-                                                        onTrackPct: selectedSnapshot.data_snapshot.overall?.statusDistribution?.onTrack || 0,
-                                                        atRiskPct: selectedSnapshot.data_snapshot.overall?.statusDistribution?.atRisk || 0,
-                                                        offTrackPct: selectedSnapshot.data_snapshot.overall?.statusDistribution?.offTrack || 0,
-                                                    },
-                                                ]
-                                                : (selectedSnapshot.data_snapshot.departments || []).filter(
-                                                    (d) =>
-                                                        d.departmentId &&
-                                                        (d.departmentName || '').toLowerCase() !== 'công ty'
-                                                )
-                                            ).map((d, i) => (
-                                                <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
-                                                    <td className="px-6 py-3 font-medium text-slate-900">
-                                                        {d.departmentName || 'N/A'}
-                                                    </td>
-                                                    <td className="px-6 py-3 text-center font-semibold text-slate-900">
-                                                        {d.count ?? d.totalObjectives ?? 0}
-                                                    </td>
-                                                    <td className="px-6 py-3 text-center">
-                                                        <div className="flex items-center justify-center gap-3" style={{ width: '180px', margin: '0 auto' }}>
-                                                            <div className="w-32 bg-slate-200 rounded-full h-2 flex-shrink-0">
-                                                                <div
-                                                                    className={`h-2 rounded-full transition-all duration-300 ${
-                                                                        (d.averageProgress ?? 0) >= 80
-                                                                            ? 'bg-emerald-500'
-                                                                            : (d.averageProgress ?? 0) >= 50
-                                                                            ? 'bg-amber-500'
-                                                                            : 'bg-red-500'
-                                                                    }`}
-                                                                    style={{ width: `${Math.min(d.averageProgress ?? 0, 100)}%` }}
-                                                                />
-                                                            </div>
-                                                            <span className="text-sm font-semibold tabular-nums whitespace-nowrap w-12 text-right">
-                                                                {(d.averageProgress ?? 0).toFixed(1)}%
-                                                            </span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-3 text-center">
-                                                        <div className="font-semibold text-emerald-700">
-                                                            {d.onTrack ?? 0}
-                                                        </div>
-                                                        <div className="text-xs text-slate-500">
-                                                            ({d.onTrackPct ?? d.onTrackPercent ?? 0}%)
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-3 text-center">
-                                                        <div className="font-semibold text-amber-700">
-                                                            {d.atRisk ?? 0}
-                                                        </div>
-                                                        <div className="text-xs text-slate-500">
-                                                            ({d.atRiskPct ?? d.atRiskPercent ?? 0}%)
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-3 text-center">
-                                                        <div className="font-semibold text-red-700">
-                                                            {d.offTrack ?? 0}
-                                                        </div>
-                                                        <div className="text-xs text-slate-500">
-                                                            ({d.offTrackPct ?? d.offTrackPercent ?? 0}%)
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                            </div>
-                            </div>
-
-                            
-
-                            {/* Chi tiết Objectives */}
-                            {selectedSnapshot.data_snapshot.detailedData?.objectives && selectedSnapshot.data_snapshot.detailedData.objectives.length > 0 && (
-                                <div className="rounded-xl border border-slate-200 bg-white">
-                                    <div className="bg-blue-50 border-b-2 border-blue-200 px-6 py-4 text-sm font-bold text-slate-800">Chi tiết Objectives</div>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left text-sm">
-                                            <thead className="bg-white text-slate-700 font-semibold border-b-2 border-slate-200">
-                                                <tr>
-                                                    <th className="px-6 py-3">Tên Objective</th>
-                                                    <th className="px-6 py-3">Cấp độ</th>
-                                                    {selectedSnapshot.data_snapshot.level !== 'company' && <th className="px-6 py-3">Phòng ban</th>}
-                                                    <th className="px-6 py-3 text-center">Số KR</th>
-                                                    <th className="px-6 py-3 text-center">Tiến độ</th>
-                                                    <th className="px-6 py-3 text-center">Trạng thái</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {selectedSnapshot.data_snapshot.detailedData.objectives.map((obj, i) => {
-                                                    const krs = obj.keyResults || obj.key_results || [];
-                                                    let progress = 0;
-                                                    
-                                                    if (krs.length > 0) {
-                                                        const totalProgress = krs.reduce((sum, kr) => {
-                                                            const krProgress = parseFloat(kr.progress_percent) || 0;
-                                                            return sum + krProgress;
-                                                        }, 0);
-                                                        progress = totalProgress / krs.length;
-                                                    } else {
-                                                        progress = parseFloat(obj.progress_percent) || 0;
-                                                    }
-                                                    
-                                                    const status = progress >= 70 ? 'on_track' : (progress >= 40 ? 'at_risk' : 'off_track');
-                                                    const levelText = obj.level === 'company' ? 'Công ty' : obj.level === 'unit' ? 'Phòng ban' : obj.level === 'person' ? 'Cá nhân' : 'N/A';
-                                                    return (
-                                                        <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
-                                                            <td className="px-6 py-3 font-semibold text-slate-900">{obj.obj_title || 'N/A'}</td>
-                                                            <td className="px-6 py-3">
-                                                                <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
-                                                                    {levelText}
-                                                                </span>
-                                                            </td>
-                                                            {selectedSnapshot.data_snapshot.level !== 'company' && (
-                                                                <td className="px-6 py-3">{obj.department?.d_name || obj.department?.departmentName || '—'}</td>
-                                                            )}
-                                                            <td className="px-6 py-3 text-center font-semibold">{obj.key_results?.length || krs.length || 0}</td>
-                                                            <td className="px-6 py-3 text-center">
-                                                                <div className="flex items-center justify-center gap-3" style={{ width: '180px', margin: '0 auto' }}>
-                                                                    <div className="w-32 bg-slate-200 rounded-full h-2 flex-shrink-0">
-                                                                        <div
-                                                                            className={`h-2 rounded-full transition-all ${
-                                                                                progress >= 80 ? 'bg-emerald-500' : progress >= 50 ? 'bg-amber-500' : 'bg-red-500'
-                                                                            }`}
-                                                                            style={{ width: `${Math.min(progress, 100)}%` }}
-                                                                        />
-                        </div>
-                                                                    <span className="text-sm font-semibold tabular-nums whitespace-nowrap w-12 text-right">{progress.toFixed(1)}%</span>
-                                                                </div>
-                                                            </td>
-                                                            <td className="px-6 py-3 text-center">
-                                                                {status === 'on_track' && (
-                                                                    <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                                                                        Đúng tiến độ
-                                                                    </span>
-                                                                )}
-                                                                {status === 'at_risk' && (
-                                                                    <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                                                                        Có nguy cơ
-                                                                    </span>
-                                                                )}
-                                                                {status === 'off_track' && (
-                                                                    <span className="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
-                                                                        Chậm tiến độ
-                                                                    </span>
-                                                                )}
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Chi tiết Key Results */}
-                            {selectedSnapshot.data_snapshot.detailedData?.keyResults && selectedSnapshot.data_snapshot.detailedData.keyResults.length > 0 && (
-                                <div className="rounded-xl border border-slate-200 bg-white">
-                                    <div className="bg-blue-50 border-b-2 border-blue-200 px-6 py-4 text-sm font-bold text-slate-800">Chi tiết Key Results</div>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left text-sm">
-                                            <thead className="bg-white text-slate-700 font-semibold border-b-2 border-slate-200">
-                                                <tr>
-                                                    <th className="px-6 py-3">Tên Key Result</th>
-                                                    <th className="px-6 py-3">Objective</th>
-                                                    <th className="px-6 py-3">Người được giao</th>
-                                                    <th className="px-6 py-3 text-center">Tiến độ</th>
-                                                    <th className="px-6 py-3 text-center">Trạng thái</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {selectedSnapshot.data_snapshot.detailedData.keyResults.map((kr, i) => {
-                                                    const progress = kr.progress_percent || 0;
-                                                    const status = progress >= 70 ? 'on_track' : (progress >= 40 ? 'at_risk' : 'off_track');
-                                                    return (
-                                                        <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
-                                                            <td className="px-6 py-3 font-medium text-slate-900">{kr.kr_title || 'N/A'}</td>
-                                                            <td className="px-6 py-3 text-slate-600">{kr.objective_title || 'N/A'}</td>
-                                                            <td className="px-6 py-3">
-                                                                {(() => {
-                                                                    const assigneeName = kr.assignedUser?.full_name;
-                                                                    if (assigneeName) return assigneeName;
-                                                                    const ownerName = kr.objective_owner?.full_name || kr.objective_owner?.name;
-                                                                    return ownerName || 'Chưa gán';
-                                                                })()}
-                                                            </td>
-                                                            <td className="px-6 py-3 text-center">
-                                                                <div className="flex items-center justify-center gap-3" style={{ width: '180px', margin: '0 auto' }}>
-                                                                    <div className="w-32 bg-slate-200 rounded-full h-2 flex-shrink-0">
-                                                                        <div
-                                                                            className={`h-2 rounded-full transition-all ${
-                                                                                progress >= 80 ? 'bg-emerald-500' : progress >= 50 ? 'bg-amber-500' : 'bg-red-500'
-                                                                            }`}
-                                                                            style={{ width: `${Math.min(progress, 100)}%` }}
-                                                                        />
-                                                                    </div>
-                                                                    <span className="text-sm font-semibold tabular-nums whitespace-nowrap w-12 text-right">{progress.toFixed(1)}%</span>
-                                                                </div>
-                                                            </td>
-                                                            <td className="px-6 py-3 text-center">
-                                                                {status === 'on_track' && (
-                                                                    <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                                                                        Đúng tiến độ
-                                                                    </span>
-                                                                )}
-                                                                {status === 'at_risk' && (
-                                                                    <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                                                                        Có nguy cơ
-                                                                    </span>
-                                                                )}
-                                                                {status === 'off_track' && (
-                                                                    <span className="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
-                                                                        Chậm tiến độ
-                                                                    </span>
-                                                                )}
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Phân tích theo Người chịu trách nhiệm */}
-                            {selectedSnapshot.data_snapshot.detailedData?.owners && selectedSnapshot.data_snapshot.detailedData.owners.length > 0 && (
-                                <div className="rounded-xl border border-slate-200 bg-white">
-                                    <div className="bg-blue-50 border-b-2 border-blue-200 px-6 py-4 text-sm font-bold text-slate-800">Phân tích theo Người chịu trách nhiệm</div>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left text-sm">
-                                            <thead className="bg-white text-slate-700 font-semibold border-b-2 border-slate-200">
-                                                <tr>
-                                                    <th className="px-6 py-3">Người chịu trách nhiệm</th>
-                                                    <th className="px-6 py-3 text-center">Số Key Results</th>
-                                                    <th className="px-6 py-3 text-center">Tiến độ TB</th>
-                                                    <th className="px-6 py-3 text-center">Đúng tiến độ</th>
-                                                    <th className="px-6 py-3 text-center">Có nguy cơ</th>
-                                                    <th className="px-6 py-3 text-center">Chậm tiến độ</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {selectedSnapshot.data_snapshot.detailedData.owners.map((owner, i) => (
-                                                    <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
-                                                        <td className="px-6 py-3 font-semibold text-slate-900">{owner.owner_name || 'Chưa gán'}</td>
-                                                        <td className="px-6 py-3 text-center font-semibold">{owner.keyResults?.length || 0}</td>
-                                                        <td className="px-6 py-3 text-center">
-                                                            <div className="flex items-center justify-center gap-3" style={{ width: '180px', margin: '0 auto' }}>
-                                                                <div className="w-32 bg-slate-200 rounded-full h-2 flex-shrink-0">
-                                                                    <div
-                                                                        className={`h-2 rounded-full transition-all ${
-                                                                            owner.averageProgress >= 80 ? 'bg-emerald-500' : owner.averageProgress >= 50 ? 'bg-amber-500' : 'bg-red-500'
-                                                                        }`}
-                                                                        style={{ width: `${Math.min(owner.averageProgress, 100)}%` }}
-                                                                    />
-                                                                </div>
-                                                                <span className="text-sm font-semibold tabular-nums whitespace-nowrap w-12 text-right">{owner.averageProgress}%</span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-6 py-3 text-center">
-                                                            <span className="font-semibold text-emerald-700">{owner.onTrack || 0}</span>
-                                                        </td>
-                                                        <td className="px-6 py-3 text-center">
-                                                            <span className="font-semibold text-amber-700">{owner.atRisk || 0}</span>
-                                                        </td>
-                                                        <td className="px-6 py-3 text-center">
-                                                            <span className="font-semibold text-red-700">{owner.offTrack || 0}</span>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Lịch sử Check-in */}
-                            {selectedSnapshot.data_snapshot.detailedData?.checkIns && (
-                                <div className="rounded-xl border border-slate-200 bg-white">
-                                    <div className="bg-blue-50 border-b-2 border-blue-200 px-6 py-4 text-sm font-bold text-slate-800">Lịch sử Check-in</div>
-                                    <div className="p-6">
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                                                <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Tổng số Check-in</div>
-                                                <div className="text-2xl font-bold text-slate-900">{selectedSnapshot.data_snapshot.detailedData.checkIns.length || 0}</div>
-                                            </div>
-                                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                                                <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Check-in trung bình/Objective</div>
-                                                <div className="text-2xl font-bold text-slate-900">
-                                                    {selectedSnapshot.data_snapshot.detailedData.objectives?.length > 0 
-                                                        ? (selectedSnapshot.data_snapshot.detailedData.checkIns.length / selectedSnapshot.data_snapshot.detailedData.objectives.length).toFixed(1)
-                                                        : 0}
-                                                </div>
-                                            </div>
-                                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                                                <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Check-in gần nhất</div>
-                                                <div className="text-sm font-semibold text-slate-900">
-                                                    {selectedSnapshot.data_snapshot.detailedData.checkIns.length > 0 
-                                                        ? new Date(Math.max(...selectedSnapshot.data_snapshot.detailedData.checkIns.map(ci => new Date(ci.created_at || ci.createdAt).getTime()))).toLocaleDateString('vi-VN')
-                                                        : 'Chưa có'}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full text-left text-sm">
-                                                <thead className="bg-white text-slate-700 font-semibold border-b-2 border-slate-200">
-                                                    <tr>
-                                                        <th className="px-6 py-3">Key Result</th>
-                                                        <th className="px-6 py-3">Objective</th>
-                                                        <th className="px-6 py-3">Người check-in</th>
-                                                        <th className="px-6 py-3 text-center">Tiến độ</th>
-                                                        <th className="px-6 py-3 text-center">Ngày check-in</th>
-                                                        <th className="px-6 py-3">Ghi chú</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {selectedSnapshot.data_snapshot.detailedData.checkIns.length === 0 ? (
-                                                        <tr>
-                                                            <td colSpan="6" className="px-6 py-8 text-center text-slate-500">
-                                                                Chưa có check-in nào
-                                                            </td>
-                                                        </tr>
-                                                    ) : (
-                                                        selectedSnapshot.data_snapshot.detailedData.checkIns.slice(0, 20).map((checkIn, i) => (
-                                                            <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
-                                                                <td className="px-6 py-3 font-medium text-slate-900">
-                                                                    {checkIn.key_result?.kr_title || checkIn.kr_title || 'N/A'}
-                                                                </td>
-                                                                <td className="px-6 py-3 text-slate-600">
-                                                                    {checkIn.objective?.obj_title || checkIn.objective_title || 'N/A'}
-                                                                </td>
-                                                                <td className="px-6 py-3">{checkIn.user?.full_name || checkIn.user_name || 'N/A'}</td>
-                                                                <td className="px-6 py-3 text-center">
-                                                                    <span className="font-semibold">{checkIn.progress_percent || 0}%</span>
-                                                                </td>
-                                                                <td className="px-6 py-3 text-center text-slate-600">
-                                                                    {checkIn.created_at 
-                                                                        ? new Date(checkIn.created_at).toLocaleDateString('vi-VN')
-                                                                        : 'N/A'}
-                                                                </td>
-                                                                <td className="px-6 py-3 text-slate-600 max-w-xs truncate">
-                                                                    {checkIn.notes || checkIn.note || '—'}
-                                                                </td>
-                                                            </tr>
-                                                        ))
-                                                    )}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                        </div>
-                        )}
-                        </div>
-                    ) : (
-                        /* ==================== DANH SÁCH SNAPSHOT ==================== */
-                        <div>
-                        {/* Filter theo level */}
-                        <div className="mb-4 flex items-center gap-4">
-                            <label className="text-sm font-medium text-gray-700">Lọc theo cấp độ:</label>
-                            <select
-                                value={snapshotLevelFilter}
-                                onChange={(e) => {
-                                    setSnapshotLevelFilter(e.target.value);
                                     setSnapshotPage(1);
                                 }}
-                                className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                            >
-                                <option value="all">Tất cả</option>
-                                <option value="company">Công ty</option>
-                                <option value="departments">Phòng ban</option>
-                            </select>
-                        </div>
-
-                        {(() => {
-                            // Filter snapshots theo level
-                            const filteredSnapshots = snapshots.filter((snap) => {
-                                if (snapshotLevelFilter === 'all') return true;
-                                const snapLevel = snap.data_snapshot?.level || 'departments';
-                                return snapLevel === snapshotLevelFilter;
-                            });
-
-                            if (filteredSnapshots.length === 0) {
-                                return (
-                            <div className="text-center py-16">
-                            <div className="bg-gray-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                            </div>
-                            <p className="text-gray-600 font-semibold text-lg">Chưa có báo cáo nào</p>
-                                        <p className="text-gray-400 text-sm mt-2">
-                                            {snapshotLevelFilter === 'all' 
-                                                 ? 'Nhấn nút "Tạo báo cáo" để tạo bản sao đầu tiên'
-                                                 : `Chưa có báo cáo nào cho cấp độ ${snapshotLevelFilter === 'company' ? 'Công ty' : 'Phòng ban'}`
-                                            }
-                                        </p>
-                            </div>
-                                );
-                            }
-
-                            return (
-                            <div className="grid gap-4">
-                                    {filteredSnapshots.map((snap) => {
-                                        const snapLevel = snap.data_snapshot?.level || 'departments';
-                                        const levelText = snapLevel === 'company' ? 'Công ty' : 'Phòng ban';
-                                        return (
-                                <button
-                                key={snap.id}
-                                onClick={() => loadSnapshot(snap.id)}
-                                className="w-full p-5 bg-white border border-gray-200 rounded-xl hover:border-blue-400 hover:shadow-md transition-all text-left group"
-                                >
-                                <div className="flex items-center justify-between">
-                                    <div className="flex-1">
-                                                        <div className="flex items-center gap-3 mb-1">
-                                    <h3 className="font-bold text-gray-900 text-lg group-hover:text-blue-600 transition">
-                                        {snap.title}
-                                    </h3>
-                                                            <span className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
-                                                                {levelText}
-                                                            </span>
-                                                        </div>
-                                    <div className="flex items-center gap-6 text-sm text-gray-500 mt-2">
-                                        <span className="flex items-center gap-1">
-                                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                        {new Date(snap.snapshotted_at).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: 'long', year: 'numeric' })}
-                                        </span>
-                                        <span className="flex items-center gap-1">
-                                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                                        {snap.creator?.full_name || 'N/A'}
-                                        </span>
-                                    </div>
-                                    </div>
-                                    <svg className="h-6 w-6 text-gray-400 group-hover:text-blue-500 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                    </svg>
-                                </div>
-                                </button>
-                                        );
-                                    })}
-                            </div>
-                            );
-                        })()}
-
-                        {/* Pagination */}
-                        {snapshotPagination.total > 0 && snapshotPagination.last_page > 1 && (
-                            <div className="mt-6 flex items-center justify-center">
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={() => {
-                                            const newPage = Math.max(1, snapshotPage - 1);
-                                            setSnapshotPage(newPage);
-                                            loadSnapshots(newPage);
-                                        }}
-                                        disabled={snapshotPage === 1}
-                                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                                            snapshotPage === 1
-                                                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                                : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
-                                        }`}
-                                    >
-                                        <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            className="h-4 w-4"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                        >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth={2}
-                                                d="M15 19l-7-7 7-7"
-                                            />
-                                        </svg>
-                                    </button>
-
-                                    <div className="flex items-center gap-1">
-                                        {Array.from(
-                                            { length: snapshotPagination.last_page },
-                                            (_, i) => i + 1
-                                        ).map((pageNumber) => {
-                                            if (
-                                                pageNumber === 1 ||
-                                                pageNumber === snapshotPagination.last_page ||
-                                                (pageNumber >= snapshotPage - 1 &&
-                                                    pageNumber <= snapshotPage + 1)
-                                            ) {
-                                                return (
-                                                    <button
-                                                        key={pageNumber}
-                                                        onClick={() => {
-                                                            setSnapshotPage(pageNumber);
-                                                            loadSnapshots(pageNumber);
-                                                        }}
-                                                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                                                            snapshotPage === pageNumber
-                                                                ? "bg-blue-600 text-white"
-                                                                : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
-                                                        }`}
-                                                    >
-                                                        {pageNumber}
-                                                    </button>
-                                                );
-                                            } else if (
-                                                pageNumber === snapshotPage - 2 ||
-                                                pageNumber === snapshotPage + 2
-                                            ) {
-                                                return (
-                                                    <span
-                                                        key={pageNumber}
-                                                        className="px-2 text-gray-400"
-                                                    >
-                                                        ...
-                                                    </span>
-                                                );
-                                            }
-                                            return null;
-                                        })}
-                                    </div>
-
-                                    <button
-                                        onClick={() => {
-                                            const newPage = Math.min(snapshotPagination.last_page, snapshotPage + 1);
-                                            setSnapshotPage(newPage);
-                                            loadSnapshots(newPage);
-                                        }}
-                                        disabled={snapshotPage === snapshotPagination.last_page}
-                                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                                            snapshotPage === snapshotPagination.last_page
-                                                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                                : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
-                                        }`}
-                                    >
-                                        <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            className="h-4 w-4"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                        >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth={2}
-                                                d="M9 5l7 7-7 7"
-                                            />
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                        </div>
-                    )}
-                    </div>
-                </div>
-                </div>
-
-                <style jsx>{`
-                body { overflow: hidden; }
-                `}</style>
-            </>
+                    snapshots={snapshots}
+                    snapshotLevelFilter={snapshotLevelFilter}
+                    onSnapshotLevelChange={setSnapshotLevelFilter}
+                    snapshotPage={snapshotPage}
+                    snapshotPagination={snapshotPagination}
+                    onPageChange={(page) => { setSnapshotPage(page); loadSnapshots(page); }}
+                    onLoadSnapshot={(id) => loadSnapshot(id)}
+                    selectedSnapshot={selectedSnapshot}
+                    onBackToList={() => setSelectedSnapshot(null)}
+                    onExportSnapshot={exportSnapshotToExcel}
+                />
             )}     
         </div>
     );
