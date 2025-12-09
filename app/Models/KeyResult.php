@@ -15,6 +15,8 @@ class KeyResult extends Model
 
     public $timestamps = true;
     protected $primaryKey = 'kr_id';
+    public $incrementing = true;
+    protected $keyType = 'int';
 
     /**
      * The attributes that are mass assignable.
