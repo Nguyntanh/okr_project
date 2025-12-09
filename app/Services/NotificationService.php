@@ -39,6 +39,18 @@ class NotificationService
                 return null;
             }
 
+            // Determine action URL based on notification type if not provided
+            // Only get default if actionUrl is explicitly null/empty AND not provided
+            $finalActionUrl = $actionUrl;
+            if (!$finalActionUrl) {
+                $finalActionUrl = self::getDefaultActionUrl($type);
+            }
+            
+            // Truncate action_url if too long (max 500 chars to be safe)
+            if ($finalActionUrl && strlen($finalActionUrl) > 500) {
+                $finalActionUrl = substr($finalActionUrl, 0, 500);
+            }
+
             // Create in-app notification
             $notification = Notification::create([
                 'user_id' => $userId,
@@ -46,28 +58,23 @@ class NotificationService
                 'type' => $type,
                 'is_read' => false,
                 'cycle_id' => $cycleId,
+                'action_url' => $finalActionUrl,
             ]);
 
             // Send email notification
             if ($sendEmail && $user->email) {
-                self::sendEmail($user, $message, $type, $actionUrl, $actionText);
+                self::sendEmail($user, $message, $type, $finalActionUrl, $actionText);
             }
-
-            Log::info('NotificationService: Notification sent successfully', [
-                'user_id' => $userId,
-                'type' => $type,
-                'notification_id' => $notification->notification_id,
-            ]);
 
             return $notification;
 
         } catch (\Exception $e) {
             Log::error('NotificationService: Error sending notification', [
                 'user_id' => $userId,
-                'message' => $message,
                 'type' => $type,
                 'error' => $e->getMessage(),
             ]);
+            // Không throw để không làm gián đoạn flow chính (comment vẫn được tạo)
             return null;
         }
     }
@@ -186,6 +193,7 @@ class NotificationService
             'link_approved', 'link_rejected' => $baseUrl . '/my-objectives',
             'check_in' => $baseUrl . '/my-objectives',
             'reminder' => $baseUrl . '/my-objectives',
+            'comment' => $baseUrl . '/my-objectives',
             default => $baseUrl . '/dashboard',
         };
     }

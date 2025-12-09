@@ -24,8 +24,17 @@ ChartJS.register(
 );
 
 // --- Reusable Tabs Component ---
-const Tabs = ({ tabs }) => {
-    const [activeTab, setActiveTab] = useState(0);
+const Tabs = ({ tabs, activeTab: controlledActiveTab, onTabChange }) => {
+    const [internalActiveTab, setInternalActiveTab] = useState(0);
+    const activeTab = controlledActiveTab !== undefined ? controlledActiveTab : internalActiveTab;
+    
+    const handleTabChange = (index) => {
+        if (onTabChange) {
+            onTabChange(index);
+        } else {
+            setInternalActiveTab(index);
+        }
+    };
 
     return (
         <div>
@@ -34,7 +43,7 @@ const Tabs = ({ tabs }) => {
                     {tabs.map((tab, index) => (
                         <button
                             key={tab.name}
-                            onClick={() => setActiveTab(index)}
+                            onClick={() => handleTabChange(index)}
                             className={`${
                                 index === activeTab
                                     ? 'border-indigo-500 text-indigo-600'
@@ -316,8 +325,58 @@ const KrCheckInHistory = ({ checkIns }) => {
     );
 };
 
-const KrCommentSection = ({ comments, krId, onCommentPosted }) => {
-    const handleSubmitted = () => {
+const KrCommentSection = ({ comments: initialComments, krId, onCommentPosted }) => {
+    const [comments, setComments] = useState(initialComments || []);
+
+    // Cập nhật comments khi initialComments thay đổi (từ parent)
+    useEffect(() => {
+        setComments(initialComments || []);
+    }, [initialComments]);
+
+    const handleSubmitted = (newComment) => {
+        if (newComment) {
+            // Nếu là reply, thêm vào replies của parent
+            if (newComment.parent_id) {
+                setComments(prevComments => 
+                    prevComments.map(comment => {
+                        if (comment.id === newComment.parent_id) {
+                            return {
+                                ...comment,
+                                replies: [...(comment.replies || []), newComment]
+                            };
+                        }
+                        // Tìm trong replies
+                        const updateReplies = (replies) => {
+                            return replies.map(reply => {
+                                if (reply.id === newComment.parent_id) {
+                                    return {
+                                        ...reply,
+                                        replies: [...(reply.replies || []), newComment]
+                                    };
+                                }
+                                if (reply.replies && reply.replies.length > 0) {
+                                    return {
+                                        ...reply,
+                                        replies: updateReplies(reply.replies)
+                                    };
+                                }
+                                return reply;
+                            });
+                        };
+                        if (comment.replies && comment.replies.length > 0) {
+                            return {
+                                ...comment,
+                                replies: updateReplies(comment.replies)
+                            };
+                        }
+                        return comment;
+                    })
+                );
+            } else {
+                // Nếu là comment mới, thêm vào đầu danh sách
+                setComments(prevComments => [newComment, ...prevComments]);
+            }
+        }
         if (onCommentPosted) onCommentPosted();
     };
 
@@ -328,7 +387,7 @@ const KrCommentSection = ({ comments, krId, onCommentPosted }) => {
                 <CommentForm krId={krId} onSubmitted={handleSubmitted} />
                 {comments?.length > 0 ? (
                     comments.map(comment => (
-                        <Comment key={comment.id} comment={comment} krId={krId} />
+                        <Comment key={comment.id} comment={comment} krId={krId} onReplyPosted={handleSubmitted} />
                     ))
                 ) : (
                     <p className="text-gray-500 text-sm text-center py-4">Chưa có bình luận nào.</p>
@@ -338,8 +397,17 @@ const KrCommentSection = ({ comments, krId, onCommentPosted }) => {
     );
 };
 
-const Comment = ({ comment, krId }) => {
+const Comment = ({ comment, krId, depth = 0, onReplyPosted }) => {
     const [showReplyForm, setShowReplyForm] = useState(false);
+    const canReply = depth < 2; // Chỉ cho phép trả lời đến độ sâu 2 (0, 1, 2)
+    
+    const handleReplySubmitted = (newReply) => {
+        setShowReplyForm(false);
+        if (onReplyPosted) {
+            onReplyPosted(newReply);
+        }
+    };
+    
     return (
         <div className="py-3">
             <div className="flex items-start gap-3">
@@ -355,17 +423,27 @@ const Comment = ({ comment, krId }) => {
             </div>
             <div className="ml-11 text-xs text-slate-500 mt-2 flex items-center gap-3">
                 <span>{format(new Date(comment.created_at), 'dd/MM/yyyy')}</span>
-                <button 
-                    onClick={() => setShowReplyForm(!showReplyForm)} 
-                    className="font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors"
-                >
-                    Trả lời
-                </button>
+                {canReply && (
+                    <button 
+                        onClick={() => setShowReplyForm(!showReplyForm)} 
+                        className="font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors"
+                    >
+                        Trả lời
+                    </button>
+                )}
             </div>
-            {showReplyForm && <CommentForm krId={krId} parentId={comment.id} onSubmitted={() => setShowReplyForm(false)} />}
+            {showReplyForm && canReply && <CommentForm krId={krId} parentId={comment.id} onSubmitted={handleReplySubmitted} />}
             {comment.replies && comment.replies.length > 0 && (
                 <div className="ml-11 mt-3 pl-4 border-l-2 border-slate-200">
-                    {comment.replies.map(reply => <Comment key={reply.id} comment={reply} krId={krId} />)}
+                    {comment.replies.map(reply => (
+                        <Comment 
+                            key={reply.id} 
+                            comment={reply} 
+                            krId={krId} 
+                            depth={depth + 1} 
+                            onReplyPosted={onReplyPosted}
+                        />
+                    ))}
                 </div>
             )}
         </div>
@@ -407,8 +485,9 @@ const CommentForm = ({ krId, parentId = null, onSubmitted }) => {
                 throw new Error('Something went wrong');
             }
 
+            const newComment = await response.json();
             setContent('');
-            if (onSubmitted) onSubmitted();
+            if (onSubmitted) onSubmitted(newComment);
         } catch (error) {
             setErrors({ form: 'Could not submit your comment. Please try again.' });
         } finally {
@@ -494,6 +573,7 @@ const KeyResultDetailPage = () => {
     const [keyResult, setKeyResult] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [activeTabIndex, setActiveTabIndex] = useState(0);
 
     const getKeyResultIdFromUrl = () => {
         const pathParts = window.location.pathname.split('/');
@@ -545,13 +625,22 @@ const KeyResultDetailPage = () => {
 
     useEffect(() => {
         fetchData();
-    }, [window.location.pathname]);
+        
+        // Check query parameter để tự động mở tab "Lịch sử & Tương tác"
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('tab') === 'history') {
+            setActiveTabIndex(1); // Tab "Lịch sử & Tương tác" là index 1
+        }
+    }, [window.location.pathname, window.location.search]);
 
     if (loading) return <div className="p-8 text-center">Đang tải dữ liệu Key Result...</div>;
     if (error) return <div className="p-8 text-center text-red-500">Lỗi: {error}</div>;
     if (!keyResult) return <div className="p-8 text-center">Không tìm thấy Key Result.</div>;
     
-    const handleCommentPosted = () => fetchData();
+    const handleCommentPosted = () => {
+        // Không cần reload vì comment đã được cập nhật realtime
+        // Chỉ cần để callback này để tương thích với component
+    };
 
     const krTabs = [
         { name: 'Chi tiết', content: <KrDetailsSection keyResult={keyResult} /> },
@@ -567,7 +656,7 @@ const KeyResultDetailPage = () => {
                 </div>
                 
                 <div className="bg-white p-6 rounded-lg shadow-md">
-                   <Tabs tabs={krTabs} />
+                   <Tabs tabs={krTabs} activeTab={activeTabIndex} onTabChange={setActiveTabIndex} />
                 </div>
             </div>
         </div>

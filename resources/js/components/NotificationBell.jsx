@@ -281,8 +281,13 @@ export default function NotificationBell() {
                                     const isCheckIn = notification.type === 'check_in' || 
                                         notification.message?.includes('đã check-in');
                                     
+                                    // Check if this is a comment notification
+                                    const isComment = notification.type === 'comment' || 
+                                        notification.message?.includes('đã bình luận') ||
+                                        notification.message?.includes('đã trả lời bình luận');
+                                    
                                     // Check if this notification is clickable (has action)
-                                    const isClickable = isLinkRequest || isCheckIn || notification.action_url;
+                                    const isClickable = isLinkRequest || isCheckIn || isComment || notification.action_url;
                                     
                                     const handleNotificationClick = () => {
                                         // Mark as read first
@@ -296,37 +301,25 @@ export default function NotificationBell() {
                                         let searchParams = '';
                                         
                                         if (targetUrl) {
-                                            const url = new URL(targetUrl, window.location.origin);
-                                            targetPath = url.pathname;
-                                            searchParams = url.search;
-                                        }
-                                        
-                                        // Check if already on the target page
-                                        const currentPath = window.location.pathname;
-                                        const isOnTargetPage = currentPath === targetPath || 
-                                            currentPath === '/my-objectives' && targetPath.includes('/my-objectives');
-                                        
-                                        if (isOnTargetPage && searchParams) {
-                                            // Already on the page - dispatch custom event to handle navigation without reload
-                                            setIsOpen(false);
-                                            const params = new URLSearchParams(searchParams);
-                                            
-                                            // Dispatch custom event for in-page navigation
-                                            window.dispatchEvent(new CustomEvent('okr-navigate', {
-                                                detail: {
-                                                    highlight_kr: params.get('highlight_kr'),
-                                                    highlight_link: params.get('highlight_link'),
-                                                    objective_id: params.get('objective_id')
-                                                }
-                                            }));
-                                            return;
+                                            try {
+                                                const url = new URL(targetUrl, window.location.origin);
+                                                targetPath = url.pathname;
+                                                searchParams = url.search;
+                                            } catch (e) {
+                                                // If URL parsing fails, try to extract path and query from string
+                                                const urlParts = targetUrl.split('?');
+                                                targetPath = urlParts[0].replace(window.location.origin, '');
+                                                searchParams = urlParts[1] ? `?${urlParts[1]}` : '';
+                                            }
                                         }
                                         
                                         // Navigate to the page
                                         setIsOpen(false);
                                         if (targetUrl) {
+                                            // Always navigate to ensure query params are applied and components re-render
                                             window.location.href = targetPath + searchParams;
-                                        } else if (isLinkRequest || isCheckIn) {
+                                        } else if (isLinkRequest || isCheckIn || isComment) {
+                                            // Fallback: navigate to my-objectives for comment notifications without action_url
                                             window.location.href = '/my-objectives';
                                         }
                                     };
