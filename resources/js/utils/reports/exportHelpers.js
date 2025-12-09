@@ -511,10 +511,10 @@ export async function exportToPDF(companyData, departmentsData, currentCycleMeta
 
 /**
  * Export report to Excel with both company and departments data
- * @param {Object} companyData 
- * @param {Object} departmentsData 
+ * @param {Object} companyData - { report, detailedData }
+ * @param {Object} departmentsData - { report, detailedData }
  * @param {Object} currentCycleMeta
- * @param {String} snapshotTitle 
+ * @param {String} snapshotTitle - Tên báo cáo chốt kỳ (từ snapshot)
  * @param {Function} onSuccess
  * @param {Function} onError
  */
@@ -937,7 +937,7 @@ export async function exportToExcel(companyData, departmentsData, currentCycleMe
         const mm = String(now.getMonth() + 1).padStart(2, '0');
         const yyyy = now.getFullYear();
 
-        const filename = `Bao_cao_${tenBaoCaoChotKy}_${dd}_${mm}_${yyyy}.xlsx`;
+        const filename = `${tenBaoCaoChotKy}_${dd}_${mm}_${yyyy}.xlsx`;
         
         // Write to buffer and download
         const buffer = await workbook.xlsx.writeBuffer();
@@ -949,10 +949,10 @@ export async function exportToExcel(companyData, departmentsData, currentCycleMe
         link.click();
         window.URL.revokeObjectURL(url);
 
-        onSuccess('Xuất Excel thành công!');
+        onSuccess('✓ Xuất file báo cáo thành công!');
     } catch (error) {
-        console.error('Lỗi khi xuất Excel:', error);
-        onError('Xuất Excel thất bại. Vui lòng thử lại.');
+        console.error('Lỗi khi xuất file báo cáo:', error);
+        onError('✕ Xuất file báo cáo thất bại. Vui lòng thử lại.');
     }
 }
 

@@ -239,12 +239,12 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::delete('/destroy/{id}', [MyObjectiveController::class, 'destroy'])
             ->middleware('auth')
             ->name('my-objectives.destroy');
-        Route::get('/details/{id}', [MyObjectiveController::class, 'getObjectiveDetails'])
-            ->middleware('auth')
-            ->name('my-objectives.details');
-        Route::get('/key-result-details/{id}', [MyObjectiveController::class, 'getKeyResultDetails'])
-            ->middleware('auth')
-            ->name('my-objectives.key-result-details');
+        Route::get('/details/{id}', function() {
+            return view('app');
+        })->middleware('auth')->name('my-objectives.details');
+        Route::get('/key-result-details/{id}', function() {
+            return view('app');
+        })->middleware('auth')->name('my-objectives.key-result-details');
         Route::get('/getAllowedLevelsApi', [MyObjectiveController::class, 'getAllowedLevelsApi'])
             ->middleware('auth')
             ->name('my-objectives.getAllowedLevelsApi');
@@ -327,10 +327,12 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
             ->name('api.reports.okr-company');
         Route::get('/okr-company/export.csv', [\App\Http\Controllers\ReportController::class, 'exportCompanyOkrCsv'])
             ->name('api.reports.okr-company.export.csv');
-        Route::get('/okr-company/export.pdf', [\App\Http\Controllers\ReportController::class, 'exportCompanyOkrPdf'])
-            ->name('api.reports.okr-company.export.pdf');
-        Route::get('/okr-company/by-department', [\App\Http\Controllers\ReportController::class, 'getOkrsByDepartment'])
-            ->name('api.reports.okr-company.by-department');
+        Route::post('/snapshot', [\App\Http\Controllers\ReportSnapshotController::class, 'store'])
+            ->name('api.reports.snapshot.store');
+        Route::get('/snapshots', [\App\Http\Controllers\ReportSnapshotController::class, 'index'])
+            ->name('api.reports.snapshots.index');
+        Route::get('/snapshots/{id}', [\App\Http\Controllers\ReportSnapshotController::class, 'show'])
+            ->name('api.reports.snapshots.show');
     });
 
     // Report Snapshots API - Tạo và quản lý snapshot báo cáo
@@ -375,6 +377,9 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/objectives/{objective}/comments', [App\Http\Controllers\CommentController::class, 'index'])->name('api.comments.index');
         Route::post('/company-okrs/detail/kr/{kr_id}/comments', [App\Http\Controllers\CommentController::class, 'storeForKr'])->name('api.kr-comments.store');
         Route::get('/company-okrs/detail/kr/{id}', [App\Http\Controllers\KeyResultController::class, 'getDetails'])->name('api.key-results.details');
+        // API routes for my-objectives detail pages
+        Route::get('/my-objectives/details/{id}', [MyObjectiveController::class, 'getObjectiveDetails'])->name('api.my-objectives.details');
+        Route::get('/my-objectives/key-result-details/{id}', [MyObjectiveController::class, 'getKeyResultDetails'])->name('api.my-objectives.key-result-details');
     });
 
 
