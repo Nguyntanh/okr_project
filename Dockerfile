@@ -48,6 +48,10 @@ RUN chmod -R 777 /var/www/storage /var/www/bootstrap/cache
 # Expose port
 EXPOSE 80
 
+# THÊM: Tạo thư mục tạm cho Nginx và cấp quyền
+RUN mkdir -p /tmp/nginx_client_body /tmp/nginx_proxy /tmp/nginx_fastcgi \
+    && chown -R www-data:www-data /tmp/nginx_client_body /tmp/nginx_proxy /tmp/nginx_fastcgi
+
 # Switch to www-data user
 USER www-data
 
