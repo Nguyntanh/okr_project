@@ -49,7 +49,9 @@ const OverviewSection = ({ objective }) => (
                 <span className="text-sm font-medium text-gray-700">Overall Progress</span>
                 <span className="text-lg font-bold text-blue-600">{objective.progress_percent}%</span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-4"><div className="bg-blue-600 h-4 rounded-full" style={{ width: `${objective.progress_percent}%` }}></div></div>
+            <div className="w-full bg-slate-100 rounded-full h-5 relative overflow-hidden border border-slate-200">
+                <div className="bg-blue-600 h-5 rounded-full transition-all duration-300" style={{ width: `${Math.min(100, Math.max(0, objective.progress_percent || 0))}%` }}></div>
+            </div>
         </div>
         <div className="mt-4 border-t border-gray-200 pt-4">
             <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
@@ -87,8 +89,14 @@ const KeyResultsSection = ({ keyResults }) => (
                     <a href={`/company-okrs/detail/kr/${kr.kr_id}`} className="font-semibold text-blue-700 hover:underline">{kr.kr_title}</a>
                     <span className="text-base font-bold text-gray-800">{kr.progress_percent}%</span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-3">
-                    <div className="bg-green-500 h-3 rounded-full" style={{ width: `${kr.progress_percent}%` }}></div>
+                <div className="w-full bg-slate-100 rounded-full h-4 relative overflow-hidden border border-slate-200">
+                    <div className={`h-4 rounded-full transition-all duration-300 ${
+                        kr.status === "completed"
+                            ? "bg-emerald-600"
+                            : kr.status === "active"
+                            ? "bg-blue-600"
+                            : "bg-slate-500"
+                    }`} style={{ width: `${Math.min(100, Math.max(0, kr.progress_percent || 0))}%` }}></div>
                 </div>
                 <div className="text-xs text-gray-600 mt-2">
                     Owner: <span className="font-medium text-gray-800">{kr.assigned_user?.full_name || 'N/A'}</span>
