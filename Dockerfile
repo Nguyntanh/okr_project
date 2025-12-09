@@ -5,12 +5,12 @@ RUN apk update && apk add --no-cache \
     git \
     curl \
     libpng-dev \
-    libonig-dev \
+    oniguruma-dev \
     libxml2-dev \
     zip \
     unzip \
     libzip-dev \
-    libsqlite3-dev \
+    sqlite-dev \
     mysql-client \
     nodejs \
     npm \
