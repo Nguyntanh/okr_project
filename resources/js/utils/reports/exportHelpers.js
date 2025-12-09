@@ -511,10 +511,10 @@ export async function exportToPDF(companyData, departmentsData, currentCycleMeta
 
 /**
  * Export report to Excel with both company and departments data
- * @param {Object} companyData 
- * @param {Object} departmentsData 
+ * @param {Object} companyData - { report, detailedData }
+ * @param {Object} departmentsData - { report, detailedData }
  * @param {Object} currentCycleMeta
- * @param {String} snapshotTitle 
+ * @param {String} snapshotTitle - Tên báo cáo chốt kỳ (từ snapshot)
  * @param {Function} onSuccess
  * @param {Function} onError
  */
@@ -949,10 +949,10 @@ export async function exportToExcel(companyData, departmentsData, currentCycleMe
         link.click();
         window.URL.revokeObjectURL(url);
 
-        onSuccess('Xuất Excel thành công!');
+        onSuccess('✓ Xuất Excel thành công!');
     } catch (error) {
         console.error('Lỗi khi xuất Excel:', error);
-        onError('Xuất Excel thất bại. Vui lòng thử lại.');
+        onError('✕ Xuất Excel thất bại. Vui lòng thử lại.');
     }
 }
 
