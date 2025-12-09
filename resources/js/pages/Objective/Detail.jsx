@@ -227,17 +227,30 @@ const CommentForm = ({ objectiveId, parentId = null, onSubmitted }) => {
 
     return (
         <form onSubmit={submit} className={`mt-2 ${parentId ? 'ml-8' : ''}`}>
-            <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                className="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm text-sm"
-                placeholder={parentId ? "Viết trả lời..." : "Viết bình luận..."}
-                rows={parentId ? 2 : 3}
-            ></textarea>
-            {errors.content && <p className="text-red-500 text-xs mt-1">{errors.content[0]}</p>}
-            {errors.form && <p className="text-red-500 text-xs mt-1">{errors.form}</p>}
-            <div className="flex justify-end mt-2">
-                <button type="submit" disabled={processing} className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-semibold hover:bg-blue-700 disabled:bg-blue-300">
+            <div className="relative">
+                <textarea
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    className="w-full px-4 py-3 border border-slate-300 rounded-lg shadow-sm text-sm 
+                               focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 
+                               transition-all duration-200 resize-y
+                               placeholder:text-slate-400 text-slate-700
+                               bg-white hover:border-slate-400"
+                    placeholder={parentId ? "Viết trả lời..." : "Viết bình luận..."}
+                    rows={parentId ? 2 : 3}
+                ></textarea>
+            </div>
+            {errors.content && <p className="text-red-500 text-xs mt-1 ml-1">{errors.content[0]}</p>}
+            {errors.form && <p className="text-red-500 text-xs mt-1 ml-1">{errors.form}</p>}
+            <div className="flex justify-end mt-3">
+                <button 
+                    type="submit" 
+                    disabled={processing || !content.trim()} 
+                    className="px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold 
+                               hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed 
+                               transition-all duration-200 shadow-sm hover:shadow-md
+                               focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
                     {processing ? 'Đang gửi...' : 'Gửi'}
                 </button>
             </div>
@@ -248,21 +261,30 @@ const CommentForm = ({ objectiveId, parentId = null, onSubmitted }) => {
 const Comment = ({ comment, objectiveId }) => {
     const [showReplyForm, setShowReplyForm] = useState(false);
     return (
-        <div className="py-2">
-            <div className="flex items-start">
-                <img src={comment.user?.avatar_url || '/images/default.png'} alt={comment.user?.full_name} className="w-8 h-8 rounded-full mr-3" />
-                <div className="flex-1 bg-gray-100 rounded-lg px-3 py-2">
-                    <div className="font-semibold text-sm">{comment.user?.full_name}</div>
-                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{comment.content}</p>
+        <div className="py-3">
+            <div className="flex items-start gap-3">
+                <img 
+                    src={comment.user?.avatar_url || '/images/default.png'} 
+                    alt={comment.user?.full_name} 
+                    className="w-10 h-10 rounded-full object-cover ring-2 ring-slate-200 flex-shrink-0" 
+                />
+                <div className="flex-1 bg-slate-50 rounded-lg px-4 py-3 border border-slate-200">
+                    <div className="font-semibold text-sm text-slate-900 mb-1">{comment.user?.full_name}</div>
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{comment.content}</p>
                 </div>
             </div>
-            <div className="ml-11 text-xs text-gray-500 mt-1 flex items-center">
+            <div className="ml-11 text-xs text-slate-500 mt-2 flex items-center gap-3">
                 <span>{format(new Date(comment.created_at), 'dd/MM/yyyy')}</span>
-                <button onClick={() => setShowReplyForm(!showReplyForm)} className="ml-4 font-semibold hover:underline">Trả lời</button>
+                <button 
+                    onClick={() => setShowReplyForm(!showReplyForm)} 
+                    className="font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors"
+                >
+                    Trả lời
+                </button>
             </div>
             {showReplyForm && <CommentForm objectiveId={objectiveId} parentId={comment.id} onSubmitted={() => setShowReplyForm(false)} />}
             {comment.replies && comment.replies.length > 0 && (
-                <div className="ml-8 mt-2 pl-4 border-l-2">
+                <div className="ml-11 mt-3 pl-4 border-l-2 border-slate-200">
                     {comment.replies.map(reply => <Comment key={reply.id} comment={reply} objectiveId={objectiveId} />)}
                 </div>
             )}
