@@ -160,11 +160,24 @@ export default function CheckInReminderBanner({ onDismiss }) {
                                 window.dispatchEvent(new CustomEvent('open-checkin-from-reminder', {
                                     detail: checkInData
                                 }));
+                                
+                                // Cập nhật URL với query params để highlight KR
+                                const newUrl = `/my-objectives?highlight_kr=${checkInData.kr_id}&objective_id=${checkInData.objective_id}&action=checkin`;
+                                window.history.pushState({}, '', newUrl);
+                                
+                                // Dispatch event để highlight KR
+                                window.dispatchEvent(new CustomEvent('okr-navigate', {
+                                    detail: {
+                                        highlight_kr: checkInData.kr_id,
+                                        objective_id: checkInData.objective_id,
+                                        action: 'checkin'
+                                    }
+                                }));
                             } else {
-                                // Chưa ở trang my-objectives - lưu vào localStorage và chuyển trang
-                                console.log('🔔 Not on my-objectives, saving to localStorage and navigating');
-                                localStorage.setItem('autoOpenCheckIn', JSON.stringify(checkInData));
-                                window.location.href = '/my-objectives';
+                                // Chưa ở trang my-objectives - điều hướng với query params để highlight KR
+                                console.log('🔔 Not on my-objectives, navigating with query params');
+                                const url = `/my-objectives?highlight_kr=${checkInData.kr_id}&objective_id=${checkInData.objective_id}&action=checkin`;
+                                window.location.href = url;
                             }
                         }}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-md hover:bg-amber-700 transition-colors"

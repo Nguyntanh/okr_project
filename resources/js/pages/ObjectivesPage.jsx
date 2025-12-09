@@ -368,9 +368,13 @@ export default function ObjectivesPage() {
                             // Mở check-in modal để member cập nhật tiến độ
                             console.log('🔗 Opening check-in modal for:', krToHighlight);
                             setCheckInModal({ open: true, keyResult: krToHighlight });
-                        } else {
-                            // Mở check-in history modal (mặc định cho thông báo check-in từ manager)
+                        } else if (action === 'checkin_history') {
+                            // Mở check-in history modal (cho thông báo check-in từ manager)
                             console.log('🔗 Opening check-in history for:', krToHighlight);
+                            setCheckInHistory({ open: true, keyResult: krToHighlight });
+                        } else {
+                            // Mặc định: mở check-in history nếu không có action
+                            console.log('🔗 No action specified, opening check-in history for:', krToHighlight);
                             setCheckInHistory({ open: true, keyResult: krToHighlight });
                         }
                     }, 600); // Đợi scroll xong rồi mới mở modal
@@ -525,21 +529,25 @@ export default function ObjectivesPage() {
                 if (krElement) {
                     // Scroll với offset để không bị che bởi header
                     const elementPosition = krElement.getBoundingClientRect().top;
-                    const offsetPosition = elementPosition + window.pageYOffset - 100; // 100px offset từ top
+                    const offsetPosition = elementPosition + window.pageYOffset - 120; // 120px offset từ top
 
                     window.scrollTo({
                         top: offsetPosition,
                         behavior: 'smooth'
                     });
 
-                    // Highlight element tạm thời
+                    // Highlight element tạm thời với border và background
                     krElement.style.backgroundColor = '#dbeafe';
-                    krElement.style.transition = 'background-color 0.3s ease';
+                    krElement.style.transition = 'background-color 0.3s ease, border-left 0.3s ease';
+                    krElement.style.borderLeft = '4px solid #3b82f6';
+                    krElement.style.paddingLeft = '8px';
                     
-                    // Xóa highlight sau 3 giây
+                    // Xóa highlight sau 5 giây
                     setTimeout(() => {
                         krElement.style.backgroundColor = '';
-                    }, 3000);
+                        krElement.style.borderLeft = '';
+                        krElement.style.paddingLeft = '';
+                    }, 5000);
                 }
 
                 // Mở modal tùy theo action
@@ -548,12 +556,16 @@ export default function ObjectivesPage() {
                         // Mở check-in modal để member cập nhật tiến độ
                         console.log('🔗 Opening check-in modal for:', krToHighlight);
                         setCheckInModal({ open: true, keyResult: krToHighlight });
-                    } else {
-                        // Mở check-in history modal (mặc định cho thông báo check-in từ manager)
+                    } else if (action === 'checkin_history') {
+                        // Mở check-in history modal (cho thông báo check-in từ manager)
                         console.log('🔗 Opening check-in history for:', krToHighlight);
                         setCheckInHistory({ open: true, keyResult: krToHighlight });
+                    } else {
+                        // Mặc định: mở check-in history nếu không có action
+                        console.log('🔗 No action specified, opening check-in history for:', krToHighlight);
+                        setCheckInHistory({ open: true, keyResult: krToHighlight });
                     }
-                }, 600); // Đợi scroll xong rồi mới mở modal
+                }, 800); // Tăng thời gian đợi để đảm bảo scroll và highlight hoàn tất
             }, 500); // Đợi objective mở xong
         }
     }, [items]);
@@ -658,26 +670,33 @@ export default function ObjectivesPage() {
                     if (krElement) {
                         // Scroll đến element với offset để không bị che bởi header
                         const elementPosition = krElement.getBoundingClientRect().top;
-                        const offsetPosition = elementPosition + window.pageYOffset - 100; // 100px offset từ top
+                        const offsetPosition = elementPosition + window.pageYOffset - 120; // 120px offset từ top
 
                         window.scrollTo({
                             top: offsetPosition,
                             behavior: 'smooth'
                         });
 
-                        // Highlight element tạm thời
-                        krElement.style.backgroundColor = '#fef3c7';
+                        // Highlight element tạm thời với border và background
+                        krElement.style.backgroundColor = '#dbeafe';
+                        krElement.style.transition = 'background-color 0.3s ease, border-left 0.3s ease';
+                        krElement.style.borderLeft = '4px solid #3b82f6';
+                        krElement.style.paddingLeft = '8px';
+                        
+                        // Xóa highlight sau 5 giây
                         setTimeout(() => {
                             krElement.style.backgroundColor = '';
-                        }, 2000);
+                            krElement.style.borderLeft = '';
+                            krElement.style.paddingLeft = '';
+                        }, 5000);
                     }
 
-                    // Mở modal check-in sau khi scroll
+                    // Mở modal check-in sau khi scroll và highlight
                     setTimeout(() => {
                         console.log('🔔 Opening check-in modal with KR:', foundKR);
                         setCheckInModal({ open: true, keyResult: foundKR });
-                    }, 600);
-                }, 500);
+                    }, 800); // Tăng thời gian đợi để đảm bảo scroll và highlight hoàn tất
+                }, 400); // Tăng thời gian đợi để đảm bảo objective đã mở hoàn toàn
             } else {
                 console.warn('🔔 Key Result not found in items for reminder check-in', {
                     checkInData,
