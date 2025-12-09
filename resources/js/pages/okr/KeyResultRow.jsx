@@ -315,19 +315,7 @@ export default function KeyResultRow({
                     )}
                 </td>
 
-                <td 
-                    className={`px-3 py-3 text-center border-r border-slate-200 ${canCheckInKR && canCheckInKR(kr) ? 'cursor-pointer hover:bg-blue-50' : ''}`}
-                    onClick={(e) => {
-                        if (canCheckInKR && canCheckInKR(kr) && openCheckInModal) {
-                            e.stopPropagation();
-                            openCheckInModal({
-                                ...kr,
-                                objective_id: objective.objective_id,
-                            });
-                        }
-                    }}
-                    title={canCheckInKR && canCheckInKR(kr) ? "Click để check-in" : ""}
-                >
+                <td className="px-3 py-3 text-center border-r border-slate-200">
                     <div className="flex flex-col items-center">
                         <div className="w-full bg-gray-200 rounded-full h-4 relative overflow-hidden">
                             <div
@@ -402,35 +390,35 @@ export default function KeyResultRow({
                                     <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 11a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1v-1z" />
                                 </svg>
                             </button>
-                            <button
-                                onClick={() => setEditingKR(kr)}
-                                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="Sửa"
-                                disabled={disableActions}
-                            >
-                                <svg
-                                    className="h-4 w-4"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
+                            {canCheckInKR && canCheckInKR(kr) && openCheckInModal && (
+                                <button
+                                    onClick={() => openCheckInModal({
+                                        ...kr,
+                                        objective_id: objective.objective_id,
+                                    })}
+                                    className="p-1 text-blue-600 hover:bg-blue-50 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Check-in"
+                                    disabled={disableActions}
                                 >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                    />
-                                </svg>
-                            </button>
-                            <button
-                                onClick={() => handleArchiveKR(kr.kr_id)}
-                                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="Lưu trữ"
-                            >
-                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                                </svg>
-                            </button>
+                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </button>
+                            )}
+                            <KRActionsMenu
+                                kr={kr}
+                                objective={objective}
+                                setEditingKR={setEditingKR}
+                                handleArchiveKR={handleArchiveKR}
+                                canCheckIn={canCheckInKR(kr)}
+                                openCheckInModal={openCheckInModal}
+                                openCheckInHistory={openCheckInHistory}
+                                setAssignModal={setAssignModal}
+                                menuRefs={menuRefs}
+                                openObj={openObj}
+                                setOpenObj={setOpenObj}
+                                disableActions={disableActions}
+                            />
                         </div>
                     ) : (
                         <div className="flex items-center justify-end gap-1">
@@ -444,26 +432,21 @@ export default function KeyResultRow({
                                     <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 11a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1v-1z" />
                                 </svg>
                             </button>
-                            <button
-                                onClick={() => setEditingKR(kr)}
-                                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="Sửa"
-                                disabled={disableActions}
-                            >
-                                <svg
-                                    className="h-4 w-4"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
+                            {canCheckInKR && canCheckInKR(kr) && openCheckInModal && (
+                                <button
+                                    onClick={() => openCheckInModal({
+                                        ...kr,
+                                        objective_id: objective.objective_id,
+                                    })}
+                                    className="p-1 text-blue-600 hover:bg-blue-50 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Check-in"
+                                    disabled={disableActions}
                                 >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                    />
-                                </svg>
-                            </button>
+                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </button>
+                            )}
                             <KRActionsMenu
                                 kr={kr}
                                 objective={objective}

@@ -848,10 +848,8 @@ export default function ObjectivesPage() {
 
         if (!updatedObjective) {
             console.warn('🔧 handleCheckInSuccess: No objective in response, reloading data', responseData);
-            // Nếu không có objective trong response, reload lại data
-            setTimeout(() => {
-                load(page, cycleFilter, myOKRFilter, viewMode);
-            }, 100);
+            // Nếu không có objective trong response, reload lại data mà không reload trang
+            load(page, cycleFilter, myOKRFilter, viewMode);
             setToast({ type: 'success', message: 'Đã cập nhật tiến độ thành công!' });
             return;
         }
@@ -876,40 +874,122 @@ export default function ObjectivesPage() {
         setItems(prevItems => {
             const updatedItems = prevItems.map(objective => {
                 if (String(objective.objective_id) === String(updatedObjective.objective_id)) {
-                    // Nếu có keyResults mới từ backend, dùng trực tiếp (đã là dữ liệu fresh từ DB)
-                    // Nếu không có, giữ lại keyResults cũ
-                    const finalKeyResults = (newKeyResults && Array.isArray(newKeyResults) && newKeyResults.length > 0) 
-                        ? newKeyResults 
-                        : (objective.keyResults || objective.key_results || []);
+                    // Lấy keyResults mới từ backend (backend trả về key_results - snake_case)
+                    const backendKeyResults = updatedObjective.key_results || updatedObjective.keyResults;
                     
-                    console.log('🔧 Using keyResults:', {
-                        source: (newKeyResults && Array.isArray(newKeyResults) && newKeyResults.length > 0) ? 'backend' : 'existing',
-                        count: finalKeyResults.length,
-                        sample_kr: finalKeyResults[0] ? {
-                            kr_id: finalKeyResults[0].kr_id,
-                            progress_percent: finalKeyResults[0].progress_percent,
-                            current_value: finalKeyResults[0].current_value
+                    console.log('🔧 Updated objective from backend:', {
+                        objective_id: updatedObjective.objective_id,
+                        has_key_results: !!updatedObjective.key_results,
+                        has_keyResults: !!updatedObjective.keyResults,
+                        key_results_count: backendKeyResults?.length || 0,
+                        sample_kr: backendKeyResults?.[0] ? {
+                            kr_id: backendKeyResults[0].kr_id,
+                            progress_percent: backendKeyResults[0].progress_percent,
+                            current_value: backendKeyResults[0].current_value,
+                            status: backendKeyResults[0].status
                         } : null
                     });
 
+                    // Tạo array mới với object mới cho mỗi KR để React nhận ra thay đổi
+                    let finalKeyResults;
+                    if (backendKeyResults && Array.isArray(backendKeyResults) && backendKeyResults.length > 0) {
+                        // Tạo map từ backend để dễ tìm kiếm theo kr_id
+                        const backendKrMap = new Map();
+                        backendKeyResults.forEach(kr => {
+                            const krId = String(kr.kr_id);
+                            backendKrMap.set(krId, kr);
+                        });
+                        
+                        // Merge với keyResults hiện tại, cập nhật những KR có trong backend
+                        const existingKeyResults = objective.keyResults || objective.key_results || [];
+                        finalKeyResults = existingKeyResults.map(existingKr => {
+                            const krId = String(existingKr.kr_id);
+                            const backendKr = backendKrMap.get(krId);
+                            
+                            if (backendKr) {
+                                // Có dữ liệu mới từ backend, tạo object mới với dữ liệu đã parse
+                                return {
+                                    ...existingKr,
+                                    ...backendKr,
+                                    // Đảm bảo progress_percent là number
+                                    progress_percent: backendKr.progress_percent !== null && backendKr.progress_percent !== undefined 
+                                        ? parseFloat(backendKr.progress_percent) 
+                                        : existingKr.progress_percent,
+                                    // Đảm bảo current_value là number
+                                    current_value: backendKr.current_value !== null && backendKr.current_value !== undefined 
+                                        ? parseFloat(backendKr.current_value) 
+                                        : existingKr.current_value,
+                                    // Đảm bảo target_value là number
+                                    target_value: backendKr.target_value !== null && backendKr.target_value !== undefined 
+                                        ? parseFloat(backendKr.target_value) 
+                                        : existingKr.target_value,
+                                    // Cập nhật status nếu có
+                                    status: backendKr.status || existingKr.status
+                                };
+                            }
+                            // Không có trong backend, giữ nguyên nhưng tạo object mới
+                            return { ...existingKr };
+                        });
+                        
+                        // Thêm các KR mới từ backend mà không có trong existing
+                        backendKeyResults.forEach(backendKr => {
+                            const krId = String(backendKr.kr_id);
+                            const exists = finalKeyResults.some(kr => String(kr.kr_id) === krId);
+                            if (!exists) {
+                                finalKeyResults.push({
+                                    ...backendKr,
+                                    progress_percent: backendKr.progress_percent !== null && backendKr.progress_percent !== undefined 
+                                        ? parseFloat(backendKr.progress_percent) 
+                                        : 0,
+                                    current_value: backendKr.current_value !== null && backendKr.current_value !== undefined 
+                                        ? parseFloat(backendKr.current_value) 
+                                        : 0,
+                                    target_value: backendKr.target_value !== null && backendKr.target_value !== undefined 
+                                        ? parseFloat(backendKr.target_value) 
+                                        : 0
+                                });
+                            }
+                        });
+                    } else {
+                        // Không có dữ liệu từ backend, tạo array mới từ existing
+                        finalKeyResults = (objective.keyResults || objective.key_results || []).map(kr => ({ ...kr }));
+                    }
+                    
+                    console.log('🔧 Final keyResults after merge:', {
+                        count: finalKeyResults.length,
+                        all_krs: finalKeyResults.map(kr => ({
+                            kr_id: kr.kr_id,
+                            progress_percent: kr.progress_percent,
+                            current_value: kr.current_value,
+                            status: kr.status
+                        }))
+                    });
+
                     // Merge với objective cũ để giữ các thông tin khác (như links, relationships, etc.)
-                    // Nhưng thay thế keyResults bằng dữ liệu mới từ backend
+                    // Loại bỏ key_results và keyResults từ updatedObjective trước khi merge để tránh ghi đè
+                    const { key_results: _, keyResults: __, ...updatedObjectiveWithoutKRs } = updatedObjective;
+                    
                     const mergedObjective = {
                         ...objective,
-                        ...updatedObjective,
-                        // Sử dụng finalKeyResults (từ backend nếu có, không thì giữ cũ)
+                        ...updatedObjectiveWithoutKRs,
+                        // Luôn sử dụng finalKeyResults (đã được merge và parse)
                         key_results: finalKeyResults,
-                        keyResults: finalKeyResults
+                        keyResults: finalKeyResults,
+                        // Cập nhật progress_percent của objective nếu có
+                        progress_percent: updatedObjective.progress_percent !== undefined 
+                            ? parseFloat(updatedObjective.progress_percent)
+                            : objective.progress_percent
                     };
                     
                     console.log('🔧 Merged objective:', {
                         objective_id: mergedObjective.objective_id,
                         key_results_count: mergedObjective.key_results?.length || 0,
-                        sample_kr: mergedObjective.key_results?.[0] ? {
-                            kr_id: mergedObjective.key_results[0].kr_id,
-                            progress_percent: mergedObjective.key_results[0].progress_percent,
-                            current_value: mergedObjective.key_results[0].current_value
-                        } : null
+                        all_krs: mergedObjective.key_results?.map(kr => ({
+                            kr_id: kr.kr_id,
+                            progress_percent: kr.progress_percent,
+                            current_value: kr.current_value,
+                            status: kr.status
+                        })) || []
                     });
                     
                     return mergedObjective;
@@ -917,10 +997,20 @@ export default function ObjectivesPage() {
                 return objective;
             });
             console.log('🔧 Updated items count:', updatedItems.length);
-            return updatedItems;
+            
+            // Force re-render bằng cách tạo array mới
+            return [...updatedItems];
         });
 
         setToast({ type: 'success', message: 'Đã cập nhật tiến độ thành công!' });
+        
+        // Force update sau một chút để đảm bảo UI được cập nhật
+        setTimeout(() => {
+            setItems(prevItems => {
+                // Tạo array mới để force re-render
+                return prevItems.map(obj => ({ ...obj }));
+            });
+        }, 100);
     }, [page, cycleFilter, myOKRFilter, viewMode, load]);
 
     const handleOpenLinkModal = (payload) => {

@@ -345,7 +345,12 @@ export default function CheckInModal({
                 // Backend trả về: { success: true, message: "...", data: { objective: ... } }
                 // Cần truyền data.data (chứa objective) cho onSuccess
                 const responseData = data.data || {};
-                console.log('🔧 Calling onSuccess with:', responseData);
+                console.log('🔧 Calling onSuccess with:', {
+                    has_objective: !!responseData.objective,
+                    objective_id: responseData.objective?.objective_id,
+                    key_results_count: responseData.objective?.key_results?.length || responseData.objective?.keyResults?.length || 0,
+                    sample_kr: responseData.objective?.key_results?.[0] || responseData.objective?.keyResults?.[0] || null
+                });
                 onSuccess(responseData);
             } else {
                 console.warn('🔧 onSuccess callback is not provided');

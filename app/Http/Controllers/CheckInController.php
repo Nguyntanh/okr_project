@@ -24,7 +24,11 @@ class CheckInController extends Controller
         $user = Auth::user();
         $keyResult = KeyResult::with(['objective.cycle', 'cycle', 'assignedUser', 'checkIns' => function($query) {
             $query->latest()->limit(5);
-        }])->findOrFail($krId);
+        }])->find($krId);
+        
+        if (!$keyResult) {
+            abort(404, 'Key Result không tồn tại.');
+        }
 
         // Load user relationship nếu chưa có
         if (!$user->relationLoaded('role')) {
@@ -60,8 +64,43 @@ class CheckInController extends Controller
         
         // Load KeyResult với tất cả thông tin cần thiết
         // Đảm bảo load assigned_to từ database
+        // Thử tìm với cả archived để debug
         $keyResult = KeyResult::with(['objective.cycle', 'cycle', 'assignedUser'])
-            ->findOrFail($krId);
+            ->find($krId);
+        
+        // Nếu không tìm thấy, log để debug
+        if (!$keyResult) {
+            Log::warning('KeyResult not found for check-in', [
+                'kr_id' => $krId,
+                'objective_id' => $objectiveId,
+                'user_id' => $user->user_id,
+                'all_kr_ids' => KeyResult::pluck('kr_id')->toArray()
+            ]);
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Key Result không tồn tại. Vui lòng tải lại trang.'
+                ], 404);
+            }
+            abort(404, 'Key Result không tồn tại.');
+        }
+        
+        // Kiểm tra nếu KeyResult đã bị archive
+        if ($keyResult->archived_at) {
+            Log::warning('Attempted check-in on archived KeyResult', [
+                'kr_id' => $krId,
+                'archived_at' => $keyResult->archived_at
+            ]);
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Key Result đã được lưu trữ. Không thể check-in.'
+                ], 403);
+            }
+            abort(403, 'Key Result đã được lưu trữ. Không thể check-in.');
+        }
         
         // Đảm bảo load lại assigned_to từ database để có giá trị mới nhất
         // Không dùng refresh() vì nó có thể làm mất relationships
@@ -141,6 +180,9 @@ class CheckInController extends Controller
                     'status' => $newStatus,
                 ]);
 
+                // Refresh KeyResult để đảm bảo có dữ liệu mới nhất
+                $keyResult->refresh();
+
                 // Tự động cập nhật progress của Objective từ KeyResults
                 if ($keyResult->objective) {
                     $keyResult->objective->updateProgressFromKeyResults();
@@ -151,8 +193,14 @@ class CheckInController extends Controller
                     'kr_id' => $keyResult->kr_id,
                     'user_id' => $user->user_id,
                     'progress_percent' => $request->progress_percent,
+                    'current_value' => $keyResult->current_value,
+                    'status' => $keyResult->status,
                 ]);
             });
+
+            // Refresh KeyResult sau transaction để đảm bảo có dữ liệu mới nhất
+            $keyResult->refresh();
+            $keyResult->load('objective.cycle', 'cycle', 'assignedUser');
 
             // Gửi thông báo cho quản lý trong cùng phòng ban (sau khi check-in đã được lưu)
             // Gọi ngoài transaction để đảm bảo check-in vẫn được lưu dù thông báo có lỗi
@@ -165,7 +213,43 @@ class CheckInController extends Controller
             if ($request->expectsJson()) {
                 // After the transaction, the objective's progress is updated in the DB.
                 // We fetch the fresh objective and load its relationships to send back to the frontend.
-                $updatedObjective = $keyResult->objective->fresh()->load('keyResults.assignedUser', 'user');
+                // Đảm bảo load keyResults với dữ liệu mới nhất và không filter archived
+                $updatedObjective = $keyResult->objective->fresh()->load([
+                    'keyResults' => function($query) {
+                        $query->orderBy('kr_id');
+                        // Không filter archived để đảm bảo có đầy đủ dữ liệu
+                    },
+                    'keyResults.assignedUser',
+                    'user'
+                ]);
+                
+                // Đảm bảo KeyResult được refresh và có trong response
+                $updatedKr = $updatedObjective->keyResults->where('kr_id', $keyResult->kr_id)->first();
+                if (!$updatedKr) {
+                    // Nếu không tìm thấy, refresh lại KeyResult và thêm vào
+                    $keyResult->refresh();
+                    $keyResult->load('assignedUser');
+                    $updatedObjective->keyResults->push($keyResult);
+                }
+                
+                // Log để debug
+                Log::info('Returning updated objective after check-in', [
+                    'objective_id' => $updatedObjective->objective_id,
+                    'key_results_count' => $updatedObjective->keyResults->count(),
+                    'updated_kr' => $updatedKr ? [
+                        'kr_id' => $updatedKr->kr_id,
+                        'progress_percent' => $updatedKr->progress_percent,
+                        'current_value' => $updatedKr->current_value,
+                        'status' => $updatedKr->status,
+                        'assigned_to' => $updatedKr->assigned_to,
+                    ] : [
+                        'kr_id' => $keyResult->kr_id,
+                        'progress_percent' => $keyResult->progress_percent,
+                        'current_value' => $keyResult->current_value,
+                        'status' => $keyResult->status,
+                        'assigned_to' => $keyResult->assigned_to,
+                    ]
+                ]);
 
                 return response()->json([
                     'success' => true,
@@ -206,7 +290,11 @@ class CheckInController extends Controller
     {
         $user = Auth::user();
         $keyResult = KeyResult::with(['objective', 'checkIns.user'])
-            ->findOrFail($krId);
+            ->find($krId);
+        
+        if (!$keyResult) {
+            abort(404, 'Key Result không tồn tại.');
+        }
 
         // Load user relationship nếu chưa có
         if (!$user->relationLoaded('role')) {
@@ -232,7 +320,14 @@ class CheckInController extends Controller
     public function getHistory(Request $request, $objectiveId, $krId)
     {
         $user = Auth::user();
-        $keyResult = KeyResult::with(['objective'])->findOrFail($krId);
+        $keyResult = KeyResult::with(['objective'])->find($krId);
+        
+        if (!$keyResult) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Key Result không tồn tại.'
+            ], 404);
+        }
 
         // Load user relationship nếu chưa có
         if (!$user->relationLoaded('role')) {
@@ -384,13 +479,21 @@ class CheckInController extends Controller
         // 2. Người được giao Key Result có thể check-in
         // Sử dụng giá trị fresh từ database để đảm bảo chính xác
         $assignedTo = $freshAssignedTo ?? $keyResult->assigned_to;
-        if ($assignedTo !== null) {
+        if ($assignedTo !== null && $assignedTo !== '') {
+            // So sánh cả string và int để đảm bảo chính xác
+            $assignedToStr = (string)$assignedTo;
+            $userIdStr = (string)$user->user_id;
             $assignedToInt = (int)$assignedTo;
             $userIdInt = (int)$user->user_id;
-            if ($assignedToInt === $userIdInt) {
+            
+            if ($assignedToStr === $userIdStr || $assignedToInt === $userIdInt) {
                 Log::info('Check-in allowed: User is assigned to Key Result', [
-                    'assigned_to' => $assignedToInt,
-                    'user_id' => $userIdInt,
+                    'assigned_to' => $assignedTo,
+                    'assigned_to_str' => $assignedToStr,
+                    'assigned_to_int' => $assignedToInt,
+                    'user_id' => $user->user_id,
+                    'user_id_str' => $userIdStr,
+                    'user_id_int' => $userIdInt,
                 ]);
                 return true;
             }

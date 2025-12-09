@@ -94,6 +94,21 @@ export default function KRActionsMenu({
                         </button>
                     )}
                     <div className="my-1 h-px bg-slate-100"></div>
+                    {setEditingKR && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingKR(kr);
+                                setOpenObj((prev) => ({
+                                    ...prev,
+                                    [menuKey]: false,
+                                }));
+                            }}
+                            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                        >
+                            Chỉnh sửa
+                        </button>
+                    )}
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
