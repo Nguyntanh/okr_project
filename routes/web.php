@@ -19,14 +19,15 @@ use Illuminate\Support\Facades\File;
 use App\Http\Controllers\LinkController;
 
 
-Route::get('/', function () {
+// Landing Page
+Route::get('/home', function () {
     return view('app');
-});
+})->name('home');
 
-// Landing Page - hiển thị nút đăng nhập
-Route::get('/landingpage', function () {
-    return view('app');
-})->name('landingpage');
+// Redirect root to home
+Route::get('/', function () {
+    return redirect('/home');
+});
 
 Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () {
     // Route xác thực - Sử dụng giao diện riêng (không qua Cognito Hosted UI)
@@ -127,6 +128,7 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     Route::get('/api/reports/my-team', [App\Http\Controllers\ReportController::class, 'getMyTeamReport'])->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])->name('api.reports.my-team');
     Route::get('/api/reports/cycles', [App\Http\Controllers\ReportController::class, 'getCycles'])->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])->name('api.reports.cycles');
     Route::get('/api/reports/progress-trend', [App\Http\Controllers\ReportController::class, 'getTeamProgressTrend'])->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])->name('api.reports.progress-trend');
+    Route::post('/api/reports/remind', [App\Http\Controllers\ReportController::class, 'remindMember'])->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])->name('api.reports.remind');
 
     // Routes cho Report Manager (Báo cáo quản lý phòng ban)
     Route::get('/reports/manager', function() { return view('app'); })

@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { Select } from "../components/ui";
+import ToastNotification from "../components/ToastNotification";
+import ConfirmationModal from "../components/ConfirmationModal";
 import { FiDownload, FiFilter, FiAlertCircle, FiCheckCircle, FiClock, FiTrendingUp, FiTrendingDown, FiMinus, FiUsers, FiMoreHorizontal } from "react-icons/fi";
+import { HiChartPie, HiExclamationTriangle, HiUserGroup, HiDocumentCheck } from "react-icons/hi2";
 
 export default function ReportPage() {
     const [loading, setLoading] = useState(true);
@@ -14,27 +17,96 @@ export default function ReportPage() {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [reportName, setReportName] = useState("");
 
-    // --- DATA FETCHING ---
-    useEffect(() => {
-        (async () => {
-            try {
-                const res = await fetch("/api/reports/cycles", { headers: { Accept: "application/json" } });
-                const data = await res.json();
-                if (data.success && data.data.length > 0) {
-                    setCycles(data.data);
-                    const defaultCycleId = data.meta?.default_cycle_id ?? data.data[0].cycle_id;
-                    setSelectedCycle(String(defaultCycleId));
-                }
-            } catch (e) {
-                console.error("Error loading cycles:", e);
+    // --- MEMBER LIST LOGIC ---
+    // Simplified for small teams (removed complex filtering)
+    const memberList = useMemo(() => {
+        if (!reportData?.members) return [];
+        return reportData.members.map(member => {
+            // Logic mapping status (fallback logic if API status is inconsistent)
+            let status = member.status || 'pending';
+            if (!member.status) {
+                 if (member.average_completion >= 70) status = 'on_track';
+                 else if (member.average_completion >= 40) status = 'at_risk';
+                 else status = 'behind';
             }
-        })();
-    }, []);
+            return { ...member, status };
+        });
+    }, [reportData]);
 
-    useEffect(() => {
-        if (selectedCycle) loadReportData(selectedCycle);
-    }, [selectedCycle]);
+    // --- UI/UX ENHANCEMENTS ---
+    const [toast, setToast] = useState({ message: null, type: null });
+    const [confirmModal, setConfirmModal] = useState({
+        show: false,
+        title: "",
+        message: "",
+        onConfirm: () => {},
+        confirmText: "Xác nhận",
+        cancelText: "Hủy"
+    });
+    const [remindingMap, setRemindingMap] = useState({}); // Track loading state per member ID
 
+    // --- DERIVED METRICS ---
+    
+    // 1. Define activeOkrs FIRST to avoid ReferenceError
+    const activeOkrs = useMemo(() => {
+        if (!reportData?.team_okrs) return [];
+        return reportData.team_okrs.filter(okr => okr.status !== 'archived');
+    }, [reportData]);
+
+    // 2. Define metrics using activeOkrs
+    const metrics = useMemo(() => {
+        const data = reportData || {};
+        
+        // Tính toán trạng thái dựa trên status từ API (Time-based)
+        let onTrack = 0, atRisk = 0, behind = 0;
+        let totalProgressSum = 0;
+        
+        activeOkrs.forEach(okr => {
+            // Cộng tổng tiến độ để tính lại trung bình
+            totalProgressSum += (Number(okr.progress) || 0);
+
+            const s = okr.status; // Status từ API: completed, on_track, at_risk, behind, pending
+            if (s === 'completed' || s === 'on_track') {
+                onTrack++;
+            } else if (s === 'at_risk') {
+                atRisk++;
+            } else if (s === 'behind') {
+                behind++;
+            }
+        });
+        
+        const total = activeOkrs.length || 1;
+        // Tự tính lại tiến độ trung bình dựa trên danh sách Active
+        const calculatedAvg = activeOkrs.length > 0 ? (totalProgressSum / activeOkrs.length) : 0;
+        
+        // Tính toán chi tiết cho từng cấp độ (Dept vs Team)
+        const deptOkrs = activeOkrs.filter(o => o.level !== 'team');
+        const subTeamOkrs = activeOkrs.filter(o => o.level === 'team');
+        
+        const calcAvg = (list) => list.length ? (list.reduce((sum, item) => sum + (Number(item.progress) || 0), 0) / list.length) : 0;
+
+        // Lấy danh sách Thành viên CHẬM TRỄ (behind) - Không giới hạn số lượng
+        const riskMembers = (data.members || [])
+            .filter(m => m.status === 'behind')
+            .sort((a, b) => (a.average_completion || 0) - (b.average_completion || 0));
+
+        return {
+            avgProgress: calculatedAvg,
+            expectedProgress: data.expected_progress || 0,
+            totalOkrs: activeOkrs.length,
+            memberCount: data.members?.length || 0,
+            onTrackPct: (onTrack / total) * 100,
+            atRiskPct: (atRisk / total) * 100,
+            behindPct: (behind / total) * 100,
+            atRiskCount: atRisk + behind,
+            riskMembers: riskMembers,
+            deptStats: { count: deptOkrs.length, avg: calcAvg(deptOkrs) },
+            teamStats: { count: subTeamOkrs.length, avg: calcAvg(subTeamOkrs) }
+        };
+    }, [reportData, activeOkrs]);
+
+    // --- DATA FETCHING ---
+    
     const loadReportData = async (cycleId) => {
         setLoading(true);
         setError(null);
@@ -55,58 +127,55 @@ export default function ReportPage() {
         }
     };
 
-    // --- DERIVED METRICS ---
-    const metrics = useMemo(() => {
-        const data = reportData || {};
-        const teamOkrs = data.team_okrs || [];
-        
-        // Tính toán trạng thái dựa trên status từ API (Time-based)
-        let onTrack = 0, atRisk = 0, behind = 0;
-        
-        teamOkrs.forEach(okr => {
-            const s = okr.status; // Status từ API: completed, on_track, at_risk, behind, pending
-            if (s === 'completed' || s === 'on_track') {
-                onTrack++;
-            } else if (s === 'at_risk') {
-                atRisk++;
-            } else if (s === 'behind') {
-                behind++;
+    useEffect(() => {
+        (async () => {
+            try {
+                const res = await fetch("/api/reports/cycles", { headers: { Accept: "application/json" } });
+                const data = await res.json();
+                if (data.success && data.data.length > 0) {
+                    setCycles(data.data);
+                    const defaultCycleId = data.meta?.default_cycle_id ?? data.data[0].cycle_id;
+                    setSelectedCycle(String(defaultCycleId));
+                }
+            } catch (e) {
+                console.error("Error loading cycles:", e);
             }
-            // pending có thể không tính hoặc tính vào onTrack tuỳ logic, ở đây tạm bỏ qua hoặc coi như onTrack nếu muốn
-        });
-        
-        const total = teamOkrs.length || 1; 
-        
-        return {
-            avgProgress: data.team_average_completion || 0,
-            totalOkrs: data.team_okrs?.length || 0,
-            memberCount: data.members?.length || 0,
-            onTrackPct: (onTrack / total) * 100,
-            atRiskPct: (atRisk / total) * 100,
-            behindPct: (behind / total) * 100,
-            atRiskCount: atRisk + behind // Tổng số cần chú ý
-        };
-    }, [reportData]);
+        })();
+    }, []);
+
+    useEffect(() => {
+        if (selectedCycle) loadReportData(selectedCycle);
+    }, [selectedCycle]);
 
     // --- SUB-COMPONENTS ---
 
-    const StatCard = ({ title, value, subtitle, icon: Icon, colorClass, trend }) => (
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
-            <div className="flex justify-between items-start mb-4">
-                <div className={`p-3 rounded-lg ${colorClass} bg-opacity-10`}>
-                    <Icon className={`w-6 h-6 ${colorClass.replace('bg-', 'text-')}`} />
+    const StatCard = ({ title, value, subtitle, icon: Icon, color, trend }) => {
+        const colorStyles = {
+            indigo: "bg-indigo-100 text-indigo-600",
+            rose: "bg-rose-100 text-rose-600",
+            blue: "bg-blue-100 text-blue-600",
+            emerald: "bg-emerald-100 text-emerald-600",
+        };
+        const style = colorStyles[color] || "bg-slate-100 text-slate-600";
+
+        return (
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-all duration-300 group">
+                <div className="flex justify-between items-start mb-4">
+                    <div className={`p-3.5 rounded-xl ${style} group-hover:scale-110 transition-transform duration-300`}>
+                        <Icon className="w-6 h-6" />
+                    </div>
+                    {trend && (
+                        <span className={`text-xs font-medium px-2 py-1 rounded-full ${trend > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                            {trend > 0 ? '+' : ''}{trend}%
+                        </span>
+                    )}
                 </div>
-                {trend && (
-                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${trend > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                        {trend > 0 ? '+' : ''}{trend}%
-                    </span>
-                )}
+                <h3 className="text-3xl font-bold text-slate-800 mb-1">{value}</h3>
+                <p className="text-sm font-medium text-slate-500">{title}</p>
+                {subtitle && <p className="text-xs text-slate-400 mt-2">{subtitle}</p>}
             </div>
-            <h3 className="text-3xl font-bold text-slate-800 mb-1">{value}</h3>
-            <p className="text-sm font-medium text-slate-500">{title}</p>
-            {subtitle && <p className="text-xs text-slate-400 mt-2">{subtitle}</p>}
-        </div>
-    );
+        );
+    };
 
     const ProgressBar = ({ value, color = "bg-indigo-600" }) => (
         <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
@@ -162,6 +231,46 @@ export default function ReportPage() {
         return null; // Ẩn nếu ổn định để giao diện sạch hơn
     };
 
+    const executeRemind = async (memberId) => {
+        setRemindingMap(prev => ({ ...prev, [memberId]: true }));
+        try {
+            const res = await fetch("/api/reports/remind", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ""
+                },
+                body: JSON.stringify({ 
+                    member_id: memberId,
+                    cycle_id: selectedCycle 
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setToast({ message: data.message, type: "success" });
+            } else {
+                setToast({ message: data.message || "Có lỗi xảy ra", type: "error" });
+            }
+        } catch (e) {
+            console.error(e);
+            setToast({ message: "Lỗi kết nối server", type: "error" });
+        } finally {
+            setRemindingMap(prev => ({ ...prev, [memberId]: false }));
+        }
+    };
+
+    const handleRemindClick = (memberId, memberName) => {
+        setConfirmModal({
+            show: true,
+            title: "Xác nhận nhắc nhở",
+            message: `Bạn có chắc chắn muốn gửi thông báo nhắc nhở check-in đến ${memberName}?`,
+            confirmText: "Gửi ngay",
+            cancelText: "Hủy bỏ",
+            onConfirm: () => executeRemind(memberId)
+        });
+    };
+
     return (
         <div className="min-h-screen bg-slate-50 p-6 font-sans">
             <div className="max-w-7xl mx-auto space-y-8">
@@ -207,194 +316,302 @@ export default function ReportPage() {
                                 title="Tiến độ trung bình" 
                                 value={`${metrics.avgProgress.toFixed(1)}%`}
                                 subtitle="So với kế hoạch toàn chu kỳ"
-                                icon={FiTrendingUp}
-                                colorClass="bg-indigo-500 text-indigo-600"
+                                icon={HiChartPie}
+                                color="indigo"
                             />
                             <StatCard 
                                 title="OKRs Rủi ro" 
                                 value={metrics.atRiskCount}
                                 subtitle="Cần sự chú ý ngay lập tức"
-                                icon={FiAlertCircle}
-                                colorClass="bg-rose-500 text-rose-600"
+                                icon={HiExclamationTriangle}
+                                color="rose"
                             />
                             <StatCard 
                                 title="Thành viên" 
                                 value={metrics.memberCount}
                                 subtitle="Đang hoạt động trong chu kỳ này"
-                                icon={FiUsers}
-                                colorClass="bg-blue-500 text-blue-600"
+                                icon={HiUserGroup}
+                                color="blue"
                             />
                              <StatCard 
                                 title="Tổng số OKR" 
                                 value={metrics.totalOkrs}
                                 subtitle="Mục tiêu cấp nhóm"
-                                icon={FiCheckCircle}
-                                colorClass="bg-emerald-500 text-emerald-600"
+                                icon={HiDocumentCheck}
+                                color="emerald"
                             />
                         </div>
 
                         {/* 3. MAIN DASHBOARD AREA */}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                             
-                            {/* LEFT: Status Distribution & Risks */}
+                            {/* LEFT: Health & Insights (Replaced Donut Chart) */}
                             <div className="lg:col-span-1 space-y-6">
-                                <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100 h-full">
-                                    <h3 className="text-lg font-bold text-slate-800 mb-6">Phân bổ trạng thái</h3>
+                                <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 h-full flex flex-col">
+                                    <h3 className="text-lg font-bold text-slate-800 mb-6">Sức khỏe & Phân bổ</h3>
                                     
-                                    {/* Custom Donut Chart Representation */}
-                                    <div className="relative w-48 h-48 mx-auto mb-8">
-                                        <div className="w-full h-full rounded-full border-[16px] border-slate-100 relative"
-                                             style={{
-                                                 background: `conic-gradient(
-                                                     #10b981 0% ${metrics.onTrackPct}%, 
-                                                     #f59e0b ${metrics.onTrackPct}% ${metrics.onTrackPct + metrics.atRiskPct}%, 
-                                                     #f43f5e ${metrics.onTrackPct + metrics.atRiskPct}% 100%
-                                                 )`
-                                             }}
-                                        >
-                                             {/* Inner White Circle to make it a Donut */}
-                                            <div className="absolute inset-0 m-4 bg-white rounded-full flex flex-col items-center justify-center">
-                                                <span className="text-3xl font-bold text-slate-800">{metrics.totalOkrs}</span>
-                                                <span className="text-xs text-slate-400 uppercase font-bold">OKRs</span>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <div className="flex-1 space-y-8">
+                                        {/* 1. Time & Pace Analysis */}
+                                        <div>
+                                            {(() => {
+                                                const delta = metrics.avgProgress - metrics.expectedProgress;
+                                                const isBehind = delta < 0;
+                                                const absDelta = Math.abs(delta).toFixed(1);
+                                                
+                                                // Màu sắc cho con số chênh lệch
+                                                let gapColor = isBehind ? 'text-rose-600' : 'text-emerald-600';
+                                                let gapBg = isBehind ? 'bg-rose-50' : 'bg-emerald-50';
+                                                let gapIcon = isBehind ? <FiAlertCircle className="w-5 h-5 text-rose-500" /> : <FiTrendingUp className="w-5 h-5 text-emerald-500" />;
+                                                let gapText = isBehind ? 'Chậm hơn kế hoạch' : 'Vượt kế hoạch';
 
-                                    <div className="space-y-3">
-                                        <div className="flex justify-between items-center text-sm">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                                                <span className="text-slate-600">Đúng tiến độ</span>
-                                            </div>
-                                            <span className="font-semibold text-slate-900">{Math.round(metrics.onTrackPct)}%</span>
+                                                return (
+                                                    <>
+                                                        <div className="flex items-center justify-between mb-6">
+                                                            <div>
+                                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Đánh giá tiến độ</p>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className={`text-3xl font-bold ${gapColor}`}>
+                                                                        {delta > 0 ? '+' : ''}{Math.abs(delta).toFixed(1)}%
+                                                                    </span>
+                                                                    <div className={`p-1.5 rounded-full ${gapBg}`}>
+                                                                        {gapIcon}
+                                                                    </div>
+                                                                </div>
+                                                                <p className="text-xs font-medium text-slate-500 mt-1">{gapText}</p>
+                                                            </div>
+                                                            
+                                                            {/* Mini circular indicator for visual balance */}
+                                                            <div className="relative w-16 h-16">
+                                                                <svg className="w-full h-full transform -rotate-90">
+                                                                    <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-slate-100" />
+                                                                    <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="4" fill="transparent" 
+                                                                        strokeDasharray={175.9} 
+                                                                        strokeDashoffset={175.9 - (175.9 * metrics.expectedProgress) / 100} 
+                                                                        className="text-blue-500 transition-all duration-1000 ease-out" 
+                                                                    />
+                                                                </svg>
+                                                                <div className="absolute inset-0 flex items-center justify-center flex-col">
+                                                                    <span className="text-[10px] font-bold text-slate-400">TIME</span>
+                                                                    <span className="text-xs font-bold text-blue-600">{Math.round(metrics.expectedProgress)}%</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Time Bar Context */}
+                                                        <div>
+                                                            <div className="flex justify-between items-center mb-2">
+                                                                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Thời gian trôi qua</span>
+                                                            </div>
+                                                            <div className="h-2 bg-blue-50 rounded-full overflow-hidden relative">
+                                                                {/* Thanh thời gian */}
+                                                                <div 
+                                                                    className="absolute top-0 left-0 h-full bg-blue-500 rounded-full opacity-30"
+                                                                    style={{ width: `${Math.min(metrics.expectedProgress, 100)}%` }}
+                                                                />
+                                                                {/* Mốc tiến độ thực tế (Marker) */}
+                                                                <div 
+                                                                    className={`absolute top-0 h-full w-1 ${isBehind ? 'bg-rose-500' : 'bg-emerald-500'} z-10`}
+                                                                    style={{ left: `${Math.min(metrics.avgProgress, 100)}%` }}
+                                                                />
+                                                            </div>
+                                                            <div className="flex justify-between text-[10px] text-slate-400 mt-1">
+                                                                <span>Bắt đầu</span>
+                                                                <span className="flex items-center gap-1">
+                                                                    <span className={`w-2 h-2 rounded-full ${isBehind ? 'bg-rose-500' : 'bg-emerald-500'}`}></span>
+                                                                    Thực tế: {metrics.avgProgress.toFixed(0)}%
+                                                                </span>
+                                                                <span>Kết thúc</span>
+                                                            </div>
+                                                        </div>
+                                                    </>
+                                                );
+                                            })()}
                                         </div>
-                                        <div className="flex justify-between items-center text-sm">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-                                                <span className="text-slate-600">Rủi ro</span>
+
+                                        <hr className="border-slate-50" />
+
+                                        {/* 2. Top Risk Members */}
+                                        <div>
+                                            <h4 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                                <HiExclamationTriangle className="text-amber-500 w-4 h-4" />
+                                                Cần hỗ trợ
+                                            </h4>
+                                            <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-200">
+                                                {metrics.riskMembers.length > 0 ? metrics.riskMembers.map((member) => (
+                                                    <div key={member.user_id} className="flex items-center gap-3">
+                                                        <img 
+                                                            src={member.avatar || `https://ui-avatars.com/api/?name=${member.full_name}&background=random`} 
+                                                            alt={member.full_name}
+                                                            className="w-8 h-8 rounded-full object-cover border border-slate-100"
+                                                        />
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex justify-between text-xs mb-1">
+                                                                <span className="font-medium text-slate-700 truncate" title={member.full_name}>
+                                                                    {member.full_name}
+                                                                </span>
+                                                                <span className="font-bold text-rose-600">{member.average_completion?.toFixed(0)}%</span>
+                                                            </div>
+                                                            <div className="h-1.5 bg-rose-50 rounded-full overflow-hidden">
+                                                                <div 
+                                                                    className="h-full bg-rose-500 rounded-full"
+                                                                    style={{ width: `${member.average_completion}%` }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )) : (
+                                                    <div className="text-xs text-slate-400 italic text-center py-2 bg-slate-50 rounded-lg">
+                                                        Tất cả thành viên đều ổn định!
+                                                    </div>
+                                                )}
                                             </div>
-                                            <span className="font-semibold text-slate-900">{Math.round(metrics.atRiskPct)}%</span>
-                                        </div>
-                                        <div className="flex justify-between items-center text-sm">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-3 h-3 rounded-full bg-rose-500"></div>
-                                                <span className="text-slate-600">Chậm trễ</span>
-                                            </div>
-                                            <span className="font-semibold text-slate-900">{Math.round(metrics.behindPct)}%</span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* RIGHT: Team Members Leaderboard */}
+                            {/* RIGHT: Detailed OKR List (Moved Up) */}
                             <div className="lg:col-span-2">
-                                <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-                                    <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                                        <h3 className="text-lg font-bold text-slate-800">Hiệu suất thành viên</h3>
-                                        <div className="flex gap-2">
-                                            <button className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors">
-                                                <FiFilter className="w-4 h-4" />
-                                            </button>
+                                {activeOkrs && activeOkrs.length > 0 ? (
+                                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden h-full flex flex-col">
+                                        <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
+                                            <div className="flex items-center gap-2">
+                                                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                                                    <HiDocumentCheck className="w-5 h-5" />
+                                                </div>
+                                                <h3 className="text-lg font-bold text-slate-800">Chi tiết OKRs phòng ban</h3>
+                                            </div>
+                                            <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-medium">
+                                                {activeOkrs.length} Mục tiêu
+                                            </span>
+                                        </div>
+                                        <div className="divide-y divide-slate-50 overflow-y-auto max-h-[500px] scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+                                            {activeOkrs.map((okr, index) => (
+                                                <div key={okr.objective_id || index} className="p-6 hover:bg-slate-50 transition-colors group">
+                                                    <div className="flex flex-col gap-4">
+                                                        {/* Top Row: Title & Meta */}
+                                                        <div className="flex justify-between items-start gap-4">
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <span className="text-xs text-slate-400 font-medium flex items-center gap-1">
+                                                                        <HiDocumentCheck className="w-3 h-3" />
+                                                                        {okr.completed_kr_count}/{okr.key_results_count} Kết quả then chốt đã hoàn thành
+                                                                    </span>
+                                                                </div>
+                                                                <h4 className="text-sm font-bold text-slate-900 line-clamp-2 group-hover:text-indigo-600 transition-colors" title={okr.obj_title}>
+                                                                    {okr.obj_title}
+                                                                </h4>
+                                                            </div>
+                                                            <StatusBadge progress={okr.progress} status={okr.status} />
+                                                        </div>
+
+                                                        {/* Bottom Row: Progress */}
+                                                        <div className="space-y-1.5">
+                                                            <div className="flex justify-between text-xs text-slate-500">
+                                                                <span>Tiến độ</span>
+                                                                <span className="font-bold text-slate-900">{okr.progress}%</span>
+                                                            </div>
+                                                            <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                                <div 
+                                                                    className={`h-full rounded-full transition-all duration-500 ${
+                                                                        okr.progress >= 70 ? 'bg-emerald-500' : 
+                                                                        okr.progress >= 40 ? 'bg-amber-500' : 'bg-rose-500'
+                                                                    }`} 
+                                                                    style={{ width: `${okr.progress}%` }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
-                                    
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full">
-                                            <thead className="bg-slate-50 text-xs uppercase font-semibold text-slate-500">
-                                                <tr>
-                                                    <th className="px-6 py-4 text-left">Thành viên</th>
-                                                    <th className="px-6 py-4 text-center">OKRs</th>
-                                                    <th className="px-6 py-4 text-left w-1/3">Tiến độ</th>
-                                                    <th className="px-6 py-4 text-left">Check-in cuối</th>
-                                                    <th className="px-6 py-4 text-right">Hành động</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100">
-                                                {reportData?.members?.map((member) => (
-                                                    <tr key={member.user_id} className="hover:bg-slate-50/50 transition-colors group">
-                                                        <td className="px-6 py-4">
-                                                            <div className="flex items-center gap-3">
-                                                                <img 
-                                                                    src={member.avatar || `https://ui-avatars.com/api/?name=${member.full_name}&background=random`} 
-                                                                    alt={member.full_name}
-                                                                    className="w-10 h-10 rounded-full object-cover border border-slate-200"
-                                                                />
-                                                                <div>
-                                                                    <div className="font-medium text-slate-900">{member.full_name}</div>
-                                                                    <div className="text-xs text-slate-500">{member.role || "Member"}</div>
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-6 py-4 text-center">
-                                                            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold text-xs">
-                                                                {member.total_kr_contributed || 0}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-6 py-4">
-                                                            <div className="flex items-center justify-between mb-1">
-                                                                <span className="text-sm font-medium text-slate-700">{member.average_completion?.toFixed(0)}%</span>
-                                                                <StatusBadge progress={member.average_completion} status={member.status} />
-                                                            </div>
-                                                            <ProgressBar 
-                                                                value={member.average_completion} 
-                                                                color={member.average_completion < 40 ? 'bg-rose-500' : (member.average_completion < 70 ? 'bg-amber-500' : 'bg-emerald-500')} 
-                                                            />
-                                                        </td>
-                                                        <td className="px-6 py-4">
-                                                            <div className="flex items-center gap-2 text-sm text-slate-500">
-                                                                <FiClock className="w-4 h-4 text-slate-400" />
-                                                                <span>{member.last_checkin || "Chưa check-in"}</span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-6 py-4 text-right">
-                                                            <button className="text-indigo-600 hover:text-indigo-800 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                Nhắc nhở
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                                {(!reportData?.members || reportData.members.length === 0) && (
-                                                    <tr>
-                                                        <td colSpan="5" className="px-6 py-8 text-center text-slate-500">
-                                                            Chưa có dữ liệu thành viên trong chu kỳ này
-                                                        </td>
-                                                    </tr>
-                                                )}
-                                            </tbody>
-                                        </table>
+                                ) : (
+                                    <div className="h-full flex items-center justify-center bg-white rounded-2xl border border-slate-100 text-slate-400 p-8">
+                                        Chưa có dữ liệu OKR
                                     </div>
-                                </div>
+                                )}
                             </div>
                         </div>
 
-                        {/* 4. DETAILED OKR LIST */}
-                        {reportData?.team_okrs && reportData.team_okrs.length > 0 && (
-                            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
-                                <div className="flex justify-between items-center mb-4">
-                                    <h3 className="text-lg font-bold text-slate-800">Chi tiết OKRs Nhóm</h3>
-                                    <span className="text-sm text-slate-500">Hiển thị OKR cấp Team & Department</span>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {reportData.team_okrs.map(okr => (
-                                        <div key={okr.objective_id} className="p-4 rounded-lg border border-slate-100 bg-slate-50/50 hover:bg-white hover:shadow-md transition-all">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <h4 className="font-semibold text-slate-900 line-clamp-1" title={okr.obj_title}>{okr.obj_title}</h4>
-                                                <StatusBadge progress={okr.progress} status={okr.status} />
-                                            </div>
-                                            <ProgressBar value={okr.progress} color="bg-slate-800" />
-                                            <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-                                                <span>{okr.completed_kr_count}/{okr.key_results_count} KRs hoàn thành</span>
-                                                <div className="flex gap-2">
-                                                    <span className="px-2 py-1 rounded bg-white border border-slate-200 uppercase text-[10px] font-bold tracking-wider">
-                                                        {okr.level === 'team' ? 'Team' : 'Dept'}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
+                        {/* 4. TEAM MEMBERS LEADERBOARD (Moved Down - Full Width) */}
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-visible">
+                            <div className="p-6 border-b border-slate-100 flex justify-between items-center relative z-10">
+                                <div className="flex items-center gap-2">
+                                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                                        <HiUserGroup className="w-5 h-5" />
+                                    </div>
+                                    <h3 className="text-lg font-bold text-slate-800">Hiệu suất thành viên</h3>
                                 </div>
                             </div>
-                        )}
+                            
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead className="bg-slate-50 text-xs uppercase font-semibold text-slate-500 sticky top-0">
+                                        <tr>
+                                            <th className="px-6 py-4 text-left">Thành viên</th>
+                                            <th className="px-6 py-4 text-center">OKRs</th>
+                                            <th className="px-6 py-4 text-left w-1/3">Tiến độ</th>
+                                            <th className="px-6 py-4 text-left">Check-in cuối</th>
+                                            <th className="px-6 py-4 text-right">Hành động</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {memberList.map((member) => (
+                                            <tr key={member.user_id} className="hover:bg-slate-50/50 transition-colors group">
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <img 
+                                                            src={member.avatar || `https://ui-avatars.com/api/?name=${member.full_name}&background=random`} 
+                                                            alt={member.full_name}
+                                                            className="w-10 h-10 rounded-full object-cover border border-slate-200 shadow-sm"
+                                                        />
+                                                        <div>
+                                                            <div className="font-bold text-slate-900">{member.full_name}</div>
+                                                            <div className="text-xs text-slate-500">{member.role || "Member"}</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold text-xs">
+                                                        {member.total_kr_contributed || 0}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <span className="text-sm font-bold text-slate-700">{member.average_completion?.toFixed(0)}%</span>
+                                                        <StatusBadge progress={member.average_completion} status={member.status} />
+                                                    </div>
+                                                    <ProgressBar 
+                                                        value={member.average_completion} 
+                                                        color={member.average_completion < 40 ? 'bg-rose-500' : (member.average_completion < 70 ? 'bg-amber-500' : 'bg-emerald-500')} 
+                                                    />
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                                                        <FiClock className="w-4 h-4 text-slate-400" />
+                                                        <span>{member.last_checkin || "Chưa check-in"}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <button 
+                                                        onClick={() => handleRemindClick(member.user_id, member.full_name)}
+                                                        disabled={remindingMap[member.user_id]}
+                                                        className={`text-sm font-medium transition-all ${
+                                                            remindingMap[member.user_id] 
+                                                            ? "text-slate-400 cursor-wait"
+                                                            : "text-indigo-600 hover:text-indigo-800 opacity-0 group-hover:opacity-100"
+                                                        }`}
+                                                    >
+                                                        {remindingMap[member.user_id] ? "Đang gửi..." : "Nhắc nhở"}
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </>
                 )}
 
@@ -438,6 +655,16 @@ export default function ReportPage() {
                         </div>
                     </div>
                 )}
+
+                <ToastNotification 
+                    toast={toast}
+                    onClose={() => setToast({ message: null, type: null })}
+                />
+
+                <ConfirmationModal 
+                    confirmModal={confirmModal}
+                    closeConfirm={() => setConfirmModal(prev => ({ ...prev, show: false }))}
+                />
             </div>
         </div>
     );
