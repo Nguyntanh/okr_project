@@ -713,10 +713,27 @@ const KeyResultDetailPage = () => {
         { name: 'Lịch sử & Tương tác', content: <KrHistoryAndInteractionSection keyResult={keyResult} onCommentPosted={handleCommentPosted} /> },
     ];
 
+    // Xác định trang quay lại dựa trên URL hiện tại
+    const getBackUrl = () => {
+        const isMyKeyResult = window.location.pathname.includes('/my-objectives/key-result-details/');
+        return isMyKeyResult ? '/my-objectives' : '/company-okrs';
+    };
+
     return (
         <div className="bg-gray-50 min-h-screen">
             <div className="container mx-auto p-4 sm:p-6 lg:p-8">
                 <div className="mb-6">
+                    <div className="flex items-center gap-4 mb-4">
+                        <a 
+                            href={getBackUrl()}
+                            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                            </svg>
+                            <span className="font-medium">Quay lại</span>
+                        </a>
+                    </div>
                     <p className="text-sm text-gray-500">Key Result Detail</p>
                     <h1 className="text-2xl font-bold text-gray-800">{keyResult.kr_title}</h1>
                 </div>

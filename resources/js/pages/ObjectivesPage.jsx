@@ -63,23 +63,46 @@ export default function ObjectivesPage() {
     const [myOKRFilter, setMyOKRFilter] = useState(false);
     const [viewMode, setViewMode] = useState('levels'); // 'levels' or 'personal'
 
-    // Set default view mode for members
-    useEffect(() => {
-        if (currentUser?.role?.role_name?.toLowerCase() === 'member') {
-            setViewMode('personal');
-        }
-    }, [currentUser?.user_id]);
+    // Hàm cập nhật URL query parameters
+    const updateURL = useCallback((cycleId, viewModeValue) => {
+        const params = new URLSearchParams();
+        if (cycleId) params.set('cycle_id', cycleId);
+        if (viewModeValue) params.set('view_mode', viewModeValue);
+        const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
+        window.history.pushState({}, '', newUrl);
+    }, []);
+
+    // Wrapper functions để cập nhật URL khi filter thay đổi
+    const handleCycleFilterChange = useCallback((cycleId) => {
+        setCycleFilter(cycleId);
+        updateURL(cycleId, viewMode);
+    }, [viewMode, updateURL]);
+
+    const handleViewModeChange = useCallback((mode) => {
+        setViewMode(mode);
+        updateURL(cycleFilter, mode);
+    }, [cycleFilter, updateURL]);
 
     // Effect to select the default cycle on initial load
     useEffect(() => {
         const selectDefaultCycle = async () => {
             try {
-                const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
-                const res = await fetch("/cycles", {
-                    headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
-                });
-                const json = await res.json();
+                // Đọc query parameters từ URL
+                const params = new URLSearchParams(window.location.search);
+                const urlCycleId = params.get('cycle_id');
+                const urlViewMode = params.get('view_mode');
 
+                const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
+                const [cyclesRes, userRes] = await Promise.all([
+                    fetch("/cycles", {
+                        headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
+                    }),
+                    fetch("/api/profile", {
+                        headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
+                    }),
+                ]);
+
+                const json = await cyclesRes.json();
                 if (!Array.isArray(json.data) || json.data.length === 0) {
                     setToast({ type: "error", message: "Không có dữ liệu chu kỳ" });
                     return;
@@ -88,34 +111,68 @@ export default function ObjectivesPage() {
                 const cycles = json.data;
                 setCyclesList(cycles);
 
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-
-                let selectedCycle = cycles.find(c => {
-                    const start = c.start_date ? new Date(c.start_date) : null;
-                    const end = c.end_date ? new Date(c.end_date) : null;
-                    if (start && end) {
-                        start.setHours(0, 0, 0, 0);
-                        end.setHours(23, 59, 59, 999);
-                        return today >= start && today <= end;
+                // Lấy thông tin user để xác định view_mode mặc định
+                let userRole = null;
+                if (userRes.ok) {
+                    const userData = await userRes.json();
+                    if (userData.success) {
+                        setCurrentUser(userData.user);
+                        userRole = userData.user?.role?.role_name?.toLowerCase();
                     }
-                    return false;
-                });
+                }
 
+                let selectedCycle = null;
+
+                // Ưu tiên cycle từ URL
+                if (urlCycleId) {
+                    selectedCycle = cycles.find(c => c.cycle_id == urlCycleId);
+                }
+
+                // Nếu không có từ URL, tìm cycle hiện tại
                 if (!selectedCycle) {
-                    selectedCycle = cycles.reduce((best, c) => {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+
+                    selectedCycle = cycles.find(c => {
                         const start = c.start_date ? new Date(c.start_date) : null;
                         const end = c.end_date ? new Date(c.end_date) : null;
-                        let refDate = start || end || new Date(c.created_at);
-                        const diff = Math.abs(refDate - today);
-                        return !best || diff < best.diff ? { ...c, diff } : best;
-                    }, null);
+                        if (start && end) {
+                            start.setHours(0, 0, 0, 0);
+                            end.setHours(23, 59, 59, 999);
+                            return today >= start && today <= end;
+                        }
+                        return false;
+                    });
+
+                    if (!selectedCycle) {
+                        selectedCycle = cycles.reduce((best, c) => {
+                            const start = c.start_date ? new Date(c.start_date) : null;
+                            const end = c.end_date ? new Date(c.end_date) : null;
+                            let refDate = start || end || new Date(c.created_at);
+                            const diff = Math.abs(refDate - today);
+                            return !best || diff < best.diff ? { ...c, diff } : best;
+                        }, null);
+                    }
                 }
+
+                // Xác định viewMode: ưu tiên URL, sau đó mặc định theo role
+                let finalViewMode;
+                if (urlViewMode) {
+                    // Có trong URL thì dùng giá trị từ URL
+                    finalViewMode = urlViewMode;
+                } else {
+                    // Không có trong URL thì dùng mặc định theo role
+                    finalViewMode = userRole === 'member' ? 'personal' : 'levels';
+                }
+                
+                setViewMode(finalViewMode);
                 
                 if(selectedCycle) {
                     setCycleFilter(selectedCycle.cycle_id);
+                    updateURL(selectedCycle.cycle_id, finalViewMode);
                 } else if (cycles.length > 0) {
                     setCycleFilter(cycles[0].cycle_id);
+                    updateURL(cycles[0].cycle_id, finalViewMode);
                 }
 
             } catch (err) {
@@ -124,7 +181,7 @@ export default function ObjectivesPage() {
             }
         };
         selectDefaultCycle();
-    }, []);
+    }, [updateURL]);
 
 
     const load = async (pageNum = 1, cycle, myOKR = false, view = 'levels') => {
@@ -719,11 +776,11 @@ export default function ObjectivesPage() {
                 currentUser={currentUser}
                 userDepartmentName={userDepartmentName}
                 cycleFilter={cycleFilter}
-                setCycleFilter={setCycleFilter}
+                setCycleFilter={handleCycleFilterChange}
                 myOKRFilter={myOKRFilter}
                 setMyOKRFilter={setMyOKRFilter}
                 viewMode={viewMode}
-                setViewMode={setViewMode}
+                setViewMode={handleViewModeChange}
                 onOpenLinkModal={handleOpenLinkModal}
                 onCancelLink={handleCancelLink}
                 reloadData={load}

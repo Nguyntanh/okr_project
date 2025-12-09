@@ -95,12 +95,12 @@ const OverviewSection = ({ objective }) => (
 const KeyResultsSection = ({ keyResults, objective }) => (
     <div className="space-y-4">
         {keyResults?.length > 0 ? keyResults.map(kr => (
-            <div key={kr.kr_id} className="p-4 border rounded-lg hover:shadow-md transition-shadow duration-200">
+            <div key={kr.kr_id} className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow duration-200">
                 <div className="flex justify-between items-center mb-2">
                     <a href={objective?.level === "person" 
                         ? `/my-objectives/key-result-details/${kr.kr_id}`
                         : `/company-okrs/detail/kr/${kr.kr_id}`} 
-                        className="font-semibold text-blue-700 hover:underline">{kr.kr_title}</a>
+                        className="font-semibold text-gray-900 hover:text-blue-600 transition-colors">{kr.kr_title}</a>
                     <span className="text-base font-bold text-gray-800">{kr.progress_percent}%</span>
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-4 relative overflow-hidden border border-slate-200">
@@ -351,7 +351,7 @@ const Comment = ({ comment, objectiveId, depth = 0, onReplyPosted }) => {
                 {canReply && (
                     <button 
                         onClick={() => setShowReplyForm(!showReplyForm)} 
-                        className="font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors"
+                        className="font-semibold text-blue-600 hover:text-blue-700 transition-colors"
                     >
                         Trả lời
                     </button>
@@ -876,10 +876,27 @@ const ObjectiveDetailPage = () => {
         { name: 'Tree View', content: <TreeViewSection objective={objective} /> },
     ];
 
+    // Xác định trang quay lại dựa trên URL hiện tại
+    const getBackUrl = () => {
+        const isMyObjective = window.location.pathname.includes('/my-objectives/details/');
+        return isMyObjective ? '/my-objectives' : '/company-okrs';
+    };
+
     return (
         <div className="bg-gray-50 min-h-screen">
             <div className="container mx-auto p-4">
                 <div className="mb-6">
+                    <div className="flex items-center gap-4 mb-4">
+                        <a 
+                            href={getBackUrl()}
+                            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                            </svg>
+                            <span className="font-medium">Quay lại</span>
+                        </a>
+                    </div>
                     <p className="text-sm text-gray-500">Objective Detail</p>
                     <h1 className="text-2xl font-bold text-gray-800">{objective.obj_title}</h1>
                 </div>

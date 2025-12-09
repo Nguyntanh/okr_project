@@ -66,10 +66,28 @@ export default function CompanyOkrList() {
 
     const isCeo = currentUser?.role?.role_name?.toLowerCase() === "ceo"; // Determine if current user is CEO
 
+    // Hàm cập nhật URL query parameters
+    const updateURL = useCallback((cycleId, filterTypeValue, departmentId) => {
+        const params = new URLSearchParams();
+        if (cycleId) params.set('cycle_id', cycleId);
+        if (filterTypeValue) params.set('filter_type', filterTypeValue);
+        if (filterTypeValue === 'department' && departmentId) {
+            params.set('department_id', departmentId);
+        }
+        const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
+        window.history.pushState({}, '', newUrl);
+    }, []);
+
     // Fetch initial data (user, cycles, departments)
     useEffect(() => {
         const fetchInitialData = async () => {
             try {
+                // Đọc query parameters từ URL
+                const params = new URLSearchParams(window.location.search);
+                const urlCycleId = params.get('cycle_id');
+                const urlFilterType = params.get('filter_type') || 'company';
+                const urlDepartmentId = params.get('department_id') || '';
+
                 const [userRes, cyclesRes, deptsRes] = await Promise.all([
                     fetch("/api/profile"),
                     fetch("/cycles", {
@@ -94,21 +112,27 @@ export default function CompanyOkrList() {
                     cycles = cyclesJson.data || [];
                     setCyclesList(cycles);
 
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-
-                    selectedCycle = cycles.find((c) => {
-                        const start = c.start_date
-                            ? new Date(c.start_date)
-                            : null;
-                        const end = c.end_date ? new Date(c.end_date) : null;
-                        return start && end && today >= start && today <= end;
-                    });
-
-                    if (!selectedCycle && cycles.length > 0) {
-                        selectedCycle = cycles[0];
+                    // Ưu tiên cycle từ URL, nếu không có thì tìm cycle hiện tại
+                    if (urlCycleId) {
+                        selectedCycle = cycles.find(c => c.cycle_id == urlCycleId);
                     }
-                    setCycleFilter(selectedCycle?.cycle_id || null);
+
+                    if (!selectedCycle) {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+
+                        selectedCycle = cycles.find((c) => {
+                            const start = c.start_date
+                                ? new Date(c.start_date)
+                                : null;
+                            const end = c.end_date ? new Date(c.end_date) : null;
+                            return start && end && today >= start && today <= end;
+                        });
+
+                        if (!selectedCycle && cycles.length > 0) {
+                            selectedCycle = cycles[0];
+                        }
+                    }
                 }
 
                 if (deptsRes.ok) {
@@ -116,11 +140,19 @@ export default function CompanyOkrList() {
                     setDepartments(deptsJson.data || []);
                 }
 
+                // Áp dụng filter từ URL
+                setFilterType(urlFilterType);
+                if (urlFilterType === 'department' && urlDepartmentId) {
+                    setSelectedDepartment(urlDepartmentId);
+                }
+
                 // An toàn tuyệt đối: đảm bảo luôn có cycle hoặc tắt loading
                 if (selectedCycle?.cycle_id) {
                     setCycleFilter(selectedCycle.cycle_id);
+                    updateURL(selectedCycle.cycle_id, urlFilterType, urlDepartmentId);
                 } else if (cycles[0]?.cycle_id) {
                     setCycleFilter(cycles[0].cycle_id);
+                    updateURL(cycles[0].cycle_id, urlFilterType, urlDepartmentId);
                     setToast({
                         type: "warning",
                         message:
@@ -138,7 +170,7 @@ export default function CompanyOkrList() {
             }
         };
         fetchInitialData();
-    }, []);
+    }, [updateURL]);
 
     // Fetch OKR data when filters change
     const fetchData = useCallback(async () => {
@@ -212,15 +244,18 @@ export default function CompanyOkrList() {
     const handleCycleSelection = useCallback((value) => {
         setPage(1);
         setCycleFilter(value);
-    }, []);
+        updateURL(value, filterType, selectedDepartment);
+    }, [filterType, selectedDepartment, updateURL]);
 
     const handleFilterChange = (type, value) => {
         if (type === "company") {
             setFilterType("company");
             setSelectedDepartment("");
+            updateURL(cycleFilter, "company", "");
         } else if (type === "department") {
             setFilterType("department");
             setSelectedDepartment(value);
+            updateURL(cycleFilter, "department", value);
         }
         setPage(1);
     };
