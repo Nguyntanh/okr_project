@@ -4,7 +4,6 @@ import ObjectiveModal from "./ObjectiveModal.jsx";
 import KeyResultModal from "./KeyResultModal.jsx";
 import ToastComponent from "./ToastComponent.jsx";
 import CheckInModal from "../components/CheckInModal";
-import CheckInHistory from "../components/CheckInHistory";
 import ErrorBoundary from "../components/ErrorBoundary";
 import LinkOkrModal from "../components/LinkOkrModal.jsx";
 import LinkRequestsPanel from "../components/LinkRequestsPanel";
@@ -56,8 +55,7 @@ export default function ObjectivesPage() {
     const [openObj, setOpenObj] = useState({});
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
-    const [checkInModal, setCheckInModal] = useState({ open: false, keyResult: null });
-    const [checkInHistory, setCheckInHistory] = useState({ open: false, keyResult: null });
+    const [checkInModal, setCheckInModal] = useState({ open: false, keyResult: null, initialTab: 'chart' });
     const [currentUser, setCurrentUser] = useState(null);
 
     const urlParamsHandledRef = React.useRef(false);
@@ -315,7 +313,7 @@ export default function ObjectivesPage() {
 
                     // Mở check-in history modal
                     console.log('🔗 Opening check-in history for:', krToHighlight);
-                    setCheckInHistory({ open: true, keyResult: krToHighlight });
+                    openCheckInHistory(krToHighlight);
                 }, 800);
 
                 // Xóa URL parameters sau khi xử lý (delay để đảm bảo state đã được set)
@@ -742,7 +740,7 @@ export default function ObjectivesPage() {
     };
 
     const openCheckInHistory = (keyResult) => {
-        setCheckInHistory({ open: true, keyResult });
+        setCheckInModal({ open: true, keyResult, initialTab: 'history' });
     };
 
     const handlePageChange = (newPage) => {
@@ -758,27 +756,7 @@ export default function ObjectivesPage() {
                 message={toast.message}
                 onClose={() => setToast((prev) => ({ ...prev, message: "" }))}
             />
-            <div className="mb-4 flex items-center justify-between gap-4">
-                {displayMode === "tree" ? (
-                    <div className="flex items-center gap-2">
-                        <label className="text-xs font-semibold text-slate-600">
-                            Objective gốc
-                        </label>
-                        <select
-                            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                            value={treeRootId || ""}
-                            onChange={(e) => setTreeRootId(e.target.value)}
-                        >
-                            {enrichedItems.map((obj) => (
-                                <option key={obj.objective_id} value={obj.objective_id}>
-                                    {obj.obj_title}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                ) : (
-                    <div />
-                )}
+            <div className="mx-auto w-full max-w-6xl flex justify-end">
                 <div className="flex items-center gap-2">
                     {displayMode === "tree" && (
                         <button
@@ -836,6 +814,28 @@ export default function ObjectivesPage() {
                         </button>
                     </div>
                 </div>
+            </div>
+            <div className="mb-4 flex items-center justify-between gap-4">
+                {displayMode === "tree" ? (
+                    <div className="flex items-center gap-2">
+                        <label className="text-xs font-semibold text-slate-600">
+                            Objective gốc
+                        </label>
+                        <select
+                            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                            value={treeRootId || ""}
+                            onChange={(e) => setTreeRootId(e.target.value)}
+                        >
+                            {enrichedItems.map((obj) => (
+                                <option key={obj.objective_id} value={obj.objective_id}>
+                                    {obj.obj_title}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                ) : (
+                    <div />
+                )}
             </div>
 
             {displayMode === "table" ? (
@@ -1027,19 +1027,11 @@ export default function ObjectivesPage() {
             <ErrorBoundary>
                 <CheckInModal
                     open={checkInModal.open}
-                    onClose={() => setCheckInModal({ open: false, keyResult: null })}
+                    onClose={() => setCheckInModal({ open: false, keyResult: null, initialTab: 'chart' })}
                     keyResult={checkInModal.keyResult}
                     objectiveId={checkInModal.keyResult?.objective_id}
                     onSuccess={handleCheckInSuccess}
-                />
-            </ErrorBoundary>
-
-            <ErrorBoundary>
-                <CheckInHistory
-                    open={checkInHistory.open}
-                    onClose={() => setCheckInHistory({ open: false, keyResult: null })}
-                    keyResult={checkInHistory.keyResult}
-                    objectiveId={checkInHistory.keyResult?.objective_id}
+                    initialTab={checkInModal.initialTab}
                 />
             </ErrorBoundary>
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from '@inertiajs/react';
 import { format } from 'date-fns';
+import { InformationCircleIcon, CalendarIcon, UserCircleIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 
 // --- Reusable Tabs Component ---
 const Tabs = ({ tabs }) => {
@@ -32,8 +33,6 @@ const Tabs = ({ tabs }) => {
     );
 };
 
-
-// --- Section Components (unchanged) ---
 const getStatusClass = (status) => {
     switch (status) {
         case 'on_track': return 'bg-green-100 text-green-800';
@@ -52,25 +51,48 @@ const OverviewSection = ({ objective }) => (
             </div>
             <div className="w-full bg-gray-200 rounded-full h-4"><div className="bg-blue-600 h-4 rounded-full" style={{ width: `${objective.progress_percent}%` }}></div></div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div><span className="font-semibold">Trạng thái: </span><span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusClass(objective.status)}`}>{objective.status?.replace('_', ' ').toUpperCase() || 'N/A'}</span></div>
-            <div><span className="font-semibold">Chu kỳ: </span><span>{objective.cycle?.cycle_name || 'N/A'}</span></div>
-            <div><span className="font-semibold">Chủ sở hữu: </span><span>{objective.user?.full_name || objective.department?.d_name || 'N/A'}</span></div>
-            <div className="col-span-2"><p className="font-semibold">Mô tả:</p><p className="text-gray-600 whitespace-pre-wrap mt-1">{objective.description || 'Không có mô tả.'}</p></div>
+        <div className="mt-4 border-t border-gray-200 pt-4">
+            <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
+                <div className="sm:col-span-1">
+                    <dt className="text-sm font-medium text-gray-500 flex items-center">
+                        <CalendarIcon className="h-5 w-5 text-gray-400 mr-2" />
+                        Chu kỳ
+                    </dt>
+                    <dd className="mt-1 text-sm text-gray-900 ml-7">{objective.cycle?.cycle_name || 'N/A'}</dd>
+                </div>
+                <div className="sm:col-span-1">
+                    <dt className="text-sm font-medium text-gray-500 flex items-center">
+                        <UserCircleIcon className="h-5 w-5 text-gray-400 mr-2" />
+                        Chủ sở hữu
+                    </dt>
+                    <dd className="mt-1 text-sm text-gray-900 ml-7">{objective.user?.full_name || objective.department?.d_name || 'N/A'}</dd>
+                </div>
+                <div className="sm:col-span-2">
+                    <dt className="text-sm font-medium text-gray-500 flex items-center">
+                        <DocumentTextIcon className="h-5 w-5 text-gray-400 mr-2" />
+                        Mô tả
+                    </dt>
+                    <dd className="mt-1 text-sm text-gray-900 whitespace-pre-wrap ml-7">{objective.description || 'Không có mô tả.'}</dd>
+                </div>
+            </dl>
         </div>
     </div>
 );
 
 const KeyResultsSection = ({ keyResults }) => (
-    <div className="space-y-3">
+    <div className="space-y-4">
         {keyResults?.length > 0 ? keyResults.map(kr => (
-            <div key={kr.kr_id} className="p-3 border rounded-md">
-                <div className="flex justify-between items-start">
-                    <a href={`#`} className="font-semibold text-blue-600 hover:underline">{kr.kr_title}</a>
-                    <span className="text-sm font-bold">{kr.progress_percent}%</span>
+            <div key={kr.kr_id} className="p-4 border rounded-lg hover:shadow-md transition-shadow duration-200">
+                <div className="flex justify-between items-center mb-2">
+                    <a href={`/company-okrs/detail/kr/${kr.kr_id}`} className="font-semibold text-blue-700 hover:underline">{kr.kr_title}</a>
+                    <span className="text-base font-bold text-gray-800">{kr.progress_percent}%</span>
                 </div>
-                <div className="text-xs text-gray-500 mt-1">Owner: {kr.assigned_user?.full_name || 'N/A'}</div>
-                <div className="w-full bg-gray-200 rounded-full h-2 mt-2"><div className="bg-teal-500 h-2 rounded-full" style={{ width: `${kr.progress_percent}%` }}></div></div>
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                    <div className="bg-green-500 h-3 rounded-full" style={{ width: `${kr.progress_percent}%` }}></div>
+                </div>
+                <div className="text-xs text-gray-600 mt-2">
+                    Owner: <span className="font-medium text-gray-800">{kr.assigned_user?.full_name || 'N/A'}</span>
+                </div>
             </div>
         )) : <p className="text-gray-500">Không có Key Result nào.</p>}
     </div>
@@ -79,7 +101,7 @@ const KeyResultsSection = ({ keyResults }) => (
 const AlignmentSection = ({ objective }) => (
     <div>
         <div className="mb-4">
-            <h4 className="font-semibold text-md mb-2">Liên kết Cấp trên (Parent OKR)</h4>
+            <h3 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-200">Liên kết Cấp trên (Parent OKR)</h3>
             {objective.source_links?.length > 0 ? objective.source_links.map(link => (
                 <div key={link.link_id} className="p-2 border rounded-md bg-gray-50 text-sm">
                     <a href={`/company-okrs/detail/${link.target_objective.objective_id}`} className="text-blue-700 hover:underline">{link.target_objective.obj_title}</a>
@@ -88,7 +110,7 @@ const AlignmentSection = ({ objective }) => (
             )) : <p className="text-gray-500 text-sm">Objective này không liên kết lên OKR nào.</p>}
         </div>
         <div>
-            <h4 className="font-semibold text-md mb-2">Liên kết Cấp dưới (Child OKR)</h4>
+            <h3 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-200">Liên kết Cấp dưới (Child OKR)</h3>
             {objective.child_objectives?.length > 0 ? objective.child_objectives.map(link => (
                  <div key={link.link_id} className="p-2 border rounded-md bg-gray-50 text-sm">
                     <a href={`/company-okrs/detail/${link.source_objective.objective_id}`} className="text-blue-700 hover:underline">{link.source_objective.obj_title}</a>
@@ -243,6 +265,22 @@ const CommentSection = ({ comments, objectiveId, onCommentPosted }) => {
 
 // --- Main Page Component (Refactored for Tabs) ---
 
+const DetailsSection = ({ objective }) => (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Main Content */}
+        <div className="lg:col-span-3 space-y-6">
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <h3 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-200">Tổng quan</h3>
+                <OverviewSection objective={objective} />
+            </div>
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <h3 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-200">Key Results</h3>
+                <KeyResultsSection keyResults={objective.key_results} />
+            </div>
+        </div>
+    </div>
+);
+
 const ObjectiveDetailPage = () => {
     const [objective, setObjective] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -297,8 +335,7 @@ const ObjectiveDetailPage = () => {
     const handleCommentPosted = () => fetchData();
     
     const pageTabs = [
-        { name: 'Tổng quan', content: <OverviewSection objective={objective} /> },
-        { name: 'Key Results', content: <KeyResultsSection keyResults={objective.key_results} /> },
+        { name: 'Chi tiết', content: <DetailsSection objective={objective} /> },
         { name: 'Ngữ cảnh & Liên kết', content: <AlignmentSection objective={objective} /> },
         { name: 'Lịch sử & Tương tác', content: <HistorySection keyResults={objective.key_results} comments={objective.comments} objectiveId={objective.objective_id} onCommentPosted={handleCommentPosted} /> },
     ];

@@ -19,6 +19,7 @@ import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import FirstLoginChangePasswordPage from "./pages/FirstLoginChangePasswordPage";
 import ArchivedOkrsPage from "./pages/ArchivedOkrsPage";
 import ObjectiveDetailPage from "./pages/Objective/Detail";
+import KeyResultDetailPage from "./pages/KeyResult/Detail";
 
 function NavBar() {
     return (
@@ -446,7 +447,10 @@ export default function App() {
         else if (p.startsWith("/cycles")) content = <CyclesPanel />;
         else if (p.startsWith("/departments")) content = <DepartmentsPanel />;
         else if (p.startsWith("/my-objectives")) content = <ObjectivesPage />;
-        else if (p.startsWith("/company-okrs/detail/")) content = <ObjectiveDetailPage />;
+        else if (p.startsWith("/company-okrs/detail/kr/"))
+            content = <KeyResultDetailPage />;
+        else if (p.startsWith("/company-okrs/detail/"))
+            content = <ObjectiveDetailPage />;
         else if (p.startsWith("/company-okrs"))
             content = <CompanyOkrList currentUser={user} />;
         else if (p.startsWith("/profile")) content = <ProfilePage />;
