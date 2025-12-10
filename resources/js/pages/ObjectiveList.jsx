@@ -488,7 +488,6 @@ export default function ObjectiveList({
                                     getUnitText={getUnitText}
                                     getAssigneeInfo={getAssigneeInfo}
                                     // The ObjectiveRow itself will now handle its colSpan based on props
-                                    colSpanForObjectiveHeader={3}
                                     disableActions={disableActions}
                                 />
 

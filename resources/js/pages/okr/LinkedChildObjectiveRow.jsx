@@ -82,13 +82,34 @@ export default function LinkedChildObjectiveRow({
                         )}
                     </div>
                 </td>
-                {/* Cột Người thực hiện (empty) */}
+                {/* Cột Người thực hiện */}
                 <td className="px-3 py-3 text-center">
-                    {/* Giữ trống */}
+                    <div className="flex items-center justify-center gap-2">
+                        {linkedObj?.user ? (
+                            <>
+                                {linkedObj.user.avatar_url ? (
+                                    <img
+                                        src={linkedObj.user.avatar_url}
+                                        alt={linkedObj.user.full_name}
+                                        className="h-7 w-7 rounded-full object-cover"
+                                    />
+                                ) : (
+                                    <div className="h-7 w-7 rounded-full bg-slate-200 flex items-center justify-center text-xs">
+                                        {linkedObj.user.full_name?.[0] || "?"}
+                                    </div>
+                                )}
+                                <span className="text-sm truncate max-w-[120px]">
+                                    {linkedObj.user.full_name}
+                                </span>
+                            </>
+                        ) : (
+                            <span className="text-xs text-slate-400">Chưa có</span>
+                        )}
+                    </div>
                 </td>
-                {/* Cột Tiến độ (empty) */}
+                {/* Cột Tiến độ */}
                 <td className="px-3 py-3 text-center">
-                    {/* Giữ trống */}
+                    
                 </td>
                 {/* Cột Hành động */}
                 <td className="px-3 py-3 text-center">

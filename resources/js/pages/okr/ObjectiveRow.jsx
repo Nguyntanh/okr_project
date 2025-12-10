@@ -29,10 +29,11 @@ export default function ObjectiveRow({
     formatPercent,
     getStatusText,
     getUnitText,
-    colSpanForObjectiveHeader,
     disableActions = false,
 }) {
     const hasKRs = obj.key_results?.length > 0;
+    const owner = obj.user;
+    const progress = Math.max(0, Math.min(100, obj.progress_percent || 0));
 
     return (
         <>
@@ -40,7 +41,7 @@ export default function ObjectiveRow({
                 className="bg-white hover:bg-slate-50/70 transition-colors duration-150"
                 data-objective-id={obj.objective_id}
             >
-                <td colSpan={colSpanForObjectiveHeader} className="px-4 py-3">
+                <td className="px-4 py-3">
                     <div className="flex items-center justify-between w-full">
                         <div className="flex items-center gap-2">
                             <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
@@ -91,6 +92,33 @@ export default function ObjectiveRow({
                             onCancelLink={onCancelLink}
                         />
                     </div>
+                </td>
+                <td className="px-3 py-3 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                        {owner ? (
+                            <>
+                                {owner.avatar_url ? (
+                                    <img
+                                        src={owner.avatar_url}
+                                        alt={owner.full_name}
+                                        className="h-7 w-7 rounded-full object-cover"
+                                    />
+                                ) : (
+                                    <div className="h-7 w-7 rounded-full bg-slate-200 flex items-center justify-center text-xs">
+                                        {owner.full_name?.[0] || "?"}
+                                    </div>
+                                )}
+                                <span className="text-sm truncate max-w-[120px]">
+                                    {owner.full_name}
+                                </span>
+                            </>
+                        ) : (
+                            <span className="text-xs text-slate-400">Chưa có</span>
+                        )}
+                    </div>
+                </td>
+                <td className="px-3 py-3 text-center">
+                    
                 </td>
                 <td className="px-3 py-3 text-center">
                     <div className="flex items-center justify-end gap-1">
