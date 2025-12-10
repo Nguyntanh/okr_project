@@ -209,6 +209,86 @@ class Objective extends Model
     }
 
     /**
+     * Tự động tính toán và lưu progress vào DB, đồng thời kích hoạt cập nhật lên cha.
+     * Đây là hàm quan trọng để duy trì tính nhất quán dữ liệu.
+     */
+    public function updateProgress(array &$visited = []): bool
+    {
+        // 1. Tránh vòng lặp vô hạn
+        if (in_array($this->objective_id, $visited)) {
+            return true;
+        }
+        $visited[] = $this->objective_id;
+
+        // 2. Tính toán progress mới
+        // Logic tương tự như getCalculatedProgressAttribute nhưng query trực tiếp để đảm bảo dữ liệu mới nhất
+        $progressList = [];
+
+        // 2.1. Từ KeyResults trực tiếp
+        $keyResults = $this->keyResults()->whereNull('archived_at')->get();
+        foreach ($keyResults as $kr) {
+            // Đối với KR, chúng ta cũng có thể gọi updateProgress() của nó nếu cần, 
+            // nhưng ở đây giả sử KR đã được update trước đó.
+            $progress = $kr->progress_percent;
+            if ($progress !== null) {
+                $progressList[] = $progress;
+            }
+        }
+
+        // 2.2. Từ Child Objectives (Objective con liên kết trực tiếp)
+        // Lưu ý: Chỉ tính link trỏ vào Objective (Objective -> Objective)
+        $childLinks = $this->childObjectives()
+            ->where('is_active', true)
+            ->where('status', OkrLink::STATUS_APPROVED)
+            ->where('target_type', 'objective') // Quan trọng: Chỉ tính link Obj->Obj
+            ->get();
+
+        foreach ($childLinks as $link) {
+            $childObj = $link->sourceObjective;
+            if ($childObj) {
+                $childProgress = $childObj->progress_percent;
+                if ($childProgress !== null) {
+                    $progressList[] = $childProgress;
+                }
+            }
+        }
+
+        // 3. Tính trung bình
+        $newProgress = 0;
+        if (!empty($progressList)) {
+            $avgProgress = array_sum($progressList) / count($progressList);
+            $newProgress = round($avgProgress, 2);
+        }
+
+        // 4. Lưu vào Database
+        // Sử dụng DB::table để update nhanh và tránh trigger events nếu không cần thiết
+        \DB::table('objectives')
+            ->where('objective_id', $this->objective_id)
+            ->update(['progress_percent' => $newProgress]);
+        
+        // Cập nhật attribute của instance hiện tại
+        $this->attributes['progress_percent'] = $newProgress;
+
+        // 5. Lan truyền lên trên (Propagate Upwards)
+        // Tìm các link mà Objective này là SOURCE (tức là nó đang đóng góp cho ai?)
+        $parentLinks = $this->sourceLinks; 
+        
+        foreach ($parentLinks as $link) {
+            if ($link->is_active && $link->status === OkrLink::STATUS_APPROVED) {
+                if ($link->target_type === 'objective' && $link->targetObjective) {
+                    // Nếu cha là Objective -> Gọi updateProgress của Objective cha
+                    $link->targetObjective->updateProgress($visited);
+                } elseif ($link->target_type === 'kr' && $link->targetKr) {
+                    // Nếu cha là Key Result -> Gọi updateProgress của KR cha
+                    $link->targetKr->updateProgress($visited);
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Tự động cập nhật progress_percent khi KeyResults thay đổi
      * Tính từ KeyResults trực tiếp (không tính từ child Objectives liên kết)
      * 
@@ -287,7 +367,8 @@ class Objective extends Model
                 : $this->keyResults()->whereNull('archived_at')->get();
 
             foreach ($keyResults as $kr) {
-                $progress = $kr->progress_percent;
+                // Use calculated_progress to include child objective contributions to this KR
+                $progress = $kr->calculated_progress;
                 if ($progress !== null) {
                     $progressList[] = $progress;
                 }

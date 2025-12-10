@@ -24,7 +24,7 @@ class DashboardController extends Controller
             ->where('level', 'person')
             ->whereNull('archived_at')
             ->with([
-                'keyResults', 
+                'keyResults.childObjectives', // Load this to check if KR is a container (has links)
                 'sourceLinks.targetObjective', 
                 'sourceLinks.targetObjective.department'
             ])
@@ -40,10 +40,10 @@ class DashboardController extends Controller
             $deptOkrs = Objective::where('level', 'unit')
                 ->whereNull('archived_at')
                 ->with([
-                    'keyResults',
+                    'keyResults.childObjectives.sourceObjective', // Load deep for KR auto-calculation
                     'sourceLinks.targetObjective',
                     'department',
-                    'childObjectives' // Load child objectives for accurate progress calc
+                    'childObjectives'
                 ])
                 ->orderBy('created_at', 'desc')
                 ->limit(50)
@@ -54,9 +54,9 @@ class DashboardController extends Controller
                 ->where('level', 'unit')
                 ->whereNull('archived_at')
                 ->with([
-                    'keyResults',
+                    'keyResults.childObjectives.sourceObjective', // Load deep
                     'sourceLinks.targetObjective',
-                    'childObjectives' // Load child objectives
+                    'childObjectives'
                 ])
                 ->orderBy('created_at', 'desc')
                 ->limit(20)
@@ -71,8 +71,8 @@ class DashboardController extends Controller
             $companyOkrs = Objective::where('level', 'company')
                 ->whereNull('archived_at')
                 ->with([
-                    'keyResults',
-                    'childObjectives' // Load child objectives (e.g., Dept OKRs aligned to Company)
+                    'keyResults.childObjectives.sourceObjective', // Load deep
+                    'childObjectives'
                 ])
                 ->orderBy('created_at', 'desc')
                 ->get();
@@ -88,8 +88,8 @@ class DashboardController extends Controller
                 })
                 ->whereNull('archived_at')
                 ->with([
-                    'keyResults',
-                    'childObjectives' // Load child objectives
+                    'keyResults.childObjectives.sourceObjective', // Load deep
+                    'childObjectives'
                 ])
                 ->orderBy('created_at', 'desc')
                 ->get();

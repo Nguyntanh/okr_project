@@ -76,43 +76,64 @@ function MyOkrRow({ okr }) {
 
             {/* 2. Key Results List - Clean Layout */}
             <div className="bg-slate-50 rounded-xl p-4 space-y-4">
-                {okr.key_results && okr.key_results.length > 0 ? (
-                    okr.key_results.map((kr) => {
-                        const krProgress = Math.round(kr.progress_percent || 0);
-                        const krColor = getProgressColor(krProgress);
-                        
-                        // Xử lý hiển thị giá trị: 5/10 cái
-                        const targetVal = kr.target_value ? parseFloat(kr.target_value) : 0;
-                        const currentVal = kr.current_value ? parseFloat(kr.current_value) : 0;
-                        const unit = kr.unit || ''; // Giả sử có trường unit, nếu không có để trống
+                    {okr.key_results && okr.key_results.length > 0 ? (
+                        okr.key_results.map((kr) => {
+                            const krProgress = Math.round(kr.progress_percent || 0);
+                            const krColor = getProgressColor(krProgress);
+                            
+                            // Xử lý hiển thị giá trị: 5/10 cái
+                            const targetVal = kr.target_value ? parseFloat(kr.target_value) : 0;
+                            const currentVal = kr.current_value ? parseFloat(kr.current_value) : 0;
+                            const unit = kr.unit || '';
 
-                        return (
-                            <div key={kr.kr_id || kr.id} className="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-4 items-center">
-                                {/* Title */}
-                                <div className="sm:col-span-5">
-                                    <span className="text-sm font-medium text-slate-700 block truncate" title={kr.kr_title}>
-                                        • {kr.kr_title}
-                                    </span>
-                                </div>
+                            // Kiểm tra xem KR có phải là Container (có objective con liên kết tới) hay không
+                            const isContainer = kr.child_objectives && kr.child_objectives.length > 0;
 
-                                {/* Progress Bar & Values */}
-                                <div className="sm:col-span-7 flex items-center gap-3">
-                                    <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
-                                        <div 
-                                            className={`h-full ${krColor} rounded-full`} 
-                                            style={{ width: `${krProgress}%` }}
-                                        />
+                            return (
+                                <div key={kr.kr_id || kr.id} className={`grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-4 items-center ${isContainer ? 'opacity-90 bg-slate-50/50' : ''}`}>
+                                    {/* Title */}
+                                    <div className="sm:col-span-5">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-medium text-slate-700 block truncate" title={kr.kr_title}>
+                                                • {kr.kr_title}
+                                            </span>
+                                            {isContainer && (
+                                                <div className="group relative">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-amber-500 cursor-help" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                                                    </svg>
+                                                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-slate-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 text-center">
+                                                        Tiến độ được cập nhật tự động từ {kr.child_objectives.length} mục tiêu liên kết. Không thể check-in thủ công.
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-2 min-w-[50px] justify-end">
-                                        <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${krProgress >= 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
-                                            {krProgress}%
-                                        </span>
+
+                                    {/* Progress Bar & Values */}
+                                    <div className="sm:col-span-7 flex items-center gap-3">
+                                        <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+                                            <div 
+                                                className={`h-full ${krColor} rounded-full`} 
+                                                style={{ width: `${krProgress}%` }}
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-2 min-w-[50px] justify-end">
+                                            {isContainer ? (
+                                                <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                                    AUTO
+                                                </span>
+                                            ) : (
+                                                <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${krProgress >= 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
+                                                    {krProgress}%
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        );
-                    })
-                ) : (
+                            );
+                        })
+                    ) : (
                     <div className="text-center py-2">
                         <span className="text-xs text-slate-400 italic">Chưa có kết quả then chốt (Key Results) nào được tạo.</span>
                     </div>
