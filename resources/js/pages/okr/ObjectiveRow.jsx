@@ -38,7 +38,7 @@ export default function ObjectiveRow({
     return (
         <>
             <tr 
-                className="bg-white hover:bg-slate-50/70 transition-colors duration-150"
+                className="bg-white transition duration-150 rounded-lg shadow-sm hover:shadow-md ring-1 ring-slate-100"
                 data-objective-id={obj.objective_id}
             >
                 <td className="px-4 py-3">

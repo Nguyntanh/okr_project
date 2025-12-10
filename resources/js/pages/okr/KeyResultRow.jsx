@@ -219,6 +219,7 @@ export default function KeyResultRow({
                 {isExpanded &&
                     kr.key_results?.map((sourceKr) => {
                         const info = getAssigneeInfo(sourceKr);
+                        const actionsDisabled = true; // KR con của O liên kết: chỉ hiển thị, không thao tác
                         return (
                             <tr
                                 key={`source_kr_${sourceKr.kr_id}`}
@@ -308,7 +309,54 @@ export default function KeyResultRow({
                                         </span>
                                     </div>
                                 </td>
-                                <td className="px-3 py-3 text-center"></td>
+                                <td className="px-3 py-3 text-center">
+                                    <div className="flex items-center justify-end gap-1">
+                                        {openCheckInModal && ( 
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    return; // khóa thao tác
+                                                }}
+                                                disabled
+                                                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                                title="Check-in"
+                                            >
+                                                <svg
+                                                    className="h-4 w-4"
+                                                    fill="none"
+                                                    viewBox="0 0 24 24"
+                                                    stroke="currentColor"
+                                                >
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                </svg>
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => {
+                                                return; // khóa thao tác
+                                            }}
+                                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                            title="Giao việc"
+                                            disabled
+                                        >
+                                            <FaUserEdit className="h-4 w-4" />
+                                        </button>
+                                        <KRActionsMenu
+                                            kr={sourceKr}
+                                            objective={kr.link?.sourceObjective}
+                                            setEditingKR={setEditingKR}
+                                            handleArchiveKR={handleArchiveKR}
+                                            canCheckIn={false}
+                                            openCheckInModal={openCheckInModal}
+                                            openCheckInHistory={openCheckInHistory}
+                                            setAssignModal={setAssignModal}
+                                            menuRefs={menuRefs}
+                                            openObj={openObj}
+                                            setOpenObj={setOpenObj}
+                                            disableActions={true} 
+                                        />
+                                    </div>
+                                </td>
                             </tr>
                         );
                     })}
@@ -596,6 +644,12 @@ export default function KeyResultRow({
                         setEditingObjective={setEditingObjective}
                         menuRefs={menuRefs}
                         archiving={archiving}
+                        setEditingKR={setEditingKR}
+                        handleArchiveKR={handleArchiveKR}
+                        canCheckInKR={canCheckInKR}
+                        openCheckInModal={openCheckInModal}
+                        openCheckInHistory={openCheckInHistory}
+                        setAssignModal={setAssignModal}
                     />
                 ))}
         </>

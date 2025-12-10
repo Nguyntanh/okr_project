@@ -407,7 +407,7 @@ export default function ObjectiveList({
             )}
 
             <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-                <table className="min-w-full divide-y divide-slate-200 table-fixed">
+                <table className="min-w-full table-fixed border-separate border-spacing-y-2">
                     <thead className="bg-slate-50 text-left font-semibold text-slate-700">
                         <tr>
                             <th className="px-3 py-2 text-left">

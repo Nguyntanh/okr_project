@@ -1,5 +1,6 @@
 import React from "react";
-import { FaBullseye, FaKey, FaLongArrowAltLeft } from "react-icons/fa";
+import { FaBullseye, FaKey, FaLongArrowAltLeft, FaUserEdit } from "react-icons/fa";
+import KRActionsMenu from "./KRActionsMenu";
 import ObjectiveActionsMenu from "./ObjectiveActionsMenu";
 
 export default function LinkedChildObjectiveRow({
@@ -21,6 +22,12 @@ export default function LinkedChildObjectiveRow({
     setEditingObjective,
     menuRefs,
     archiving,
+    setEditingKR,
+    handleArchiveKR,
+    canCheckInKR,
+    openCheckInModal,
+    openCheckInHistory,
+    setAssignModal,
 }) {
     const hasKRs = linkedObj.key_results?.length > 0;
     const expanded =
@@ -205,6 +212,7 @@ export default function LinkedChildObjectiveRow({
             {/* Render KR của Objective con */}
             {expanded &&
                 linkedObj.key_results?.map((kr) => {
+                    const actionsDisabled = true; // KR thuộc O liên kết: chỉ hiển thị, không thao tác
                     const userInfo = getAssigneeInfo(kr);
                     return (
                         <tr key={kr.kr_id} className="bg-white">
@@ -286,7 +294,64 @@ export default function LinkedChildObjectiveRow({
                                     </span>
                                 </div>
                             </td>
-                            <td className="px-3 py-3 text-center"></td>
+                            <td className="px-3 py-3 text-center">
+                                <div className="flex items-center justify-end gap-1">
+                                    {openCheckInModal && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (actionsDisabled || !canCheckInKR(kr) || disableActions) return;
+                                                openCheckInModal({
+                                                    ...kr,
+                                                    objective_id: linkedObj.objective_id,
+                                                });
+                                            }}
+                                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                            title={canCheckInKR(kr) ? "Check-in" : "Bạn không có quyền check-in"}
+                                            disabled={true}
+                                        >
+                                            <svg
+                                                className="h-4 w-4"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                            >
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth={2}
+                                                    d="M5 13l4 4L19 7"
+                                                />
+                                            </svg>
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => {
+                                            if (actionsDisabled) return;
+                                            setAssignModal?.({ show: true, kr, objective: linkedObj, email: "", loading: false });
+                                        }}
+                                        className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                        title="Giao việc"
+                                        disabled={true}
+                                    >
+                                        <FaUserEdit className="h-4 w-4" />
+                                    </button>
+                                    <KRActionsMenu
+                                        kr={kr}
+                                        objective={linkedObj}
+                                        setEditingKR={setEditingKR}
+                                        handleArchiveKR={handleArchiveKR}
+                                        canCheckIn={canCheckInKR(kr)}
+                                        openCheckInModal={openCheckInModal}
+                                        openCheckInHistory={openCheckInHistory}
+                                        setAssignModal={setAssignModal}
+                                        menuRefs={menuRefs}
+                                        openObj={openObj}
+                                        setOpenObj={setOpenObj}
+                                        disableActions={true}
+                                    />
+                                </div>
+                            </td>
                         </tr>
                     );
                 })}
