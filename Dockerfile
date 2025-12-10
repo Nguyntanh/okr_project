@@ -30,41 +30,71 @@ WORKDIR /var/www
 COPY nginx.conf /etc/nginx/nginx.conf
 
 # Copy all application files first
+
 COPY . .
 
+
+
+# Remove .env file if it exists (ensure Render env vars are used)
+
+RUN rm -f .env
+
+
+
 # Clean npm cache and reinstall dependencies
+
 RUN rm -rf node_modules package-lock.json
+
 RUN npm install
+
 RUN npm run build
 
+
+
 # Install composer dependencies
+
 RUN composer install --no-dev --optimize-autoloader
 
+
+
 # Clear and cache Laravel config/views/routes
+
 RUN CACHE_STORE=array SESSION_DRIVER=array QUEUE_CONNECTION=sync php artisan config:clear
+
 RUN CACHE_STORE=array SESSION_DRIVER=array QUEUE_CONNECTION=sync php artisan cache:clear
+
 RUN CACHE_STORE=array SESSION_DRIVER=array QUEUE_CONNECTION=sync php artisan view:clear
+
 RUN CACHE_STORE=array SESSION_DRIVER=array QUEUE_CONNECTION=sync php artisan route:clear
+
 RUN CACHE_STORE=array SESSION_DRIVER=array QUEUE_CONNECTION=sync php artisan config:cache
+
 RUN CACHE_STORE=array SESSION_DRIVER=array QUEUE_CONNECTION=sync php artisan event:cache
 
 
 
 # Set permissions
+
 RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
+
 RUN chmod -R 777 /var/www/storage /var/www/bootstrap/cache
-
-# Expose port
-EXPOSE 80
-
 
 
 
 # THÊM: Tạo thư mục tạm cho Nginx và cấp quyền
+
 RUN mkdir -p /tmp/nginx_client_body /tmp/nginx_proxy /tmp/nginx_fastcgi /tmp/nginx_uwsgi /tmp/nginx_scgi \
+
     && chown -R www-data:www-data /tmp/nginx_client_body /tmp/nginx_proxy /tmp/nginx_fastcgi /tmp/nginx_uwsgi /tmp/nginx_scgi
 
+
+
 # Switch to www-data user
+
 USER www-data
 
-CMD ["sh", "-c", "php artisan migrate --force --no-interaction && php-fpm -D && nginx -g 'daemon off; pid /tmp/nginx.pid;'"]
+
+
+# Run migrations first, then start services
+
+CMD ["sh", "-c", "php artisan config:clear && php artisan migrate --force --no-interaction && php-fpm -D && nginx -g 'daemon off; pid /tmp/nginx.pid;'" ]
