@@ -67,4 +67,4 @@ RUN mkdir -p /tmp/nginx_client_body /tmp/nginx_proxy /tmp/nginx_fastcgi /tmp/ngi
 # Switch to www-data user
 USER www-data
 
-CMD ["sh", "-c", "php-fpm -D && nginx -g 'daemon off; pid /tmp/nginx.pid;'"]
+CMD ["sh", "-c", "php artisan migrate --force --no-interaction && php-fpm -D && nginx -g 'daemon off; pid /tmp/nginx.pid;'"]
