@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { Select } from "../components/ui";
 import ToastNotification from "../components/ToastNotification";
 import ConfirmationModal from "../components/ConfirmationModal";
+import { exportTeamReportToExcel } from "../utils/reports/exportHelpers";
 import { FiDownload, FiFilter, FiAlertCircle, FiCheckCircle, FiClock, FiTrendingUp, FiTrendingDown, FiMinus, FiUsers, FiMoreHorizontal } from "react-icons/fi";
 import { HiChartPie, HiExclamationTriangle, HiUserGroup, HiDocumentCheck } from "react-icons/hi2";
 
@@ -272,6 +273,19 @@ export default function ReportPage() {
         });
     };
 
+    const handleExportExcel = () => {
+        if (!reportData) return;
+        const cycleName = cycles.find(c => String(c.cycle_id) === String(selectedCycle))?.cycle_name || "";
+        
+        exportTeamReportToExcel(
+            reportData,
+            departmentName,
+            cycleName,
+            (msg) => setToast({ message: msg, type: 'success' }),
+            (msg) => setToast({ message: msg, type: 'error' })
+        );
+    };
+
     return (
         <div className="min-h-screen bg-slate-50 p-6 font-sans">
             <div className="max-w-7xl mx-auto space-y-8">
@@ -295,11 +309,12 @@ export default function ReportPage() {
                             />
                         </div>
                         <button 
-                            onClick={() => setShowCreateModal(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors shadow-sm text-sm font-medium"
+                            onClick={handleExportExcel}
+                            disabled={!reportData}
+                            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors shadow-sm text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <FiDownload className="w-4 h-4" />
-                            Xuất báo cáo
+                            Xuất Excel
                         </button>
                     </div>
                 </div>
