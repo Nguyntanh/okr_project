@@ -1150,61 +1150,75 @@ export async function exportTeamReportToExcel(reportData, departmentName, cycleN
 
         // Set column widths for Sheet 1
         worksheet.columns = [
-            { width: 50 }, // Objective Name
-            { width: 15 }, // Level
-            { width: 10 }, // KRs Count
-            { width: 15 }, // Completed KRs
-            { width: 15 }, // Progress
-            { width: 20 }, // Status
+            { width: 50 }, // Objective Name / Member Name
+            { width: 20 }, // Level / Role
+            { width: 15 }, // KRs Count / Contributions
+            { width: 15 }, // Completed KRs / Progress
+            { width: 20 }, // Progress / Status
+            { width: 25 }, // Status / Checkin
         ];
 
-        // --- SHEET 2: THÀNH VIÊN ---
-        const wsMembers = workbook.addWorksheet('Thành viên');
-        let rowM = 1;
+        // --- SECTION 2: THÀNH VIÊN (Merged into Sheet 1) ---
+        currentRow += 3; // Add spacing
 
-        wsMembers.getCell(rowM, 1).value = 'HIỆU SUẤT THÀNH VIÊN';
-        applySectionTitleStyle(wsMembers.getCell(rowM, 1));
-        wsMembers.mergeCells(rowM, 1, rowM, 5);
-        rowM++;
+        worksheet.getCell(currentRow, 1).value = 'HIỆU SUẤT THÀNH VIÊN';
+        applySectionTitleStyle(worksheet.getCell(currentRow, 1));
+        worksheet.mergeCells(currentRow, 1, currentRow, 6);
+        currentRow++;
 
-        const memHeaders = ['Tên thành viên', 'Vai trò', 'Đóng góp (KRs)', 'Tiến độ TB (%)', 'Check-in cuối'];
+        const memHeaders = ['Tên thành viên', 'Vai trò', 'Đóng góp (KRs)', 'Tiến độ TB (%)', 'Trạng thái'];
         memHeaders.forEach((header, idx) => {
-            const cell = wsMembers.getCell(rowM, idx + 1);
+            const cell = worksheet.getCell(currentRow, idx + 1);
             cell.value = header;
             applyHeaderStyle(cell);
         });
-        rowM++;
+        currentRow++;
 
         const members = reportData.members || [];
         members.forEach(mem => {
+             // Calculate status if missing
+            let status = mem.status;
+            if (!status) {
+                const avg = mem.average_completion || 0;
+                if (avg >= 70) status = 'on_track';
+                else if (avg >= 40) status = 'at_risk';
+                else status = 'behind';
+            }
+
+            const statusMap = {
+                completed: 'Hoàn thành',
+                on_track: 'Đúng tiến độ',
+                at_risk: 'Rủi ro',
+                behind: 'Chậm trễ',
+                pending: 'Chưa bắt đầu'
+            };
+            const statusText = statusMap[status] || status || 'N/A';
+
             const rowData = [
                 mem.full_name || 'N/A',
                 mem.role || 'Member',
                 mem.total_kr_contributed || 0,
                 (mem.average_completion || 0).toFixed(1) + '%',
-                mem.last_checkin || 'Chưa check-in'
+                statusText
             ];
 
             rowData.forEach((value, idx) => {
-                const cell = wsMembers.getCell(rowM, idx + 1);
+                const cell = worksheet.getCell(currentRow, idx + 1);
                 cell.value = value;
-                applyDataCellStyle(cell);
-                if (idx === 0) {
-                     cell.alignment = { vertical: 'middle', horizontal: 'left' };
+                
+                if (idx === 4) { // Status column
+                     applyStatusStyle(cell, statusText);
                 } else {
-                     cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                     applyDataCellStyle(cell);
+                     if (idx === 0) {
+                          cell.alignment = { vertical: 'middle', horizontal: 'left' };
+                     } else {
+                          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                     }
                 }
             });
-            rowM++;
+            currentRow++;
         });
-
-        wsMembers.columns = [
-            { width: 30 }, // Name
-            { width: 15 }, // Role
-            { width: 15 }, // KRs
-            { width: 15 }, // Progress
-            { width: 20 }, // Checkin
-        ];
 
         // Save Excel
         const sanitizedDept = (departmentName || 'Team')

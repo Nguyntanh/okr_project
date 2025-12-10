@@ -63,7 +63,8 @@ export default function TeamReportContent({
     reportData, 
     onRemind, 
     remindingMap = {},
-    isReadOnly = false 
+    isReadOnly = false,
+    showCheckin = true // Default to showing checkin
 }) {
     if (!reportData) return null;
 
@@ -376,7 +377,7 @@ export default function TeamReportContent({
                                 <th className="px-6 py-4 text-left">Thành viên</th>
                                 <th className="px-6 py-4 text-center">OKRs</th>
                                 <th className="px-6 py-4 text-left w-1/3">Tiến độ</th>
-                                <th className="px-6 py-4 text-left">Check-in cuối</th>
+                                {showCheckin && <th className="px-6 py-4 text-left">Check-in cuối</th>}
                                 {!isReadOnly && <th className="px-6 py-4 text-right">Hành động</th>}
                             </tr>
                         </thead>
@@ -411,12 +412,16 @@ export default function TeamReportContent({
                                             color={member.average_completion < 40 ? 'bg-rose-500' : (member.average_completion < 70 ? 'bg-amber-500' : 'bg-emerald-500')} 
                                         />
                                     </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-2 text-sm text-slate-500">
-                                            <FiClock className="w-4 h-4 text-slate-400" />
-                                            <span>{member.last_checkin || "Chưa check-in"}</span>
-                                        </div>
-                                    </td>
+                                    
+                                    {showCheckin && (
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-2 text-sm text-slate-500">
+                                                <FiClock className="w-4 h-4 text-slate-400" />
+                                                <span>{member.last_checkin || "Chưa check-in"}</span>
+                                            </div>
+                                        </td>
+                                    )}
+
                                     {!isReadOnly && (
                                         <td className="px-6 py-4 text-right">
                                             <button 

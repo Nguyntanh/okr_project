@@ -115,6 +115,7 @@ export default function SnapshotHistoryModal({
                                         reportData={selectedSnapshot.data_snapshot}
                                         departmentName={selectedSnapshot.data_snapshot.department_name}
                                         isReadOnly={true}
+                                        showCheckin={false}
                                     />
                                 </div>
                             ) : (
