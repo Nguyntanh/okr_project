@@ -41,12 +41,12 @@ RUN npm run build
 RUN composer install --no-dev --optimize-autoloader
 
 # Clear and cache Laravel config/views/routes
-RUN php artisan config:clear
-RUN php artisan cache:clear
-RUN php artisan view:clear
-RUN php artisan route:clear
-RUN php artisan config:cache
-RUN php artisan event:cache
+RUN CACHE_STORE=array SESSION_DRIVER=array QUEUE_CONNECTION=sync php artisan config:clear
+RUN CACHE_STORE=array SESSION_DRIVER=array QUEUE_CONNECTION=sync php artisan cache:clear
+RUN CACHE_STORE=array SESSION_DRIVER=array QUEUE_CONNECTION=sync php artisan view:clear
+RUN CACHE_STORE=array SESSION_DRIVER=array QUEUE_CONNECTION=sync php artisan route:clear
+RUN CACHE_STORE=array SESSION_DRIVER=array QUEUE_CONNECTION=sync php artisan config:cache
+RUN CACHE_STORE=array SESSION_DRIVER=array QUEUE_CONNECTION=sync php artisan event:cache
 
 
 
