@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { CycleDropdown } from '../Dropdown';
 import SnapshotDetailView from './SnapshotDetailView';
 
 export default function SnapshotHistoryModal({
@@ -14,19 +15,36 @@ export default function SnapshotHistoryModal({
     selectedSnapshot,
     onBackToList,
     onExportSnapshot,
+    modalCycleFilter,
+    onModalCycleFilterChange,
+    cyclesList,
 }) {
     if (!isOpen) return null;
 
-    // Lọc snapshot theo cấp độ
+    const [snapshotSortBy, setSnapshotSortBy] = useState(null);
+    const [snapshotSortDir, setSnapshotSortDir] = useState('asc');
+    const [snapshotLevelDropdownOpen, setSnapshotLevelDropdownOpen] = useState(false);
+    const [modalCycleDropdownOpen, setModalCycleDropdownOpen] = useState(false);
+
+    // Lọc snapshot theo cấp độ và chu kỳ
     const filteredSnapshots = (snapshots || []).filter((snap) => {
-        if (!snapshotLevelFilter || snapshotLevelFilter === 'all') return true;
-        const snapLevel = snap.data_snapshot?.level || 'departments';
-        return snapLevel === snapshotLevelFilter;
+        // Filter by level
+        if (snapshotLevelFilter && snapshotLevelFilter !== 'all') {
+            const snapLevel = snap.data_snapshot?.level || 'departments';
+            if (snapLevel !== snapshotLevelFilter) return false;
+        }
+        
+        // Filter by cycle
+        if (modalCycleFilter && snap.cycle_id !== parseInt(modalCycleFilter)) {
+            return false;
+        }
+        
+        return true;
     });
 
     return (
         <div 
-            className="fixed inset-0 absolute inset-0 bg-black/30 bg-opacity-70 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/30 bg-opacity-70 flex items-center justify-center z-[70] p-4"
             onClick={(e) => {
                 if (e.target === e.currentTarget) {
                     onClose();
@@ -39,7 +57,9 @@ export default function SnapshotHistoryModal({
             >
                 {/* Header */}
                 <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between rounded-t-xl">
-                    <h2 className="text-xl font-bold text-gray-900">Lịch sử chốt kỳ</h2>
+                    <div className="flex items-center gap-4">
+                        <h2 className="text-xl font-bold text-gray-900">Danh sách Báo cáo</h2>
+                    </div>
                     <button 
                         onClick={onClose} 
                         className="text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg p-2 transition"
@@ -52,30 +72,96 @@ export default function SnapshotHistoryModal({
 
                 <div className="p-6">
                     {selectedSnapshot ? (
-                        <SnapshotDetailView
-                            snapshot={selectedSnapshot}
-                            onBack={onBackToList}
-                            onExport={onExportSnapshot}
-                        />
+                        <div>
+                            <SnapshotDetailView
+                                snapshot={selectedSnapshot}
+                                onBack={onBackToList}
+                                onExport={onExportSnapshot}
+                            />
+                        </div>
                     ) : (
                         <div>
-                            {/* Filter theo level */}
-                            <div className="mb-4 flex items-center gap-4">
-                                <label className="text-sm font-medium text-gray-700">Lọc theo cấp độ:</label>
-                                <select
-                                    value={snapshotLevelFilter}
-                                    onChange={(e) => {
-                                        onSnapshotLevelChange?.(e.target.value);
-                                        onPageChange?.(1);
-                                    }}
-                                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                                >
-                                    <option value="all">Tất cả</option>
-                                    <option value="company">Công ty</option>
-                                    <option value="departments">Phòng ban</option>
-                                </select>
+                            {/* Filter Bar */}
+                            <div className="mb-4 flex items-center justify-end gap-6">
+                                <div className="flex items-center gap-4">
+                                    {/* Filter theo cấp độ */}
+                                    <div className="relative">
+                                        <button
+                                            onClick={() => setSnapshotLevelDropdownOpen(v => !v)}
+                                            className="flex items-center justify-between gap-3 px-4 h-10 border border-gray-300 rounded-lg text-sm bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition whitespace-nowrap min-w-40"
+                                        >
+                                            <span>
+                                                {snapshotLevelFilter === 'all'
+                                                    ? 'Tất cả cấp độ'
+                                                    : snapshotLevelFilter === 'company'
+                                                        ? 'Công ty'
+                                                        : 'Phòng ban'}
+                                            </span>
+                                            <svg
+                                                className={`w-4 h-4 transition-transform flex-shrink-0 ${snapshotLevelDropdownOpen ? 'rotate-180' : ''}`}
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </button>
+
+                                        {snapshotLevelDropdownOpen && (
+                                            <div className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-[65] overflow-hidden">
+                                                <button
+                                                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 first:rounded-t-lg"
+                                                    onClick={() => {
+                                                        onSnapshotLevelChange('all');
+                                                        onPageChange?.(1);
+                                                        setSnapshotLevelDropdownOpen(false);
+                                                    }}
+                                                >
+                                                    Tất cả cấp độ
+                                                </button>
+                                                <button
+                                                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100"
+                                                    onClick={() => {
+                                                        onSnapshotLevelChange('company');
+                                                        onPageChange?.(1);
+                                                        setSnapshotLevelDropdownOpen(false);
+                                                    }}
+                                                >
+                                                    Công ty
+                                                </button>
+                                                <button
+                                                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 last:rounded-b-lg"
+                                                    onClick={() => {
+                                                        onSnapshotLevelChange('departments');
+                                                        onPageChange?.(1);
+                                                        setSnapshotLevelDropdownOpen(false);
+                                                    }}
+                                                >
+                                                    Phòng ban
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Filter theo chu kỳ */}
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex flex-col gap-1">
+                                            <CycleDropdown
+                                                cyclesList={cyclesList}
+                                                cycleFilter={modalCycleFilter}
+                                                handleCycleChange={(value) => {
+                                                    onModalCycleFilterChange(value || '');
+                                                    onPageChange?.(1);
+                                                }}
+                                                dropdownOpen={modalCycleDropdownOpen}
+                                                setDropdownOpen={setModalCycleDropdownOpen}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
+                            {/* Snapshots Table */}
                             {filteredSnapshots.length === 0 ? (
                                 <div className="text-center py-16">
                                     <div className="bg-gray-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -83,53 +169,129 @@ export default function SnapshotHistoryModal({
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                         </svg>
                                     </div>
-                                    <p className="text-gray-600 font-semibold text-lg">Chưa có báo cáo nào</p>
+                                    <p className="text-gray-600 font-semibold text-lg">Chưa có Báo cáo nào</p>
                                     <p className="text-gray-400 text-sm mt-2">
-                                        {snapshotLevelFilter === 'all' 
-                                            ? 'Nhấn nút "Tạo báo cáo" để tạo bản sao đầu tiên'
-                                            : `Chưa có báo cáo nào cho cấp độ ${snapshotLevelFilter === 'company' ? 'Công ty' : 'Phòng ban'}`
+                                        {snapshotLevelFilter === 'all'
+                                            ? 'Nhấn nút "Tạo Báo cáo" để tạo bản sao đầu tiên'
+                                            : `Chưa có Báo cáo nào cho cấp độ ${snapshotLevelFilter === 'company' ? 'Công ty' : 'Phòng ban'}`
                                         }
                                     </p>
                                 </div>
                             ) : (
-                                <div className="grid gap-4">
-                                    {filteredSnapshots.map((snap) => {
-                                        const snapLevel = snap.data_snapshot?.level || 'departments';
-                                        const levelText = snapLevel === 'company' ? 'Công ty' : 'Phòng ban';
+                                <div className="overflow-x-auto">
+                                    {(() => {
+                                        const sorted = [...filteredSnapshots];
+                                        if (snapshotSortBy === 'name') {
+                                            sorted.sort((a, b) => {
+                                                const A = (a.title || '').toString().toLowerCase();
+                                                const B = (b.title || '').toString().toLowerCase();
+                                                if (A < B) return snapshotSortDir === 'asc' ? -1 : 1;
+                                                if (A > B) return snapshotSortDir === 'asc' ? 1 : -1;
+                                                return 0;
+                                            });
+                                        } else if (snapshotSortBy === 'date') {
+                                            sorted.sort((a, b) => {
+                                                const A = new Date(a.snapshotted_at || a.created_at || 0).getTime();
+                                                const B = new Date(b.snapshotted_at || b.created_at || 0).getTime();
+                                                if (A < B) return snapshotSortDir === 'asc' ? -1 : 1;
+                                                if (A > B) return snapshotSortDir === 'asc' ? 1 : -1;
+                                                return 0;
+                                            });
+                                        }
+
                                         return (
-                                            <button
-                                                key={snap.id}
-                                                onClick={() => onLoadSnapshot?.(snap.id)}
-                                                className="w-full p-5 bg-white border border-gray-200 rounded-xl hover:border-blue-400 hover:shadow-md transition-all text-left group"
-                                            >
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center gap-3 mb-1">
-                                                            <h3 className="font-bold text-gray-900 text-lg group-hover:text-blue-600 transition">
-                                                                {snap.title}
-                                                            </h3>
-                                                            <span className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
-                                                                {levelText}
+                                            <table className="w-full text-left bg-white border border-gray-200 rounded-lg">
+                                                <thead className="bg-gray-50">
+                                                    <tr>
+                                                        <th
+                                                            onClick={() => {
+                                                                if (snapshotSortBy === 'name') setSnapshotSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+                                                                else {
+                                                                    setSnapshotSortBy('name');
+                                                                    setSnapshotSortDir('asc');
+                                                                }
+                                                            }}
+                                                            className={`
+                                                                px-4 py-3 text-left cursor-pointer
+                                                                ${snapshotSortBy === 'name' ? 'bg-gray-100' : ''}
+                                                                w-[50%]    
+                                                                hover:bg-gray-100      
+                                                            `}
+                                                        >
+                                                            Tên Báo cáo
+                                                            <span className="ml-2 text-xs text-gray-500">
+                                                                {snapshotSortBy === 'name' ? (snapshotSortDir === 'asc' ? '▲' : '▼') : ''}
                                                             </span>
-                                                        </div>
-                                                        <div className="flex items-center gap-6 text-sm text-gray-500 mt-2">
-                                                            <span className="flex items-center gap-1">
-                                                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                                                {new Date(snap.snapshotted_at).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: 'long', year: 'numeric' })}
+                                                        </th>
+
+                                                        <th className="px-4 py-3 w-[20%]">
+                                                            Người thực hiện
+                                                        </th>
+
+                                                        <th
+                                                            onClick={() => {
+                                                                if (snapshotSortBy === 'date') setSnapshotSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+                                                                else {
+                                                                    setSnapshotSortBy('date');
+                                                                    setSnapshotSortDir('asc');
+                                                                }
+                                                            }}
+                                                            className={`
+                                                                px-4 py-3 cursor-pointer text-left
+                                                                ${snapshotSortBy === 'date' ? 'bg-gray-100' : ''}
+                                                                w-[20%]
+                                                                hover:bg-gray-100
+                                                            `}
+                                                        >
+                                                            Ngày chốt
+                                                            <span className="ml-2 text-xs text-center text-gray-500">
+                                                                {snapshotSortBy === 'date' ? (snapshotSortDir === 'asc' ? '▲' : '▼') : ''}
                                                             </span>
-                                                            <span className="flex items-center gap-1">
-                                                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                                                                {snap.creator?.full_name || 'N/A'}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                    <svg className="h-6 w-6 text-gray-400 group-hover:text-blue-500 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                                    </svg>
-                                                </div>
-                                            </button>
+                                                        </th>
+
+                                                        <th className="px-4 py-3 text-center w-[10%]">
+                                                            Hành động
+                                                        </th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {sorted.map((snap) => {
+                                                        const snapLevel = snap.data_snapshot?.level || 'departments';
+                                                        const levelText = snapLevel === 'company' ? 'Công ty' : 'Phòng ban';
+                                                        const rowKey = `snapshot-${snap.id}-${snapshotSortBy || 'nosort'}-${snapshotSortDir}-${snap.snapshotted_at || snap.created_at || ''}`;
+                                                        return (
+                                                            <tr key={rowKey} className="border-t border-gray-100 hover:bg-slate-50">
+                                                                <td className="px-4 py-3 align-middle">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div>
+                                                                            <div className="font-bold text-gray-900">{snap.title}</div>
+                                                                        </div>
+                                                                        <span className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+                                                                            {levelText}
+                                                                        </span>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-4 py-3 align-middle text-gray-700">{snap.creator?.full_name || 'N/A'}</td>
+                                                                <td className="px-4 py-3 align-middle text-gray-700">{new Date(snap.snapshotted_at).toLocaleDateString('vi-VN')}</td>
+                                                                <td className="px-4 py-3 text-center align-middle">
+                                                                    <button
+                                                                        onClick={() => onLoadSnapshot?.(snap.id)}
+                                                                        title="Xem chi tiết"
+                                                                        className="inline-flex items-center justify-center p-2 rounded-md hover:bg-gray-100 transition"
+                                                                    >
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                                        </svg>
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
                                         );
-                                    })}
+                                    })()}
                                 </div>
                             )}
 
@@ -143,11 +305,10 @@ export default function SnapshotHistoryModal({
                                                 onPageChange?.(newPage);
                                             }}
                                             disabled={snapshotPage === 1}
-                                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                                                snapshotPage === 1
-                                                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                                    : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
-                                            }`}
+                                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${snapshotPage === 1
+                                                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                                : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                                                }`}
                                         >
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -168,11 +329,10 @@ export default function SnapshotHistoryModal({
                                                         <button
                                                             key={pageNumber}
                                                             onClick={() => onPageChange?.(pageNumber)}
-                                                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                                                                snapshotPage === pageNumber
-                                                                    ? "bg-blue-600 text-white"
-                                                                    : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
-                                                            }`}
+                                                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${snapshotPage === pageNumber
+                                                                ? "bg-blue-600 text-white"
+                                                                : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                                                                }`}
                                                         >
                                                             {pageNumber}
                                                         </button>
@@ -197,11 +357,10 @@ export default function SnapshotHistoryModal({
                                                 onPageChange?.(newPage);
                                             }}
                                             disabled={snapshotPage === snapshotPagination.last_page}
-                                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                                                snapshotPage === snapshotPagination.last_page
-                                                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                                    : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
-                                            }`}
+                                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${snapshotPage === snapshotPagination.last_page
+                                                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                                : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                                                }`}
                                         >
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

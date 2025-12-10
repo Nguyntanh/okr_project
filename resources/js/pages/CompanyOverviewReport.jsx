@@ -37,6 +37,8 @@ export default function CompanyOverviewReport() {
     });
     const [showSnapshotModal, setShowSnapshotModal] = useState(false);
     const [snapshotTitleInput, setSnapshotTitleInput] = useState('');
+    const [snapshotCreateLevel, setSnapshotCreateLevel] = useState('departments');
+    const [modalCycleFilter, setModalCycleFilter] = useState('');
     const [toast, setToast] = useState(null);
     const [isReportReady, setIsReportReady] = useState(false);
 
@@ -364,30 +366,31 @@ export default function CompanyOverviewReport() {
 
     const confirmCreateSnapshot = async () => {
         if (!snapshotTitleInput.trim()) {
-            showNotification('error', '�Warning Vui lòng nhập tên báo cáo chốt kỳ');
+            showNotification('error', 'Vui lòng nhập tên báo cáo chốt kỳ');
             return;
         }
 
         setIsCreatingSnapshot(true);
         try {
             const baseTitle = snapshotTitleInput.trim();
+            const levelToCreate = snapshotCreateLevel || 'departments'; // Lấy cấp độ từ modal
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
-            // Fetch dữ liệu cho cả hai level
-            const fetchDataForLevel = async (levelToFetch) => {
+            // Fetch dữ liệu cho cấp độ được chọn
+            const fetchDataForLevel = async (level) => {
                 // Fetch report data
                 const params = new URLSearchParams();
                 if (filters.cycleId) params.set('cycle_id', filters.cycleId);
                 if (filters.departmentId) params.set('department_id', filters.departmentId);
                 if (filters.ownerId) params.set('owner_id', filters.ownerId);
-                params.set('level', levelToFetch);
+                params.set('level', level);
                 
                 const reportRes = await fetch(`/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`, {
                     headers: { Accept: 'application/json' }
                 });
                 const reportJson = await reportRes.json();
                 if (!reportRes.ok || !reportJson.success) {
-                    throw new Error(`Không thể tải dữ liệu cho ${levelToFetch === 'company' ? 'công ty' : 'phòng ban'}`);
+                    throw new Error(`Không thể tải dữ liệu cho ${level === 'company' ? 'công ty' : 'phòng ban'}`);
                 }
 
                 // Fetch detailed data
@@ -395,7 +398,7 @@ export default function CompanyOverviewReport() {
                     filters.cycleId,
                     filters.departmentId,
                     filters.ownerId,
-                    levelToFetch
+                    level
                 );
 
                 return {
@@ -404,90 +407,50 @@ export default function CompanyOverviewReport() {
                 };
             };
 
-            // Tạo snapshot cho cả hai level
-            const [companyData, departmentsData] = await Promise.all([
-                fetchDataForLevel('company'),
-                fetchDataForLevel('departments'),
-            ]);
+            // Lấy dữ liệu chỉ cho cấp độ được chọn
+            const selectedLevelData = await fetchDataForLevel(levelToCreate);
 
-            // Tạo snapshot cho công ty
-            const companySnapshotData = {
-                overall: companyData.report.overall,
-                departments: companyData.report.departmentsHierarchy?.length > 0 
-                    ? companyData.report.departmentsHierarchy 
-                    : (companyData.report.departments || []),
-                trend: companyData.report.trend || [],
-                risks: companyData.report.risks || [],
+            // Tạo snapshot cho cấp độ được chọn
+            const snapshotData = {
+                overall: selectedLevelData.report.overall,
+                departments: selectedLevelData.report.departmentsHierarchy?.length > 0 
+                    ? selectedLevelData.report.departmentsHierarchy 
+                    : (selectedLevelData.report.departments || []),
+                trend: selectedLevelData.report.trend || [],
+                risks: selectedLevelData.report.risks || [],
                 detailedData: {
-                    objectives: companyData.detailedData.objectives || [],
-                    keyResults: companyData.detailedData.keyResults || [],
-                    owners: companyData.detailedData.owners || [],
-                    checkIns: companyData.detailedData.checkIns || [],
+                    objectives: selectedLevelData.detailedData.objectives || [],
+                    keyResults: selectedLevelData.detailedData.keyResults || [],
+                    owners: selectedLevelData.detailedData.owners || [],
+                    checkIns: selectedLevelData.detailedData.checkIns || [],
                 },
-                level: 'company',
+                level: levelToCreate,
             };
 
-            // Tạo snapshot cho phòng ban
-            const departmentsSnapshotData = {
-                overall: departmentsData.report.overall,
-                departments: departmentsData.report.departmentsHierarchy?.length > 0 
-                    ? departmentsData.report.departmentsHierarchy 
-                    : (departmentsData.report.departments || []),
-                trend: departmentsData.report.trend || [],
-                risks: departmentsData.report.risks || [],
-                detailedData: {
-                    objectives: departmentsData.detailedData.objectives || [],
-                    keyResults: departmentsData.detailedData.keyResults || [],
-                    owners: departmentsData.detailedData.owners || [],
-                    checkIns: departmentsData.detailedData.checkIns || [],
-                },
-                level: 'departments',
-            };
-
-            // Tạo cả hai snapshot
-            const [companyResponse, departmentsResponse] = await Promise.all([
-                fetch('/api/reports/snapshot', {
+            // Tạo snapshot
+            const response = await fetch('/api/reports/snapshot', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
+                    'X-CSRF-TOKEN': csrfToken,
                 },
                 body: JSON.stringify({
                     cycle_id: filters.cycleId,
-                        title: baseTitle,
-                        data_snapshot: companySnapshotData,
-                    }),
+                    title: baseTitle,
+                    data_snapshot: snapshotData,
                 }),
-                fetch('/api/reports/snapshot', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
-                    },
-                    body: JSON.stringify({
-                        cycle_id: filters.cycleId,
-                        title: baseTitle,
-                        data_snapshot: departmentsSnapshotData,
-                    }),
-                }),
-            ]);
+            });
 
-            const companyDataResult = await companyResponse.json();
-            const departmentsDataResult = await departmentsResponse.json();
+            const result = await response.json();
 
-            if (!companyResponse.ok || !companyDataResult.success) {
-                throw new Error(companyDataResult.message || 'Không thể tạo snapshot cho công ty');
-            }
-
-            if (!departmentsResponse.ok || !departmentsDataResult.success) {
-                throw new Error(departmentsDataResult.message || 'Không thể tạo snapshot cho phòng ban');
+            if (!response.ok || !result.success) {
+                throw new Error(result.message || 'Không thể tạo báo cáo');
             }
 
             showNotification('success', 'Tạo báo cáo thành công!');
             setSnapshotPage(1);
-            loadSnapshots(1);
+            await loadSnapshots(1);
 
             setIsReportReady(true);
 
@@ -501,27 +464,51 @@ export default function CompanyOverviewReport() {
         }
     };
 
-    const loadSnapshots = async (page = 1) => {
-        const result = await loadSnapshotsUtil(filters.cycleId, page);
-        setSnapshots(result.snapshots);
-        setSnapshotPagination(result.pagination);
+    const loadSnapshots = async (page = 1, cycleId = null) => {
+        try {
+            const useCycle = cycleId || filters.cycleId || modalCycleFilter || '';
+            console.log('Loading snapshots for cycle:', useCycle, 'page:', page);
+            const result = await loadSnapshotsUtil(useCycle, page);
+            console.log('Snapshots loaded:', result);
+            setSnapshots(result.snapshots);
+            setSnapshotPagination(result.pagination);
+        } catch (error) {
+            console.error('Error in loadSnapshots:', error);
+            setSnapshots([]);
+            setSnapshotPagination({ current_page: 1, last_page: 1, total: 0 });
+            showNotification('error', 'Lỗi khi tải danh sách báo cáo');
+        }
     };
 
     const loadSnapshot = async (snapshotId) => {
-        const snapshot = await loadSnapshotUtil(snapshotId);
-        if (snapshot) {
-            setSelectedSnapshot(snapshot);
+        try {
+            console.log('Loading snapshot:', snapshotId);
+            const snapshot = await loadSnapshotUtil(snapshotId);
+            console.log('Snapshot loaded:', snapshot);
+            if (snapshot) {
+                setSelectedSnapshot(snapshot);
+            } else {
+                showNotification('error', 'Không thể tải chi tiết báo cáo');
+            }
+        } catch (error) {
+            console.error('Error in loadSnapshot:', error);
+            showNotification('error', 'Lỗi khi tải chi tiết báo cáo');
         }
     };
 
     const handleViewSnapshots = () => {
         if (!showSnapshots) {
-            // Mở modal
             setShowSnapshots(true);
             setSnapshotPage(1);
-            loadSnapshots(1);
+            setSelectedSnapshot(null);
+
+            // Khởi tạo modalCycleFilter = filters.cycleId (đồng bộ chu kỳ)
+            const initialCycle = filters.cycleId || modalCycleFilter;
+            setModalCycleFilter(initialCycle);
+
+            loadSnapshots(1, initialCycle || undefined);
+
         } else {
-            // Đóng modal - reset về trang 1 và xóa query params
             setShowSnapshots(false);
             setSelectedSnapshot(null);
             setSnapshotPage(1);
@@ -649,13 +636,12 @@ export default function CompanyOverviewReport() {
                     {/* Nút Xem lịch sử kết chuyển */}
                     <button
                         onClick={handleViewSnapshots}
-                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100 transition-all duration-200"
+                        className="flex items-center justify-center gap-2 px-4 h-10 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100 transition-all duration-200 min-w-48 whitespace-nowrap"
                     >
-                        {/* Icon: lịch sử / danh sách báo cáo */}
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                         </svg>
-                        Lịch sử 
+                        Danh sách Báo cáo 
                     </button>
 
                         {/* Filter chu kỳ */} 
@@ -754,7 +740,7 @@ export default function CompanyOverviewReport() {
                     </div>
                     <h3 className="text-2xl font-bold text-slate-800 mb-3">Chưa có báo cáo</h3>
                     <p className="text-slate-600 max-w-md leading-relaxed">
-                        Nhấn <strong className="text-blue-600">Tạo báo cáo</strong> để tạo báo cáo chính thức.<br/>
+                        Nhấn <strong className="text-blue-600">Tạo Báo cáo</strong> để tạo báo cáo chính thức.<br/>
                         Nội dung báo cáo sẽ hiển thị tại đây sau khi hoàn tất.
                     </p>
                 </div>
@@ -766,13 +752,15 @@ export default function CompanyOverviewReport() {
                 onClose={() => {
                     setShowSnapshotModal(false);
                     setSnapshotTitleInput('');
+                    setSnapshotCreateLevel('departments');
                 }}
                 title={snapshotTitleInput}
                 onTitleChange={setSnapshotTitleInput}
                 onSubmit={confirmCreateSnapshot}
                 isSubmitting={isCreatingSnapshot}
+                level={snapshotCreateLevel}
+                onLevelChange={setSnapshotCreateLevel}
             />
-
             {/* Snapshots Modal (lịch sử + chi tiết) */}
             {showSnapshots && (
                 <SnapshotHistoryModal
@@ -780,20 +768,23 @@ export default function CompanyOverviewReport() {
                     onClose={() => { 
                         setShowSnapshots(false);
                         setSelectedSnapshot(null);
-                                    setSnapshotPage(1);
-                                }}
+                        setSnapshotPage(1);
+                    }}
                     snapshots={snapshots}
                     snapshotLevelFilter={snapshotLevelFilter}
                     onSnapshotLevelChange={setSnapshotLevelFilter}
                     snapshotPage={snapshotPage}
                     snapshotPagination={snapshotPagination}
-                    onPageChange={(page) => { setSnapshotPage(page); loadSnapshots(page); }}
+                    onPageChange={(page) => { setSnapshotPage(page); loadSnapshots(page, modalCycleFilter || filters.cycleId); }}
                     onLoadSnapshot={(id) => loadSnapshot(id)}
                     selectedSnapshot={selectedSnapshot}
                     onBackToList={() => setSelectedSnapshot(null)}
                     onExportSnapshot={exportSnapshotToExcel}
+                    modalCycleFilter={modalCycleFilter}
+                    onModalCycleFilterChange={setModalCycleFilter}
+                    cyclesList={cycles}
                 />
-            )}     
+            )}                 
         </div>
     );
 }
