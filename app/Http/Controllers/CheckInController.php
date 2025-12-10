@@ -149,43 +149,78 @@ class CheckInController extends Controller
             'progress_percent' => 'required|numeric|min:0|max:100',
             'notes' => 'nullable|string|max:1000',
             'is_completed' => 'boolean',
+            'status' => 'nullable|in:not_start,on_track,at_risk,in_trouble,completed',
         ]);
+
+        // Chặn check-in nếu KR đã hoàn thành
+        if (strtolower((string)$keyResult->status) === 'completed') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Key Result đã hoàn thành và không thể check-in thêm.'
+            ], 400);
+        }
+
+        // Tính toán phần trăm theo mục tiêu để kiểm tra trạng thái
+        $targetValue = (float) ($keyResult->target_value ?? 0);
+        $progressValue = (float) $request->progress_value;
+        $calculatedPercent = $targetValue > 0
+            ? ($progressValue / $targetValue) * 100
+            : (float) $request->progress_percent;
+
+        // Nếu đặt trạng thái hoàn thành nhưng chưa đạt mục tiêu thì từ chối
+        if (
+            $request->status === 'completed'
+            && $targetValue > 0
+            && $progressValue < $targetValue
+        ) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Chưa đạt mục tiêu nên không thể đặt trạng thái Hoàn thành.'
+            ], 422);
+        }
 
         try {
             $checkIn = null;
-            DB::transaction(function () use ($request, $user, $keyResult, &$checkIn) {
+            DB::transaction(function () use ($request, $user, $keyResult, &$checkIn, $calculatedPercent) {
                 // Tạo check-in mới
                 $checkIn = CheckIn::create([
                     'kr_id' => $keyResult->kr_id,
                     'user_id' => $user->user_id,
                     'progress_value' => $request->progress_value,
-                    'progress_percent' => $request->progress_percent,
+                    'progress_percent' => $calculatedPercent,
                     'notes' => $request->notes,
                     'check_in_type' => $request->check_in_type,
-                    'is_completed' => $request->boolean('is_completed') || $request->progress_percent >= 100,
+                    'is_completed' => $request->boolean('is_completed') || $calculatedPercent >= 100,
                 ]);
 
                 // Determine the new status
-                $newStatus = $keyResult->status;
-                if ($request->boolean('is_completed') || $request->progress_percent >= 100) {
+                $isCompletedFlag = $request->boolean('is_completed')
+                    || $calculatedPercent >= 100
+                    || $request->status === 'completed';
+
+                $newStatus = $request->status
+                    ?: ($keyResult->status === 'completed' ? 'completed' : 'on_track');
+
+                if ($isCompletedFlag) {
                     $newStatus = 'completed';
-                } elseif ($keyResult->status !== 'completed') {
-                    $newStatus = 'active';
                 }
 
-                // Update the Key Result in a single call
+                // Update the Key Result in a single call (optional if updateProgress handles it, but good for setting status)
                 $keyResult->update([
                     'current_value' => $request->progress_value,
-                    'progress_percent' => $request->progress_percent,
+                    'progress_percent' => $calculatedPercent,
                     'status' => $newStatus,
                 ]);
 
-                // Refresh KeyResult để đảm bảo có dữ liệu mới nhất
+                // IMPORTANT: Trigger chain reaction calculation
+                // This will save progress to DB and propagate to parents
                 $keyResult->refresh();
+                $keyResult->updateProgress(); // New recursive method
 
                 // Tự động cập nhật progress của Objective từ KeyResults
+                // (Redundant if updateProgress() calls objective->updateProgress(), but keeps logic safe)
                 if ($keyResult->objective) {
-                    $keyResult->objective->updateProgressFromKeyResults();
+                    $keyResult->objective->updateProgress();
                 }
 
                 Log::info('Check-in created', [
@@ -455,54 +490,25 @@ class CheckInController extends Controller
      */
     private function canCheckIn($user, $keyResult): bool
     {
-        // Đảm bảo lấy giá trị mới nhất từ database cho assigned_to
-        // Nhưng không refresh toàn bộ để tránh mất relationship
-        $freshAssignedTo = KeyResult::where('kr_id', $keyResult->kr_id)
-            ->value('assigned_to');
-        
-        // Debug logging
-        Log::info('Checking check-in permission', [
-            'user_id' => $user->user_id,
-            'kr_id' => $keyResult->kr_id,
-            'kr_user_id' => $keyResult->user_id,
-            'kr_assigned_to' => $keyResult->assigned_to,
-            'fresh_assigned_to' => $freshAssignedTo,
-            'objective_user_id' => $keyResult->objective?->user_id,
-        ]);
+        // Nếu Key Result đã được gán cho người khác (assigned_to != null)
+        if ($keyResult->assigned_to !== null) {
+            // Chỉ người được gán mới có quyền check-in
+            if ($keyResult->assigned_to == $user->user_id) {
+                return true;
+            }
+            // Người sở hữu Key Result hoặc Objective không có quyền khi đã gán cho người khác
+            return false;
+        }
 
+        // Nếu Key Result chưa được gán (assigned_to == null)
         // 1. Người sở hữu Key Result có thể check-in
         if ($keyResult->user_id && (int)$keyResult->user_id === (int)$user->user_id) {
             Log::info('Check-in allowed: User is owner of Key Result');
             return true;
         }
 
-        // 2. Người được giao Key Result có thể check-in
-        // Sử dụng giá trị fresh từ database để đảm bảo chính xác
-        $assignedTo = $freshAssignedTo ?? $keyResult->assigned_to;
-        if ($assignedTo !== null && $assignedTo !== '') {
-            // So sánh cả string và int để đảm bảo chính xác
-            $assignedToStr = (string)$assignedTo;
-            $userIdStr = (string)$user->user_id;
-            $assignedToInt = (int)$assignedTo;
-            $userIdInt = (int)$user->user_id;
-            
-            if ($assignedToStr === $userIdStr || $assignedToInt === $userIdInt) {
-                Log::info('Check-in allowed: User is assigned to Key Result', [
-                    'assigned_to' => $assignedTo,
-                    'assigned_to_str' => $assignedToStr,
-                    'assigned_to_int' => $assignedToInt,
-                    'user_id' => $user->user_id,
-                    'user_id_str' => $userIdStr,
-                    'user_id_int' => $userIdInt,
-                ]);
-                return true;
-            }
-        }
-
-        // 3. Người sở hữu Objective chứa Key Result có thể check-in
-        if ($keyResult->objective && $keyResult->objective->user_id && 
-            (int)$keyResult->objective->user_id === (int)$user->user_id) {
-            Log::info('Check-in allowed: User is owner of Objective');
+        // 2. Người sở hữu Objective chứa Key Result có thể check-in (khi chưa gán)
+        if ($keyResult->objective && $keyResult->objective->user_id == $user->user_id) {
             return true;
         }
 

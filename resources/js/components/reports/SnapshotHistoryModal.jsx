@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CycleDropdown } from '../Dropdown';
 import SnapshotDetailView from './SnapshotDetailView';
+import TeamReportContent from './TeamReportContent';
 import ProgressBar from './ProgressBar';
 
 export default function SnapshotHistoryModal({
@@ -19,6 +20,7 @@ export default function SnapshotHistoryModal({
     modalCycleFilter,
     onModalCycleFilterChange,
     cyclesList,
+    showLevelFilter = true,
 }) {
     if (!isOpen) return null;
 
@@ -31,7 +33,7 @@ export default function SnapshotHistoryModal({
     // Lọc snapshot theo cấp độ và chu kỳ
     const filteredSnapshots = (snapshots || []).filter((snap) => {
         // Filter by level
-        if (snapshotLevelFilter && snapshotLevelFilter !== 'all') {
+        if (showLevelFilter && snapshotLevelFilter && snapshotLevelFilter !== 'all') {
             const snapLevel = snap.data_snapshot?.level || 'departments';
             if (snapLevel !== snapshotLevelFilter) return false;
         }
@@ -75,11 +77,54 @@ export default function SnapshotHistoryModal({
                 <div className="p-6">
                     {selectedSnapshot ? (
                         <div>
-                            <SnapshotDetailView
-                                snapshot={selectedSnapshot}
-                                onBack={onBackToList}
-                                onExport={onExportSnapshot}
-                            />
+                            {selectedSnapshot.data_snapshot?.level === 'unit' ? (
+                                <div>
+                                    <div className="flex items-center justify-between mb-4 gap-3">
+                                        <button 
+                                            onClick={onBackToList} 
+                                            className="text-blue-600 hover:text-blue-800 flex items-center gap-2 font-medium transition"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+                                            </svg>
+                                            Quay lại danh sách
+                                        </button>
+
+                                        <button
+                                            onClick={() => onExportSnapshot?.(selectedSnapshot)}
+                                            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 hover:border-slate-400 active:bg-slate-100 transition-colors"
+                                        >
+                                            <svg className="h-4 w-4 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                                <polyline points="7 10 12 15 17 10"/>
+                                                <line x1="12" y1="15" x2="12" y2="3"/>
+                                            </svg>
+                                            Xuất file
+                                        </button>
+                                    </div>
+
+                                    <h4 className="text-lg font-bold text-slate-900 mb-2">{selectedSnapshot.title}</h4>
+                                    
+                                    <div className="bg-slate-50 rounded-lg p-4 mb-6 border border-slate-200 shadow-sm text-sm flex flex-wrap gap-x-8 gap-y-2">
+                                         <div><span className="text-slate-500">Chu kỳ:</span> <span className="font-semibold ml-1">{selectedSnapshot.cycle_name}</span></div>
+                                         <div><span className="text-slate-500">Ngày chốt:</span> <span className="font-semibold ml-1">{new Date(selectedSnapshot.snapshotted_at).toLocaleDateString('vi-VN')}</span></div>
+                                         <div><span className="text-slate-500">Người tạo:</span> <span className="font-semibold ml-1">{selectedSnapshot.creator?.full_name || 'N/A'}</span></div>
+                                    </div>
+
+                                    <TeamReportContent 
+                                        reportData={selectedSnapshot.data_snapshot}
+                                        departmentName={selectedSnapshot.data_snapshot.department_name}
+                                        isReadOnly={true}
+                                        showCheckin={false}
+                                    />
+                                </div>
+                            ) : (
+                                <SnapshotDetailView
+                                    snapshot={selectedSnapshot}
+                                    onBack={onBackToList}
+                                    onExport={onExportSnapshot}
+                                />
+                            )}
                         </div>
                     ) : (
                         <div>
@@ -87,6 +132,7 @@ export default function SnapshotHistoryModal({
                             <div className="mb-4 flex items-center justify-end gap-6">
                                 <div className="flex items-center gap-4">
                                     {/* Filter theo cấp độ */}
+                                    {showLevelFilter && (
                                     <div className="relative">
                                         <button
                                             onClick={() => setSnapshotLevelDropdownOpen(v => !v)}
@@ -144,6 +190,7 @@ export default function SnapshotHistoryModal({
                                             </div>
                                         )}
                                     </div>
+                                    )}
 
                                     {/* Filter theo chu kỳ */}
                                     <div className="flex items-center gap-4">
