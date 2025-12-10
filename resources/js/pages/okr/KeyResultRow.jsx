@@ -1,6 +1,7 @@
 // src/components/okr/KeyResultRow.jsx
 import React from "react";
-import { FaKey, FaBullseye, FaLink, FaLongArrowAltLeft, FaUserEdit } from "react-icons/fa";
+import { FaKey, FaBullseye, FaLongArrowAltLeft, FaUserEdit } from "react-icons/fa";
+import { RiAlignItemVerticalCenterLine } from "react-icons/ri";
 import { LuAlignCenterHorizontal } from "react-icons/lu";
 import LinkedChildObjectiveRow from "./LinkedChildObjectiveRow";
 import KRActionsMenu from "./KRActionsMenu";
@@ -169,19 +170,7 @@ export default function KeyResultRow({
                                 title="Liên kết OKR"
                                 className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                <svg
-                                    className="h-4 w-4"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.172-1.172m-.915-2.06c.071-.044.14-.087.207-.13.312-.192.646-.358 1-.497.647-.253 1.348-.372 2.052-.372h.001c.704 0 1.405.119 2.052.372.354.139.688.305 1 .497.067.043.136.086.207.13l-.915-2.06z"
-                                    />
-                                </svg>
+                            <RiAlignItemVerticalCenterLine className="h-4 w-4" />
                             </button>
                             {disableActions ? (
                                 <button
@@ -526,6 +515,32 @@ export default function KeyResultRow({
                         </button>
                     ) : disableActions ? (
                         <div className="flex items-center justify-end gap-1">
+                            {openCheckInModal && (
+                                <button
+                                    onClick={() => openCheckInModal({
+                                        ...kr,
+                                        objective_id: objective.objective_id,
+                                    })}
+                                    className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Check-in"
+                                    disabled={disableActions}
+                                >
+                                    <svg
+                                        className="h-4 w-4"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M5 13l4 4L19 7"
+                                        />
+                                    </svg>
+                                </button>
+                            )}
                             <button
                                 onClick={() => setAssignModal({ show: true, kr, objective, email: "", loading: false })}
                                 className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
@@ -534,21 +549,6 @@ export default function KeyResultRow({
                             >
                                 <FaUserEdit className="h-4 w-4" />
                             </button>
-                            {openCheckInModal && (
-                                <button
-                                    onClick={() => openCheckInModal({
-                                        ...kr,
-                                        objective_id: objective.objective_id,
-                                    })}
-                                    className="p-1 text-blue-600 hover:bg-blue-50 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                    title="Check-in"
-                                    disabled={disableActions}
-                                >
-                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                </button>
-                            )}
                             <KRActionsMenu
                                 kr={kr}
                                 objective={objective}

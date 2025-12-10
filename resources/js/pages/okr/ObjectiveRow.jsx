@@ -2,6 +2,7 @@
 import React from "react";
 import { Link } from '@inertiajs/react';
 import { FaBullseye } from "react-icons/fa";
+import { RiAlignItemVerticalCenterLine } from "react-icons/ri";
 import AlignmentBadge from "./AlignmentBadge";
 import KeyResultRow from "./KeyResultRow";
 import ObjectiveActionsMenu from "./ObjectiveActionsMenu";
@@ -169,19 +170,7 @@ export default function ObjectiveRow({
                             }
                             className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            <svg
-                                className="h-4 w-4"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.172-1.172m-.915-2.06c.071-.044.14-.087.207-.13.312-.192.646-.358 1-.497.647-.253 1.348-.372 2.052-.372h.001c.704 0 1.405.119 2.052.372.354.139.688.305 1 .497.067.043.136.086.207.13l-.915-2.06z"
-                                />
-                            </svg>
+                            <RiAlignItemVerticalCenterLine className="h-4 w-4" />
                         </button>
                         
                         {disableActions ? (
