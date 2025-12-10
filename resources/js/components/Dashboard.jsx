@@ -68,12 +68,6 @@ function MyOkrRow({ okr }) {
                     <div className={`px-3 py-1 rounded-full text-sm font-bold ${objTextClass}`}>
                         {objProgress}%
                     </div>
-                    <a
-                        href={`/my-objectives/details/${okr.objective_id}`}
-                        className="hidden sm:inline-flex items-center justify-center px-4 py-2 bg-slate-900 text-white text-sm font-semibold rounded-lg hover:bg-blue-600 transition-colors shadow-sm"
-                    >
-                        Check-in
-                    </a>
                 </div>
             </div>
 
@@ -123,16 +117,6 @@ function MyOkrRow({ okr }) {
                         <span className="text-xs text-slate-400 italic">Chưa có kết quả then chốt (Key Results) nào được tạo.</span>
                     </div>
                 )}
-            </div>
-            
-            {/* Mobile Action Button (Only visible on small screens) */}
-            <div className="mt-3 sm:hidden">
-                <a
-                    href={`/my-objectives/details/${okr.objective_id}`}
-                    className="flex w-full items-center justify-center px-4 py-2 bg-white border border-slate-300 text-slate-700 text-sm font-semibold rounded-lg hover:bg-slate-50"
-                >
-                    Check-in Tiến độ
-                </a>
             </div>
         </div>
     );
@@ -285,9 +269,20 @@ export default function Dashboard() {
                         </span>
                         Mục tiêu của tôi
                     </h2>
-                    <a href="/my-objectives" className="text-sm font-semibold text-blue-600 hover:text-blue-700">
-                        Quản lý tất cả &rarr;
-                    </a>
+                    <div className="flex gap-2">
+                         <a 
+                            href="/my-objectives" 
+                            className="hidden sm:inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                            Check-in ngay
+                        </a>
+                        <a href="/my-objectives" className="sm:hidden text-sm font-semibold text-blue-600 hover:text-blue-700 flex items-center">
+                            Xem tất cả &rarr;
+                        </a>
+                    </div>
                 </div>
                 
                 {(data.myOkrs || []).length > 0 ? (
