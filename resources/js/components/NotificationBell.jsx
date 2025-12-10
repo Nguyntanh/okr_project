@@ -305,6 +305,7 @@ export default function NotificationBell() {
                                         }
                                         
                                         // Extract URL info
+                                        // action_url chỉ chứa path và query params, không có domain
                                         let targetUrl = notification.action_url;
                                         let targetPath = '/my-objectives';
                                         let searchParams = '';
