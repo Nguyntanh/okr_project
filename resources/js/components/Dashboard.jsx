@@ -247,6 +247,21 @@ export default function Dashboard() {
         );
     }
 
+    // Helper: Tính trung bình tiến độ
+    const calculateAvg = (list) => {
+        if (!list || list.length === 0) return 0;
+        const total = list.reduce((sum, item) => {
+            const val = item.calculated_progress ?? item.progress_percent ?? 0;
+            return sum + parseFloat(val);
+        }, 0);
+        return (total / list.length).toFixed(1);
+    };
+
+    const avgPersonal = calculateAvg(data.myOkrs);
+    const avgDept = calculateAvg(data.deptOkrs);
+    // Ưu tiên sử dụng companyGlobalAvg từ backend nếu có, ngược lại mới tính từ list
+    const avgCompany = data.companyGlobalAvg ?? calculateAvg(data.companyOkrs);
+
     return (
         <div className="mx-auto max-w-5xl space-y-10 pb-20">
             {/* Header */}
@@ -270,6 +285,50 @@ export default function Dashboard() {
                             month: "long",
                             day: "numeric",
                         })}
+                    </div>
+                </div>
+            </div>
+
+            {/* TỔNG QUAN TIẾN ĐỘ */}
+            <div className={`grid grid-cols-1 gap-6 ${data.user?.role?.role_name?.toLowerCase() === 'ceo' ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
+                {/* 1. Cá nhân (Ẩn với CEO) */}
+                {data.user?.role?.role_name?.toLowerCase() !== 'ceo' && (
+                    <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex items-center gap-4">
+                        <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p className="text-sm text-slate-500 font-medium">Cá nhân</p>
+                            <p className="text-2xl font-bold text-slate-900">{avgPersonal}%</p>
+                        </div>
+                    </div>
+                )}
+
+                {/* 2. Phòng ban */}
+                <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex items-center gap-4">
+                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p className="text-sm text-slate-500 font-medium">Phòng ban</p>
+                        <p className="text-2xl font-bold text-slate-900">{avgDept}%</p>
+                    </div>
+                </div>
+
+                {/* 3. Công ty */}
+                <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex items-center gap-4">
+                    <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p className="text-sm text-slate-500 font-medium">Công ty</p>
+                        <p className="text-2xl font-bold text-slate-900">{avgCompany}%</p>
                     </div>
                 </div>
             </div>

@@ -95,13 +95,31 @@ class DashboardController extends Controller
                 ->get();
         }
 
-        // If no department or no links found for normal user, companyOkrs remains empty.
+        // Calculate Company-wide Average Progress (Global)
+        // This is separate from the 'companyOkrs' list which might be filtered for alignment
+        // We get ALL company objectives to calculate the true average
+        $allCompanyOkrs = Objective::where('level', 'company')
+            ->whereNull('archived_at')
+            ->get();
+            
+        $totalProgress = 0;
+        $count = 0;
+        
+        foreach ($allCompanyOkrs as $okr) {
+            // Force calculation or use accessor
+            $val = $okr->calculated_progress ?? $okr->progress_percent ?? 0;
+            $totalProgress += (float)$val;
+            $count++;
+        }
+        
+        $companyGlobalAvg = $count > 0 ? round($totalProgress / $count, 1) : 0;
 
         return response()->json([
             'user' => $user,
             'myOkrs' => $myOkrs,
             'deptOkrs' => $deptOkrs,
             'companyOkrs' => $companyOkrs,
+            'companyGlobalAvg' => $companyGlobalAvg // New field
         ]);
     }
 }
