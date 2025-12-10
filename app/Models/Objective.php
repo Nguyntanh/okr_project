@@ -299,14 +299,11 @@ class Objective extends Model
                 : $this->childObjectives()->get();
 
             foreach ($childLinks as $link) {
-                if ($link->is_active && $link->status === OkrLink::STATUS_APPROVED) {
+                // CHỈ tính các link trỏ trực tiếp vào Objective (Objective -> Objective)
+                // BỎ QUA các link trỏ vào KR (Objective -> KR), vì KR tự quản lý tiến độ của nó
+                if ($link->is_active && $link->status === OkrLink::STATUS_APPROVED && $link->target_type === 'objective') {
                     $childObj = $link->sourceObjective;
                     if ($childObj) {
-                        // Use DB value for child to avoid deep recursion performance hit
-                        // Or use calculated_progress if we want deep calculation (careful with performance)
-                        // For dashboard depth (usually 3 levels), getting DB value is safer/faster
-                        // But if child value is stale, this is stale.
-                        // Let's try to get attribute which might trigger getProgressPercentAttribute logic
                         $childProgress = $childObj->progress_percent; 
                         if ($childProgress !== null) {
                             $progressList[] = $childProgress;
