@@ -359,6 +359,7 @@ export default function CompanyOverviewReport() {
             return;
         }
         setSnapshotTitleInput('');
+        setSnapshotCreateLevel('company');
         setShowSnapshotModal(true);
     };
 
@@ -447,6 +448,7 @@ export default function CompanyOverviewReport() {
             }
 
             showNotification('success', 'Tạo báo cáo thành công!');
+            setLevel('company');
             setSnapshotPage(1);
             await loadSnapshots(1);
 
