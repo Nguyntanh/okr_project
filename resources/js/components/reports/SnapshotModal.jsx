@@ -7,7 +7,8 @@ export default function SnapshotModal({
     onTitleChange, 
     onSubmit, 
     isSubmitting 
-    , level, onLevelChange
+    , level, onLevelChange,
+    showLevelSelector = true
 }) {
     if (!isOpen) return null;
 
@@ -52,6 +53,7 @@ export default function SnapshotModal({
                             />
                         </div>
 
+                    {showLevelSelector && (
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">
                             Cấp độ Báo cáo <span className="text-red-500">*</span>
@@ -66,6 +68,7 @@ export default function SnapshotModal({
                             <option value="company">Công ty</option>
                         </select>
                     </div>
+                    )}
 
                     </div>
 

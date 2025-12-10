@@ -1,11 +1,15 @@
 /**
  * Load snapshots from API
  */
-export async function loadSnapshots(cycleId, page = 1) {
+export async function loadSnapshots(cycleId, page = 1, filters = {}) {
     try {
         const params = new URLSearchParams();
         if (cycleId) params.set('cycle_id', cycleId);
         params.set('page', page);
+        
+        if (filters.level) params.set('level', filters.level);
+        if (filters.department_name) params.set('department_name', filters.department_name);
+
         const url = `/api/reports/snapshots?${params.toString()}`;
         console.log('Fetching snapshots from:', url);
         

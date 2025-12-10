@@ -3,7 +3,10 @@ import { Select } from "../components/ui";
 import ToastNotification from "../components/ToastNotification";
 import ConfirmationModal from "../components/ConfirmationModal";
 import { exportTeamReportToExcel } from "../utils/reports/exportHelpers";
-import { FiDownload, FiFilter, FiAlertCircle, FiCheckCircle, FiClock, FiTrendingUp, FiTrendingDown, FiMinus, FiUsers, FiMoreHorizontal } from "react-icons/fi";
+import SnapshotModal from "../components/reports/SnapshotModal";
+import SnapshotHistoryModal from "../components/reports/SnapshotHistoryModal";
+import { loadSnapshots, loadSnapshot } from "../utils/reports/snapshotHelpers";
+import { FiDownload, FiFilter, FiAlertCircle, FiCheckCircle, FiClock, FiTrendingUp, FiTrendingDown, FiMinus, FiUsers, FiMoreHorizontal, FiArchive, FiList } from "react-icons/fi";
 import { HiChartPie, HiExclamationTriangle, HiUserGroup, HiDocumentCheck } from "react-icons/hi2";
 
 export default function ReportPage() {
@@ -13,10 +16,24 @@ export default function ReportPage() {
     const [reportData, setReportData] = useState(null);
     const [departmentName, setDepartmentName] = useState("");
     const [error, setError] = useState(null);
+    const [canEditReport, setCanEditReport] = useState(false);
     
     // Snapshot logic
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [isCreatingSnapshot, setIsCreatingSnapshot] = useState(false);
     const [reportName, setReportName] = useState("");
+    
+    // Snapshot History Logic
+    const [showSnapshots, setShowSnapshots] = useState(false);
+    const [snapshots, setSnapshots] = useState([]);
+    const [selectedSnapshot, setSelectedSnapshot] = useState(null);
+    const [snapshotPage, setSnapshotPage] = useState(1);
+    const [snapshotPagination, setSnapshotPagination] = useState({
+        current_page: 1,
+        last_page: 1,
+        total: 0,
+    });
+    const [modalCycleFilter, setModalCycleFilter] = useState("");
 
     // --- MEMBER LIST LOGIC ---
     // Simplified for small teams (removed complex filtering)
@@ -128,6 +145,27 @@ export default function ReportPage() {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        (async () => {
+            try {
+                // Fetch profile to check role
+                const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                const profileRes = await fetch('/api/profile', {
+                    headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token }
+                });
+                if (profileRes.ok) {
+                    const data = await profileRes.json();
+                    const role = data.user?.role?.role_name?.toLowerCase() || '';
+                    // Allow Manager, Admin, CEO
+                    const isManagerial = ['manager', 'admin', 'ceo', 'trưởng phòng', 'giám đốc'].some(r => role.includes(r));
+                    setCanEditReport(isManagerial);
+                }
+            } catch (e) {
+                console.error("Error checking role:", e);
+            }
+        })();
+    }, []);
 
     useEffect(() => {
         (async () => {
@@ -286,6 +324,152 @@ export default function ReportPage() {
         );
     };
 
+    // --- SNAPSHOT FUNCTIONS ---
+    
+    const confirmCreateSnapshot = async () => {
+        if (!reportName.trim()) {
+            setToast({ message: "Vui lòng nhập tên báo cáo", type: "error" });
+            return;
+        }
+        setIsCreatingSnapshot(true);
+        try {
+            const cycleId = selectedCycle;
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || "";
+            
+            // Prepare snapshot data - structure similar to reportData
+            // Ensure we tag it with 'level: unit' (or 'team' depending on convention)
+            
+            // Filter OKRs to match the Excel export logic (only active unit-level OKRs)
+            const filteredOkrs = (reportData.team_okrs || []).filter(okr => okr.status !== 'archived' && okr.level === 'unit');
+
+            // Recalculate metrics based on filtered list
+            let onTrack = 0, atRisk = 0, behind = 0;
+            let totalProgressSum = 0;
+            filteredOkrs.forEach(okr => {
+                totalProgressSum += (Number(okr.progress) || 0);
+                const s = okr.status;
+                if (s === 'completed' || s === 'on_track') onTrack++;
+                else if (s === 'at_risk') atRisk++;
+                else if (s === 'behind') behind++;
+            });
+            
+            const total = filteredOkrs.length || 1;
+            const calculatedAvg = filteredOkrs.length > 0 ? (totalProgressSum / filteredOkrs.length) : 0;
+
+            const snapshotPayload = {
+                ...reportData,
+                team_okrs: filteredOkrs, // Override with filtered list
+                total_okr_count: filteredOkrs.length, // Sync count
+                team_average_completion: calculatedAvg, // Sync average
+                
+                // Add structure for SnapshotDetailView compatibility
+                overall: {
+                    totalObjectives: filteredOkrs.length,
+                    averageProgress: calculatedAvg,
+                    statusCounts: {
+                        onTrack,
+                        atRisk,
+                        offTrack: behind
+                    },
+                    statusDistribution: {
+                        onTrack: ((onTrack/total)*100).toFixed(1),
+                        atRisk: ((atRisk/total)*100).toFixed(1),
+                        offTrack: ((behind/total)*100).toFixed(1)
+                    }
+                },
+                detailedData: {
+                    objectives: filteredOkrs.map(okr => ({
+                        ...okr,
+                        progress_percent: okr.progress // Ensure compatibility with SnapshotDetailView
+                    }))
+                },
+                
+                level: 'unit', // Tag as unit/department level
+                department_name: departmentName,
+                // Include metrics calculated in UI if needed, but reportData should have raw data
+            };
+
+            const response = await fetch('/api/reports/snapshot', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: JSON.stringify({
+                    cycle_id: cycleId,
+                    title: reportName.trim(),
+                    data_snapshot: snapshotPayload,
+                }),
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                setToast({ message: "Đã lưu báo cáo thành công!", type: "success" });
+                setShowCreateModal(false);
+                setReportName("");
+                // Refresh list if open? (Not open yet)
+            } else {
+                setToast({ message: result.message || "Lỗi khi lưu báo cáo", type: "error" });
+            }
+        } catch (e) {
+            console.error(e);
+            setToast({ message: "Lỗi kết nối server", type: "error" });
+        } finally {
+            setIsCreatingSnapshot(false);
+        }
+    };
+
+    const loadSnapshotsList = async (page = 1, cycleId = null) => {
+        const cId = cycleId || selectedCycle;
+        if (!cId) return;
+        
+        // Use helper to load snapshots with filtering
+        const filters = {
+            level: 'unit',
+            department_name: departmentName
+        };
+        
+        const result = await loadSnapshots(cId, page, filters);
+        
+        setSnapshots(result.snapshots);
+        setSnapshotPagination(result.pagination);
+    };
+
+    const handleViewSnapshots = () => {
+        if (!showSnapshots) {
+            setShowSnapshots(true);
+            setSnapshotPage(1);
+            setModalCycleFilter(selectedCycle); // Sync filter with current selection
+            loadSnapshotsList(1, selectedCycle);
+        } else {
+            setShowSnapshots(false);
+        }
+    };
+
+    const onLoadSnapshotDetail = async (id) => {
+        const snap = await loadSnapshot(id);
+        if (snap) {
+            setSelectedSnapshot(snap);
+        } else {
+            setToast({ message: "Không thể tải chi tiết", type: "error" });
+        }
+    };
+
+    const exportSnapshot = (snap) => {
+        if (!snap || !snap.data_snapshot) return;
+        const data = snap.data_snapshot;
+        const cName = cycles.find(c => String(c.cycle_id) === String(snap.cycle_id))?.cycle_name || "";
+        
+        exportTeamReportToExcel(
+            data,
+            data.department_name || departmentName,
+            cName,
+            (msg) => setToast({ message: msg, type: 'success' }),
+            (msg) => setToast({ message: msg, type: 'error' })
+        );
+    };
+
     return (
         <div className="min-h-screen bg-slate-50 p-6 font-sans">
             <div className="max-w-7xl mx-auto space-y-8">
@@ -308,14 +492,41 @@ export default function ReportPage() {
                                 placeholder="Chọn chu kỳ"
                             />
                         </div>
-                        <button 
-                            onClick={handleExportExcel}
-                            disabled={!reportData}
-                            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors shadow-sm text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            <FiDownload className="w-4 h-4" />
-                            Xuất Excel
-                        </button>
+
+                        {/* Button Group */}
+                        <div className="flex items-center gap-2 bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
+                            {canEditReport && (
+                                <>
+                                    <button
+                                        onClick={() => setShowCreateModal(true)}
+                                        disabled={!reportData}
+                                        className="flex items-center gap-2 px-3 py-2 text-slate-700 hover:bg-slate-50 rounded-md transition-colors text-sm font-medium disabled:opacity-50"
+                                        title="Lưu báo cáo hiện tại"
+                                    >
+                                        <FiArchive className="w-4 h-4" />
+                                        <span className="hidden sm:inline">Lưu báo cáo</span>
+                                    </button>
+                                    <div className="w-px h-6 bg-slate-200"></div>
+                                </>
+                            )}
+                            <button
+                                onClick={handleViewSnapshots}
+                                className="flex items-center gap-2 px-3 py-2 text-slate-700 hover:bg-slate-50 rounded-md transition-colors text-sm font-medium"
+                                title="Xem lịch sử báo cáo"
+                            >
+                                <FiList className="w-4 h-4" />
+                                <span className="hidden sm:inline">Lịch sử</span>
+                            </button>
+                            <div className="w-px h-6 bg-slate-200"></div>
+                            <button 
+                                onClick={handleExportExcel}
+                                disabled={!reportData}
+                                className="flex items-center gap-2 px-3 py-2 text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors text-sm font-medium disabled:opacity-50"
+                            >
+                                <FiDownload className="w-4 h-4" />
+                                <span className="hidden sm:inline">Xuất Excel</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -631,47 +842,6 @@ export default function ReportPage() {
                     </>
                 )}
 
-                {/* CREATE SNAPSHOT MODAL */}
-                {showCreateModal && (
-                    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl transform transition-all">
-                            <h3 className="text-xl font-bold text-slate-900 mb-4">Tạo bản lưu báo cáo</h3>
-                            <p className="text-slate-500 text-sm mb-4">Hệ thống sẽ lưu lại toàn bộ số liệu tại thời điểm này để bạn có thể xem lại trong tương lai.</p>
-                            
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Tên báo cáo</label>
-                                    <input 
-                                        type="text" 
-                                        value={reportName}
-                                        onChange={e => setReportName(e.target.value)}
-                                        placeholder={`Ví dụ: Báo cáo tuần ${new Date().getMonth() + 1}`}
-                                        className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="mt-6 flex gap-3 justify-end">
-                                <button 
-                                    onClick={() => setShowCreateModal(false)}
-                                    className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors"
-                                >
-                                    Hủy bỏ
-                                </button>
-                                <button 
-                                    onClick={() => {
-                                        alert("Tính năng đang được cập nhật trong giao diện mới!");
-                                        setShowCreateModal(false);
-                                    }}
-                                    className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
-                                >
-                                    Lưu báo cáo
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
                 <ToastNotification 
                     toast={toast}
                     onClose={() => setToast({ message: null, type: null })}
@@ -681,6 +851,52 @@ export default function ReportPage() {
                     confirmModal={confirmModal}
                     closeConfirm={() => setConfirmModal(prev => ({ ...prev, show: false }))}
                 />
+
+                {/* MODALS */}
+                <SnapshotModal
+                    isOpen={showCreateModal}
+                    onClose={() => {
+                        setShowCreateModal(false);
+                        setReportName("");
+                    }}
+                    title={reportName}
+                    onTitleChange={setReportName}
+                    onSubmit={confirmCreateSnapshot}
+                    isSubmitting={isCreatingSnapshot}
+                    showLevelSelector={false} // Hide level selector for Team Report
+                    level="unit"
+                    onLevelChange={() => {}} 
+                />
+
+                {showSnapshots && (
+                    <SnapshotHistoryModal
+                        isOpen={showSnapshots}
+                        onClose={() => {
+                            setShowSnapshots(false);
+                            setSelectedSnapshot(null);
+                        }}
+                        snapshots={snapshots}
+                        snapshotLevelFilter="all" // Or specific logic if needed
+                        showLevelFilter={false} // Hide filter in team view
+                        onSnapshotLevelChange={() => {}}
+                        snapshotPage={snapshotPage}
+                        snapshotPagination={snapshotPagination}
+                        onPageChange={(page) => {
+                            setSnapshotPage(page);
+                            loadSnapshotsList(page, modalCycleFilter);
+                        }}
+                        onLoadSnapshot={onLoadSnapshotDetail}
+                        selectedSnapshot={selectedSnapshot}
+                        onBackToList={() => setSelectedSnapshot(null)}
+                        onExportSnapshot={exportSnapshot}
+                        modalCycleFilter={modalCycleFilter}
+                        onModalCycleFilterChange={(val) => {
+                            setModalCycleFilter(val);
+                            loadSnapshotsList(1, val);
+                        }}
+                        cyclesList={cycles}
+                    />
+                )}
             </div>
         </div>
     );

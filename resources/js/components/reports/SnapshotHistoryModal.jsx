@@ -19,6 +19,7 @@ export default function SnapshotHistoryModal({
     modalCycleFilter,
     onModalCycleFilterChange,
     cyclesList,
+    showLevelFilter = true,
 }) {
     if (!isOpen) return null;
 
@@ -31,7 +32,7 @@ export default function SnapshotHistoryModal({
     // Lọc snapshot theo cấp độ và chu kỳ
     const filteredSnapshots = (snapshots || []).filter((snap) => {
         // Filter by level
-        if (snapshotLevelFilter && snapshotLevelFilter !== 'all') {
+        if (showLevelFilter && snapshotLevelFilter && snapshotLevelFilter !== 'all') {
             const snapLevel = snap.data_snapshot?.level || 'departments';
             if (snapLevel !== snapshotLevelFilter) return false;
         }
@@ -87,6 +88,7 @@ export default function SnapshotHistoryModal({
                             <div className="mb-4 flex items-center justify-end gap-6">
                                 <div className="flex items-center gap-4">
                                     {/* Filter theo cấp độ */}
+                                    {showLevelFilter && (
                                     <div className="relative">
                                         <button
                                             onClick={() => setSnapshotLevelDropdownOpen(v => !v)}
@@ -144,6 +146,7 @@ export default function SnapshotHistoryModal({
                                             </div>
                                         )}
                                     </div>
+                                    )}
 
                                     {/* Filter theo chu kỳ */}
                                     <div className="flex items-center gap-4">

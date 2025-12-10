@@ -1059,7 +1059,7 @@ export async function exportTeamReportToExcel(reportData, departmentName, cycleN
         currentRow += 2;
 
         // Calculate metrics
-        const activeOkrs = (reportData.team_okrs || []).filter(okr => okr.status !== 'archived');
+        const activeOkrs = (reportData.team_okrs || []).filter(okr => okr.status !== 'archived' && okr.level === 'unit');
         let onTrack = 0, atRisk = 0, behind = 0, completed = 0;
         let totalProgressSum = 0;
         activeOkrs.forEach(okr => {

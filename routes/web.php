@@ -324,7 +324,7 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     });
 
     // Reports API (Admin hoặc CEO)
-    Route::prefix('api/reports')->middleware(['auth', \App\Http\Middleware\AdminOrCeo::class])->group(function () {
+    Route::prefix('api/reports')->middleware(['auth'])->group(function () {
         Route::get('/company-overview', [\App\Http\Controllers\ReportController::class, 'companyOverview'])
             ->name('api.reports.company-overview');
         Route::get('/okr-company', [\App\Http\Controllers\ReportController::class, 'companyOkrReport'])
