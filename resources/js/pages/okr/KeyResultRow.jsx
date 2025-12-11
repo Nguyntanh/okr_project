@@ -127,18 +127,18 @@ export default function KeyResultRow({
                     {/* Cột Hành động */}
                     <td className="px-3 py-3 text-center">
                         <div className="flex items-center justify-end gap-1">
-                            <button
+                        <button
                                 onClick={() => setCreatingFor?.(kr)}
                                 className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Thêm KR"
                                 disabled={true}
+                        >
+                            <svg
+                                className="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
                             >
-                                <svg
-                                    className="h-4 w-4"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                >
                                     <circle
                                         cx="12"
                                         cy="12"
@@ -147,14 +147,14 @@ export default function KeyResultRow({
                                         strokeWidth="2"
                                         fill="none"
                                     />
-                                    <path
+                                <path
                                         d="M12 7V17M7 12H17"
                                         stroke="currentColor"
                                         strokeWidth="3"
-                                        strokeLinecap="round"
-                                    />
-                                </svg>
-                            </button>
+                                    strokeLinecap="round"
+                                />
+                            </svg>
+                        </button>
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -262,28 +262,49 @@ export default function KeyResultRow({
                                     )}
                                                 </td>
                                 
-                                                <td className="px-3 py-3 text-center">
+                                                <td className="px-3 py-3">
                                     <div className="flex flex-col items-center gap-1.5">
-                                        <div className="w-full bg-slate-100 rounded-full h-5 relative overflow-hidden border border-slate-200">
-                                            <div
-                                                className={`h-full rounded-full absolute left-0 transition-all duration-300 ${
-                                                    sourceKr.status === "completed"
-                                                        ? "bg-emerald-600"
-                                                        : sourceKr.status === "active"
-                                                        ? "bg-blue-600"
-                                                        : "bg-slate-500"
-                                                }`}
-                                                style={{
-                                                    width: `${Math.max(0, Math.min(100, sourceKr.progress_percent || 0))}%`,
-                                                }}
-                                            ></div>
-                                            <span className={`absolute inset-0 flex items-center justify-center text-xs font-bold z-10 ${
-                                                (sourceKr.progress_percent || 0) > 35 
-                                                    ? "text-white" 
-                                                    : "text-slate-700"
-                                            }`} style={(sourceKr.progress_percent || 0) > 35 ? { textShadow: '0 1px 3px rgba(0,0,0,0.9), 0 0 1px rgba(0,0,0,1)' } : {}}>
-                                                {formatPercent(sourceKr.progress_percent)}
-                                            </span>
+                                        <div className="w-full relative">
+                                            {/* Progress bar container */}
+                                            <div className="relative h-2 bg-blue-100 rounded-full overflow-visible">
+                                                {/* Phần đã fill */}
+                                                <div
+                                                    className={`h-full rounded-full absolute left-0 transition-all duration-300 ${
+                                                        sourceKr.status === "completed"
+                                                            ? "bg-emerald-600"
+                                                            : sourceKr.status === "active"
+                                                            ? "bg-blue-600"
+                                                            : "bg-slate-500"
+                                                    }`}
+                                                    style={{
+                                                        width: `${Math.max(0, Math.min(100, sourceKr.progress_percent || 0))}%`,
+                                                    }}
+                                                ></div>
+                                                {/* Handle tròn */}
+                                                <div
+                                                    className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 bg-white transition-all duration-300 ${
+                                                        sourceKr.status === "completed"
+                                                            ? "border-emerald-600"
+                                                            : sourceKr.status === "active"
+                                                            ? "border-blue-600"
+                                                            : "border-slate-500"
+                                                    }`}
+                                                    style={{ left: `calc(${Math.max(0, Math.min(100, sourceKr.progress_percent || 0))}% - 6px)` }}
+                                                >
+                                                    {/* Text phần trăm trên handle */}
+                                                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                                                        <span className={`text-xs font-semibold ${
+                                                            sourceKr.status === "completed"
+                                                                ? "text-emerald-600"
+                                                                : sourceKr.status === "active"
+                                                                ? "text-blue-600"
+                                                                : "text-slate-600"
+                                                        }`}>
+                                                            {formatPercent(sourceKr.progress_percent)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                         <span
                                             className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
@@ -446,30 +467,59 @@ export default function KeyResultRow({
                 </td>
 
 
-                <td className="px-3 py-3 text-center">
+                <td className="px-3 py-3">
                     <div className="flex flex-col items-center gap-1.5">
-                        <div className="w-full bg-slate-100 rounded-full h-5 relative overflow-hidden border border-slate-200">
-                            <div
-                                className={`h-full rounded-full absolute left-0 transition-all duration-300 ${
+                        <div className="w-full relative">
+                            {/* Progress bar container */}
+                            <div className="relative h-2 bg-blue-100 rounded-full overflow-visible">
+                                {/* Phần đã fill */}
+                                <div
+                                    className={`h-full rounded-full absolute left-0 transition-all duration-300 ${
                                     kr.status === "completed"
-                                        ? "bg-emerald-600"
-                                        : kr.status === "on_track" || kr.status === "active"
-                                        ? "bg-blue-600"
-                                        : kr.status === "at_risk"
-                                        ? "bg-amber-500"
-                                        : kr.status === "in_trouble"
-                                        ? "bg-rose-600"
-                                        : "bg-slate-500"
-                                }`}
-                                style={{ width: `${Math.max(0, Math.min(100, kr.progress_percent || 0))}%` }}
+                                            ? "bg-emerald-600"
+                                            : kr.status === "on_track" || kr.status === "active"
+                                            ? "bg-blue-600"
+                                            : kr.status === "at_risk"
+                                            ? "bg-amber-500"
+                                            : kr.status === "in_trouble"
+                                            ? "bg-rose-600"
+                                            : "bg-slate-500"
+                                    }`}
+                                    style={{ width: `${Math.max(0, Math.min(100, kr.progress_percent || 0))}%` }}
                             ></div>
-                            <span className={`absolute inset-0 flex items-center justify-center text-xs font-bold z-10 ${
-                                (kr.progress_percent || 0) > 35 
-                                    ? "text-white" 
-                                    : "text-slate-700"
-                            }`} style={(kr.progress_percent || 0) > 35 ? { textShadow: '0 1px 3px rgba(0,0,0,0.9), 0 0 1px rgba(0,0,0,1)' } : {}}>
-                                {formatPercent(kr.progress_percent)}
-                            </span>
+                                {/* Handle tròn */}
+                                <div
+                                    className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 bg-white transition-all duration-300 ${
+                                        kr.status === "completed"
+                                            ? "border-emerald-600"
+                                            : kr.status === "on_track" || kr.status === "active"
+                                            ? "border-blue-600"
+                                            : kr.status === "at_risk"
+                                            ? "border-amber-500"
+                                            : kr.status === "in_trouble"
+                                            ? "border-rose-600"
+                                            : "border-slate-500"
+                                    }`}
+                                    style={{ left: `calc(${Math.max(0, Math.min(100, kr.progress_percent || 0))}% - 6px)` }}
+                                >
+                                    {/* Text phần trăm trên handle */}
+                                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                                        <span className={`text-xs font-semibold ${
+                                            kr.status === "completed"
+                                                ? "text-emerald-600"
+                                                : kr.status === "on_track" || kr.status === "active"
+                                                ? "text-blue-600"
+                                                : kr.status === "at_risk"
+                                                ? "text-amber-600"
+                                                : kr.status === "in_trouble"
+                                                ? "text-rose-600"
+                                                : "text-slate-600"
+                                        }`}>
+                                            {formatPercent(kr.progress_percent)}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <span
                             className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
@@ -526,8 +576,8 @@ export default function KeyResultRow({
                             {openCheckInModal && (
                                 <button
                                     onClick={() => openCheckInModal({
-                                        ...kr,
-                                        objective_id: objective.objective_id,
+                                            ...kr,
+                                            objective_id: objective.objective_id,
                                     })}
                                     className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                                     title="Check-in"
