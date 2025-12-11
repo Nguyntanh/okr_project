@@ -143,7 +143,9 @@ class MyKeyResultController extends Controller
 
                 // Gửi thông báo cho người được giao (nếu khác người tạo)
                 if ($finalAssignedTo && $finalAssignedTo !== $user->user_id) {
-                    $actionUrl = config('app.url') . "/my-objectives?highlight_kr={$keyResult->kr_id}&objective_id={$keyResult->objective_id}&action=checkin";
+                    $actionUrl = config('app.url') . "/my-objectives?highlight_kr=".$keyResult->kr_id."
+                                            &objective_id=".$keyResult->objective_id."
+                                            &action=checkin";
                     NotificationService::send(
                         $finalAssignedTo,
                         "{$user->full_name} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",
@@ -155,7 +157,7 @@ class MyKeyResultController extends Controller
                 }
                 
                 // Tự động cập nhật progress của Objective từ KeyResults
-                $objective->updateProgressFromKeyResults();
+                $objective->updateProgress();
                 
                 return $keyResult->load('objective', 'cycle', 'assignedUser');
             });
@@ -259,7 +261,9 @@ class MyKeyResultController extends Controller
 
                     // Gửi thông báo cho người được giao mới (nếu khác người thực hiện trước và khác người tạo)
                     if ($assignee->user_id !== $user->user_id) {
-                        $actionUrl = config('app.url') . "/my-objectives?highlight_kr={$keyResult->kr_id}&objective_id={$keyResult->objective_id}&action=checkin";
+                        $actionUrl = config('app.url') . "/my-objectives?highlight_kr=".$keyResult->kr_id."
+                                                &objective_id=".$keyResult->objective_id."
+                                                &action=checkin";
                         NotificationService::send(
                             $assignee->user_id,
                             "{$user->full_name} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",
@@ -285,7 +289,7 @@ class MyKeyResultController extends Controller
                 ]);
 
                 // Tự động cập nhật progress của Objective từ KeyResults
-                $objective->updateProgressFromKeyResults();
+                $objective->updateProgress();
 
                 return $keyResult->load('objective', 'cycle', 'assignedUser');
             });
@@ -331,7 +335,7 @@ class MyKeyResultController extends Controller
                 $keyResult->forceDelete();
                 
                 // Tự động cập nhật progress của Objective từ KeyResults
-                $objective->updateProgressFromKeyResults();
+                $objective->updateProgress();
             });
 
             return response()->json(['success' => true, 'message' => 'Key Result đã được xóa vĩnh viễn!']);
@@ -369,7 +373,7 @@ class MyKeyResultController extends Controller
             $keyResult->update(['archived_at' => now()]);
             
             // Tự động cập nhật progress của Objective từ KeyResults (loại trừ KR đã archive)
-            $objective->updateProgressFromKeyResults();
+            $objective->updateProgress();
             
             return response()->json([
                 'success' => true,
@@ -403,7 +407,7 @@ class MyKeyResultController extends Controller
             $keyResult->update(['archived_at' => null]);
 
             // Tự động cập nhật progress của Objective từ KeyResults
-            $objective->updateProgressFromKeyResults();
+            $objective->updateProgress();
 
             $fullObjective = Objective::with(['keyResults' => fn($q) => $q->active()])
                 ->where('objective_id', $objectiveId)
@@ -464,11 +468,13 @@ class MyKeyResultController extends Controller
         // Tải lại objective để có dữ liệu mới nhất
         $updatedObjective = $objective->fresh()->load('keyResults.assignedUser', 'user');
 
-        $message = $assignee ? "Đã giao KR cho {$assignee->full_name}" : "Đã bỏ giao KR thành công.";
+        $message = $assignee ? "Đã giao KR cho ".$assignee->full_name : "Đã bỏ giao KR thành công.";
 
         // Tạo thông báo cho người được giao
         if ($assignee && $assignee->user_id !== $user->user_id) {
-            $actionUrl = config('app.url') . "/my-objectives?highlight_kr={$keyResult->kr_id}&objective_id={$keyResult->objective_id}&action=checkin";
+            $actionUrl = config('app.url') . "/my-objectives?highlight_kr=".$keyResult->kr_id."
+                                            &objective_id=".$keyResult->objective_id."
+                                            &action=checkin";
             NotificationService::send(
                 $assignee->user_id,
                 "{$user->full_name} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",

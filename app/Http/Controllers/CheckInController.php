@@ -446,7 +446,7 @@ class CheckInController extends Controller
 
                 // Tự động cập nhật progress của Objective từ KeyResults
                 if ($checkIn->keyResult->objective) {
-                    $checkIn->keyResult->objective->updateProgressFromKeyResults();
+                    $checkIn->keyResult->objective->updateProgress();
                 }
             });
 

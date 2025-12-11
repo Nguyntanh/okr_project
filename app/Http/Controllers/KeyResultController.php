@@ -114,8 +114,8 @@ class KeyResultController extends Controller
         // Cập nhật updated_at của Objective khi tạo KR mới
         $objective->touch();
         
-        // Tự động cập nhật progress của Objective từ KeyResults (không cập nhật updated_at)
-        $objective->updateProgressFromKeyResults();
+        // Tự động cập nhật progress của Objective từ KeyResults (có cập nhật lên cha)
+        $objective->updateProgress();
 
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'data' => $kr]);
@@ -146,7 +146,7 @@ class KeyResultController extends Controller
         $kr->delete();
 
         // Tự động cập nhật progress của Objective từ KeyResults
-        $objective->updateProgressFromKeyResults();
+        $objective->updateProgress();
 
         return response()->json(['success' => true, 'message' => 'Key Result đã được xóa']);
     }
@@ -222,7 +222,7 @@ class KeyResultController extends Controller
         $kr->save();
 
         // Tự động cập nhật progress của Objective từ KeyResults
-        $objective->updateProgressFromKeyResults();
+        $objective->updateProgress();
 
         // return latest with relations
         $kr->load('objective');
