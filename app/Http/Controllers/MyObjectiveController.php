@@ -199,7 +199,7 @@ class MyObjectiveController extends Controller
             'obj_title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'level' => 'required|in:company,unit,team,person',
-            'status' => 'required|in:draft,active,completed',
+            'status' => 'nullable|in:on_track,at_risk,behind,completed',
             'cycle_id' => 'nullable|exists:cycles,cycle_id',
             'department_id' => 'nullable|exists:departments,department_id',
             'key_results' => 'nullable|array',
@@ -298,14 +298,20 @@ class MyObjectiveController extends Controller
 
         try {
             $objective = DB::transaction(function () use ($validated, $user) {
+                // Tự động tính status từ progress và chu kỳ
+                $initialProgress = 0.0;
+                $cycle = Cycle::find($validated['cycle_id']);
+                $initialStatus = $this->calculateStatusFromProgress($initialProgress, $cycle);
+                
                 $objective = Objective::create([
                     'obj_title' => $validated['obj_title'],
                     'description' => $validated['description'] ?? null,
                     'level' => $validated['level'],
-                    'status' => $validated['status'],
+                    'status' => $validated['status'] ?? $initialStatus, // Tự động tính nếu không có
                     'cycle_id' => $validated['cycle_id'],
                     'department_id' => $validated['department_id'] ?? null,
                     'user_id' => $user->user_id,
+                    'progress_percent' => $initialProgress,
                 ]);
 
                 if (isset($validated['key_results'])) {
@@ -329,6 +335,12 @@ class MyObjectiveController extends Controller
                     }
                     // Cập nhật updated_at của Objective khi tạo KR mới
                     $objective->touch();
+                }
+
+                // Tự động tính lại progress và status từ KeyResults (nếu có)
+                if (isset($validated['key_results']) && count($validated['key_results']) > 0) {
+                    $objective->refresh();
+                    $objective->updateProgressFromKeyResults();
                 }
 
                 // Gán người dùng
@@ -384,7 +396,7 @@ class MyObjectiveController extends Controller
             'obj_title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'level' => 'required|in:company,unit,team,person',
-            'status' => 'required|in:draft,active,completed',
+            'status' => 'nullable|in:on_track,at_risk,behind,completed',
             'cycle_id' => 'nullable|exists:cycles,cycle_id',
             'department_id' => 'nullable|exists:departments,department_id',
             'assignments' => 'nullable|array',
@@ -460,11 +472,19 @@ class MyObjectiveController extends Controller
 
         try {
             $objective = DB::transaction(function () use ($validated, $objective, $user) {
+                // Tự động tính status từ progress và chu kỳ hiện tại nếu không có status trong request
+                $status = $validated['status'] ?? null;
+                if (!$status) {
+                    $currentProgress = $objective->progress_percent ?? 0.0;
+                    $cycle = $objective->cycle ?? $objective->cycle()->first();
+                    $status = $this->calculateStatusFromProgress($currentProgress, $cycle);
+                }
+                
                 $objective->update([
                     'obj_title' => $validated['obj_title'],
                     'description' => $validated['description'] ?? null,
                     'level' => $validated['level'],
-                    'status' => $validated['status'],
+                    'status' => $status,
                     'cycle_id' => $validated['cycle_id'],
                     'department_id' => $validated['department_id'] ?? null,
                 ]);
@@ -860,5 +880,74 @@ class MyObjectiveController extends Controller
             ->first();
 
         return $currentCycle;
+    }
+
+    /**
+     * Tính trạng thái Objective dựa trên tiến độ và thời gian trong chu kỳ
+     * 
+     * @param float $progress Tiến độ (0-100)
+     * @param \App\Models\Cycle|null $cycle Chu kỳ của Objective
+     * @return string Trạng thái: on_track, at_risk, behind, completed
+     */
+    private function calculateStatusFromProgress(float $progress, ?\App\Models\Cycle $cycle = null): string
+    {
+        // Nếu đã hoàn thành 100%
+        if ($progress >= 100) {
+            return 'completed';
+        }
+        
+        // Nếu không có chu kỳ, dùng logic cũ dựa trên progress
+        if (!$cycle || !$cycle->start_date || !$cycle->end_date) {
+            if ($progress >= 80) {
+                return 'on_track';
+            }
+            if ($progress >= 50) {
+                return 'at_risk';
+            }
+            return 'behind';
+        }
+        
+        $now = \Carbon\Carbon::now('Asia/Ho_Chi_Minh');
+        $startDate = \Carbon\Carbon::parse($cycle->start_date);
+        $endDate = \Carbon\Carbon::parse($cycle->end_date);
+        
+        // Tính % thời gian đã trôi qua trong chu kỳ
+        $totalDays = $startDate->diffInDays($endDate);
+        if ($totalDays <= 0) {
+            // Chu kỳ đã kết thúc hoặc không hợp lệ
+            if ($progress >= 100) {
+                return 'completed';
+            }
+            return 'behind';
+        }
+        
+        $elapsedDays = $startDate->diffInDays($now);
+        $expectedProgress = min(100, max(0, ($elapsedDays / $totalDays) * 100));
+        
+        // Nếu thời gian đã trôi qua < 10% và progress = 0%, coi như đúng tiến độ (mới tạo)
+        if ($expectedProgress < 10 && $progress == 0) {
+            return 'on_track';
+        }
+        
+        // Nếu thời gian đã trôi qua < 5%, luôn là đúng tiến độ (quá sớm để đánh giá)
+        if ($expectedProgress < 5) {
+            return 'on_track';
+        }
+        
+        // So sánh progress thực tế với progress mong đợi
+        $difference = $progress - $expectedProgress;
+        
+        // Đúng tiến độ: progress >= expected - 5% (có buffer nhỏ)
+        if ($difference >= -5) {
+            return 'on_track';
+        }
+        
+        // Có nguy cơ: progress < expected - 5% nhưng >= expected - 20%
+        if ($difference >= -20) {
+            return 'at_risk';
+        }
+        
+        // Chậm tiến độ: progress < expected - 20%
+        return 'behind';
     }
 }

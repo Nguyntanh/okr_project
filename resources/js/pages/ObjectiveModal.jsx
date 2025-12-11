@@ -18,7 +18,7 @@ export default function ObjectiveModal({
                   obj_title: "",
                   description: "",
                   level: "",
-                  status: "not_start", // Bản nháp
+                  status: null, // Sẽ được tính tự động từ progress
                   cycle_id: "",
                   department_id: "",
                   key_results: [],
@@ -47,7 +47,7 @@ export default function ObjectiveModal({
                 obj_title: "",
                 description: "",
                 level: "",
-                status: "not_start", // Bản nháp
+                status: null, // Sẽ được tính tự động từ progress
                 cycle_id: "",
                 department_id: "",
                 key_results: [],
