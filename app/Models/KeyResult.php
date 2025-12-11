@@ -86,7 +86,8 @@ class KeyResult extends Model
             $progressList = [];
             foreach ($childLinks as $link) {
                 $childObj = $link->sourceObjective;
-                if ($childObj) {
+                // Only count active (non-archived) objectives
+                if ($childObj && $childObj->archived_at === null) {
                     // Use calculated_progress of the child objective (recursive)
                     // If child model doesn't have the attribute appended yet, access accessor directly or fallback
                     $val = $childObj->calculated_progress ?? $childObj->progress_percent ?? 0;
@@ -123,7 +124,8 @@ class KeyResult extends Model
             $progressList = [];
             foreach ($childLinks as $link) {
                 $childObj = $link->sourceObjective;
-                if ($childObj) {
+                // Only count active (non-archived) objectives
+                if ($childObj && $childObj->archived_at === null) {
                     $childProgress = $childObj->progress_percent;
                     if ($childProgress !== null) {
                         $progressList[] = $childProgress;

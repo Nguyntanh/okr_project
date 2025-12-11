@@ -27,6 +27,7 @@ class Objective extends Model
         'user_id',
         'cycle_id',
         'department_id',
+        'archived_at',
     ];
 
     /**
@@ -182,7 +183,7 @@ class Objective extends Model
                 // Chỉ tính các link active/approved
                 if ($link->is_active && $link->status === OkrLink::STATUS_APPROVED) {
                     $childObj = $link->sourceObjective;
-                    if ($childObj) {
+                    if ($childObj && $childObj->archived_at === null) {
                         // Gọi đệ quy để lấy progress của child (nếu child chưa có value DB)
                         // Hoặc lấy trực tiếp attribute nếu child đã được load
                         $childProgress = $childObj->progress_percent;
@@ -245,7 +246,7 @@ class Objective extends Model
 
         foreach ($childLinks as $link) {
             $childObj = $link->sourceObjective;
-            if ($childObj) {
+            if ($childObj && $childObj->archived_at === null) {
                 $childProgress = $childObj->progress_percent;
                 if ($childProgress !== null) {
                     $progressList[] = $childProgress;
@@ -384,7 +385,7 @@ class Objective extends Model
                 // BỎ QUA các link trỏ vào KR (Objective -> KR), vì KR tự quản lý tiến độ của nó
                 if ($link->is_active && $link->status === OkrLink::STATUS_APPROVED && $link->target_type === 'objective') {
                     $childObj = $link->sourceObjective;
-                    if ($childObj) {
+                    if ($childObj && $childObj->archived_at === null) {
                         $childProgress = $childObj->progress_percent; 
                         if ($childProgress !== null) {
                             $progressList[] = $childProgress;
