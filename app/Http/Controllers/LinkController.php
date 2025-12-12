@@ -109,6 +109,24 @@ class LinkController extends Controller
         ]);
 
         $user = Auth::user();
+        
+        // Lấy source Objective để lấy cycle_id
+        $sourceObjective = Objective::find($validated['source_id']);
+        if (!$sourceObjective) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy OKR nguồn.',
+            ], 404);
+        }
+        
+        $sourceCycleId = $sourceObjective->cycle_id;
+        if (!$sourceCycleId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'OKR nguồn chưa có chu kỳ. Vui lòng chọn chu kỳ trước khi liên kết.',
+            ], 422);
+        }
+        
         $sourceLevelRank = self::LEVEL_ORDER[$validated['source_level']];
         $levelFilter = $validated['level'] ?? null;
         $perPage = (int) $request->integer('per_page', 10);
@@ -131,10 +149,11 @@ class LinkController extends Controller
         }
 
         $query = Objective::with([
-                'keyResults' => fn($q) => $q->active(),
+                'keyResults' => fn($q) => $q->active()->where('cycle_id', $sourceCycleId),
                 'user'
             ])
             ->whereNull('archived_at')
+            ->where('cycle_id', $sourceCycleId) // Chỉ lấy OKR cùng chu kỳ
             ->whereIn('level', $higherLevels)
             ->where(function ($q) use ($user) {
                 $q->whereNull('department_id')
@@ -192,6 +211,7 @@ class LinkController extends Controller
 
         $this->ensureSourceOwnership($sourceEntity, $user->user_id);
         $this->ensureLinkingLevel($sourceEntity, $targetEntity);
+        $this->ensureSameCycle($sourceEntity, $targetEntity);
         $this->ensureTargetIsActive($targetEntity);
         $this->preventDuplicate($sourceEntity, $targetEntity);
 
@@ -614,6 +634,36 @@ class LinkController extends Controller
         // Kiểm tra cấp độ chung: target phải cao hơn source
         if ((self::LEVEL_ORDER[$targetLevel] ?? 0) <= (self::LEVEL_ORDER[$sourceLevel] ?? 0)) {
             abort(response()->json(['success' => false, 'message' => 'OKR đích phải có cấp độ cao hơn.'], 422));
+        }
+    }
+
+    private function ensureSameCycle($source, $target): void
+    {
+        if (!($source instanceof Objective)) {
+            abort(response()->json(['success' => false, 'message' => 'Source phải là Objective.'], 422));
+        }
+
+        $sourceCycleId = $source->cycle_id;
+        
+        $targetCycleId = null;
+        if ($target instanceof Objective) {
+            $targetCycleId = $target->cycle_id;
+        } elseif ($target instanceof KeyResult) {
+            $targetCycleId = $target->objective->cycle_id ?? $target->cycle_id;
+        }
+
+        if (!$sourceCycleId || !$targetCycleId) {
+            abort(response()->json([
+                'success' => false, 
+                'message' => 'Không xác định được chu kỳ của OKR.'
+            ], 422));
+        }
+
+        if ($sourceCycleId !== $targetCycleId) {
+            abort(response()->json([
+                'success' => false, 
+                'message' => 'Chỉ có thể liên kết tới những OKR có cùng chu kỳ với OKR của bạn.'
+            ], 422));
         }
     }
 
