@@ -83,11 +83,6 @@ export default function LinkedChildObjectiveRow({
                         >
                             {linkedObj.obj_title}
                         </a>
-                        {hasKRs && (
-                            <span className="text-xs text-slate-500">
-                                ({linkedObj.key_results.length} KR)
-                            </span>
-                        )}
                     </div>
                 </td>
                 {/* Cột Người thực hiện */}

@@ -88,11 +88,6 @@ export default function KeyResultRow({
                                     {kr.kr_title}
                                 </span>
                             </div>
-                            {kr.key_results?.length > 0 && (
-                                <span className="text-xs text-slate-500">
-                                    ({kr.key_results.length} KR)
-                                </span>
-                            )}
                         </div>
                     </td>
                     {/* Cột Người sở hữu */}
