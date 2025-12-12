@@ -376,7 +376,7 @@ export default function ObjectiveList({
                                     Chu kỳ OKR
                                 </span>
                                 {currentCycle && cycleStatus && (
-                                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                                    <span className={`text-xs font-medium px-1.5 py-0 leading-tight rounded-full ${
                                         cycleStatus.color === 'red' 
                                             ? 'bg-red-100 text-red-700'
                                             : cycleStatus.color === 'green'
