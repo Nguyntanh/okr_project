@@ -47,6 +47,7 @@ export default function CompanyOkrList() {
     const [openObj, setOpenObj] = useState({});
     const [cyclesList, setCyclesList] = useState([]);
     const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [scopeDropdownOpen, setScopeDropdownOpen] = useState(false);
     const [currentUser, setCurrentUser] = useState(null);
     const [childLinks, setChildLinks] = useState([]);
     const [linksLoading, setLinksLoading] = useState(false);
@@ -564,7 +565,7 @@ export default function CompanyOkrList() {
                                     Chu kỳ OKR
                                 </span>
                                 {currentCycle && cycleStatus && (
-                                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                                    <span className={`text-xs font-medium px-1.5 py-0 leading-tight rounded-full ${
                                         cycleStatus.color === 'red' 
                                             ? 'bg-red-100 text-red-700'
                                             : cycleStatus.color === 'green'
@@ -587,36 +588,88 @@ export default function CompanyOkrList() {
                                 setDropdownOpen={setDropdownOpen}
                             />
                         </div>
-                        <div className="relative flex flex-col gap-1">
+                        <div className="flex flex-col gap-1">
                             <span className="text-xs font-semibold text-slate-600 leading-none">
                                 Phạm vi OKR
                             </span>
-                            <select
-                                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-blue-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                                value={
-                                    filterType === "company"
-                                        ? "company"
-                                        : selectedDepartment
-                                }
-                                onChange={(e) => {
-                                    const val = e.target.value;
-                                    if (val === "company") {
-                                        handleFilterChange("company");
-                                    } else {
-                                        handleFilterChange("department", val);
-                                    }
-                                }}
-                            >
-                                <option value="company">Công ty</option>
-                                {departments.map((dept) => (
-                                    <option
-                                        key={dept.department_id}
-                                        value={dept.department_id}
+                            <div className="relative w-52">
+                                <button
+                                    onClick={() => setScopeDropdownOpen((prev) => !prev)}
+                                    className="flex w-full h-10 items-center justify-between rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-gray-50 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-150"
+                                >
+                                    <span className="truncate">
+                                        {filterType === "company" 
+                                            ? "Công ty"
+                                            : departments.find(d => String(d.department_id) === String(selectedDepartment))?.d_name || "Chọn phạm vi"
+                                        }
+                                    </span>
+                                    <svg
+                                        className={`w-4 h-4 text-gray-500 transition-transform flex-shrink-0 ${
+                                            scopeDropdownOpen ? "rotate-180" : ""
+                                        }`}
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
                                     >
-                                        {dept.d_name}
-                                    </option>
-                                ))}
-                            </select>
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                                {scopeDropdownOpen && (
+                                    <div className="absolute top-full left-0 mt-1 w-full bg-white rounded-lg shadow-lg border border-slate-200 z-50 max-h-96 overflow-y-auto">
+                                        <label
+                                            className={`flex items-start gap-3 px-3 py-2 hover:bg-blue-50 cursor-pointer transition-colors ${
+                                                filterType === "company"
+                                                    ? "bg-blue-50 border-l-4 border-l-blue-500"
+                                                    : ""
+                                            }`}
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="scope"
+                                                value="company"
+                                                checked={filterType === "company"}
+                                                onChange={(e) => {
+                                                    handleFilterChange("company");
+                                                    setScopeDropdownOpen(false);
+                                                }}
+                                                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <div className="flex-1 flex flex-col">
+                                                <p className="text-sm font-medium text-slate-900">
+                                                    Công ty
+                                                </p>
+                                            </div>
+                                        </label>
+                                        {departments.map((dept) => (
+                                            <label
+                                                key={dept.department_id}
+                                                className={`flex items-start gap-3 px-3 py-2 hover:bg-blue-50 cursor-pointer transition-colors ${
+                                                    filterType === "department" && String(selectedDepartment) === String(dept.department_id)
+                                                        ? "bg-blue-50 border-l-4 border-l-blue-500"
+                                                        : ""
+                                                }`}
+                                            >
+                                                <input
+                                                    type="radio"
+                                                    name="scope"
+                                                    value={dept.department_id}
+                                                    checked={filterType === "department" && String(selectedDepartment) === String(dept.department_id)}
+                                                    onChange={(e) => {
+                                                        handleFilterChange("department", e.target.value);
+                                                        setScopeDropdownOpen(false);
+                                                    }}
+                                                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                                                />
+                                                <div className="flex-1 flex flex-col">
+                                                    <p className="text-sm font-medium text-slate-900">
+                                                        {dept.d_name}
+                                                    </p>
+                                                </div>
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                     {isCeo && (
