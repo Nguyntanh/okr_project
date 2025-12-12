@@ -7,12 +7,178 @@ use App\Models\Department;
 use App\Models\Cycle;
 use App\Models\CheckIn;
 use App\Models\KeyResult;
+use App\Models\User;
+use App\Services\ReportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\URL;
+use Spatie\Browsershot\Browsershot;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
 {
+    protected $reportService;
+
+    public function __construct(ReportService $reportService)
+    {
+        $this->reportService = $reportService;
+    }
+
+    /**
+     * Trang báo cáo cho quản lý (render React app).
+     */
+    public function index()
+    {
+        return view('app');
+    }
+
+    /**
+     * Lấy danh sách chu kỳ (ưu tiên chu kỳ hiện tại nếu có).
+     */
+    public function getCycles(Request $request)
+    {
+        $cycles = Cycle::query()
+            ->orderByDesc('start_date')
+            ->get(['cycle_id', 'cycle_name', 'start_date', 'end_date', 'status']);
+
+        $defaultCycle = $this->resolveCycle($request->integer('cycle_id'));
+
+        return response()->json([
+            'success' => true,
+            'data' => $cycles,
+            'meta' => [
+                'default_cycle_id' => $defaultCycle?->cycle_id,
+                'default_cycle_name' => $defaultCycle?->cycle_name,
+            ],
+        ]);
+    }
+
+    /**
+     * Báo cáo "Nhóm của tôi" cho Manager/Admin.
+     */
+    public function getMyTeamReport(Request $request)
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $department = $user?->department;
+        
+        if (!$department) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bạn chưa được gán vào phòng ban/đội nhóm nên không thể xem báo cáo.',
+            ], 422);
+        }
+
+        $cycle = $this->resolveCycle($request->integer('cycle_id'));
+        if (!$cycle) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy chu kỳ phù hợp.',
+            ], 404);
+        }
+
+        // Sử dụng Service để tính toán dữ liệu
+        $reportData = $this->reportService->getTeamPerformance(
+            $department->department_id, 
+            $cycle->cycle_id
+        );
+
+        return response()->json([
+            'success' => true,
+            'department_name' => $department->d_name,
+            'cycle' => [
+                'cycle_id' => $cycle->cycle_id,
+                'cycle_name' => $cycle->cycle_name,
+            ],
+            'data' => $reportData,
+        ]);
+    }
+
+    /**
+     * Biểu đồ xu hướng tiến độ của nhóm theo tuần.
+     */
+    public function getTeamProgressTrend(Request $request)
+    {
+        /** @var User $user */
+        $user = $request->user();
+        if (!$user?->department_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bạn chưa được gán phòng ban/đội nhóm.',
+            ], 422);
+        }
+
+        $cycle = $this->resolveCycle($request->integer('cycle_id'));
+        if (!$cycle) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy chu kỳ phù hợp.',
+            ], 404);
+        }
+
+        $trend = CheckIn::query()
+            ->select([
+                DB::raw("DATE_FORMAT(check_ins.created_at, '%Y-%u') as bucket"),
+                DB::raw('AVG(check_ins.progress_percent) as avg_progress'),
+            ])
+            ->join('key_results as kr', 'kr.kr_id', '=', 'check_ins.kr_id')
+            ->join('objectives as obj', 'obj.objective_id', '=', 'kr.objective_id')
+            ->where('obj.department_id', $user->department_id)
+            ->where('obj.cycle_id', $cycle->cycle_id)
+            ->whereNotNull('check_ins.progress_percent')
+            ->groupBy('bucket')
+            ->orderBy('bucket')
+            ->get()
+            ->map(fn ($row) => [
+                'bucket' => $row->bucket,
+                'avg_progress' => $this->clampProgress((float) $row->avg_progress),
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'department_name' => optional($user->department)->d_name,
+            'cycle' => [
+                'cycle_id' => $cycle->cycle_id,
+                'cycle_name' => $cycle->cycle_name,
+            ],
+            'data' => $trend,
+        ]);
+    }
+
+    /**
+     * Chọn chu kỳ ưu tiên: tham số -> hiện tại -> gần nhất.
+     */
+    protected function resolveCycle(?int $cycleId = null): ?Cycle
+    {
+        if ($cycleId) {
+            return Cycle::find($cycleId);
+        }
+
+        $now = now();
+        $current = Cycle::where('start_date', '<=', $now)
+            ->where('end_date', '>=', $now)
+            ->orderByDesc('start_date')
+            ->first();
+
+        if ($current) {
+            return $current;
+        }
+
+        return Cycle::orderByDesc('start_date')->first();
+    }
+
+    /**
+     * Chuẩn hóa tiến độ về 0 - 100 với 2 chữ số thập phân.
+     */
+    protected function clampProgress(?float $value): float
+    {
+        if ($value === null || !is_finite($value)) {
+            return 0.0;
+        }
+
+        return (float) round(max(0, min(100, $value)), 2);
+    }
+
     /**
      * Company overview report with optional cycle filter.
      */
@@ -31,25 +197,29 @@ class ReportController extends Controller
         $objectiveProgress = $objectives->map(function ($obj) {
             $progress = $obj->progress_percent;
             if ($progress === null || (float) $progress === 0.0) {
-                // Fallback an toàn: tính bằng PHP để tránh khác biệt SQL/nullable
+                // Công thức: O = trung bình cộng của tiến độ KR trực tiếp
+                // Chỉ tính từ KeyResults trực tiếp, không archived
                 $krs = DB::table('key_results')
-                    ->select(['progress_percent','current_value','target_value'])
+                    ->select(['progress_percent'])
                     ->where('objective_id', $obj->objective_id)
+                    ->whereNull('archived_at') // Chỉ tính KR chưa archived
                     ->get();
-                if ($krs->count() === 0) {
+                    
+                if ($krs->isEmpty()) {
                     $progress = 0.0;
                 } else {
-                    $sum = 0.0;
+                    $progressList = [];
                     foreach ($krs as $kr) {
                         if ($kr->progress_percent !== null) {
-                            $sum += (float) $kr->progress_percent;
-                        } elseif (!empty($kr->target_value) && (float) $kr->target_value > 0) {
-                            $sum += max(0.0, min(100.0, ((float) $kr->current_value / (float) $kr->target_value) * 100.0));
-                        } else {
-                            $sum += 0.0;
+                            $progressList[] = (float) $kr->progress_percent;
                         }
                     }
-                    $progress = $sum / $krs->count();
+                    
+                    if (empty($progressList)) {
+                        $progress = 0.0;
+                    } else {
+                        $progress = array_sum($progressList) / count($progressList);
+                    }
                 }
             }
             return [
@@ -130,6 +300,7 @@ class ReportController extends Controller
         $departmentId = $request->integer('department_id');
         $status = $request->string('status')->toString(); // on_track | at_risk | off_track
         $ownerId = $request->integer('owner_id');
+        $level = $request->input('level'); // company | departments
 
         // Determine current cycle if missing
         if (!$cycleId) {
@@ -144,24 +315,46 @@ class ReportController extends Controller
 
         // Base objectives with optional filters
         $objectivesQuery = Objective::query()
-            ->select(['objective_id','obj_title','department_id','cycle_id','progress_percent','user_id'])
+            ->select(['objective_id','obj_title','department_id','cycle_id','progress_percent','user_id', 'level'])
+            ->whereNull('archived_at') // Only count active objectives
             ->when($cycleId, fn ($q) => $q->where('cycle_id', $cycleId))
             ->when($departmentId, fn ($q) => $q->where('department_id', $departmentId))
             ->when($ownerId, fn ($q) => $q->where('user_id', $ownerId));
+        
+        // Filter by level - must be explicit
+        if ($level === 'company') {
+            $objectivesQuery->where('level', 'company');
+        } elseif ($level === 'departments') {
+            $objectivesQuery->where('level', 'unit');
+        } else {
+            // Default: exclude person level, include both company and unit
+            $objectivesQuery->whereIn('level', ['company', 'unit']);
+        }
 
         $objectives = $objectivesQuery->get();
 
         // Compute progress per objective from live KRs (real-time)
         $objectiveIds = $objectives->pluck('objective_id');
+        // Công thức: O = trung bình cộng của tiến độ KR trực tiếp
+        // Tính progress từ KeyResults trực tiếp, không archived
         $krAgg = DB::table('key_results')
-            ->select('objective_id',
-                DB::raw('AVG(CASE WHEN progress_percent IS NOT NULL THEN progress_percent ELSE CASE WHEN target_value IS NOT NULL AND target_value > 0 THEN LEAST(100, GREATEST(0, (current_value/target_value)*100)) ELSE 0 END END) as avg_progress')
-            )
+            ->select('objective_id', 'progress_percent')
             ->whereIn('objective_id', $objectiveIds)
+            ->whereNull('archived_at') // Chỉ tính KR chưa archived
+            ->get()
             ->groupBy('objective_id')
-            ->pluck('avg_progress', 'objective_id');
+            ->map(function ($krs) {
+                $progressList = [];
+                foreach ($krs as $kr) {
+                    if ($kr->progress_percent !== null) {
+                        $progressList[] = (float) $kr->progress_percent;
+                    }
+                }
+                return empty($progressList) ? null : (array_sum($progressList) / count($progressList));
+            });
 
         $objectiveProgress = $objectives->map(function ($obj) use ($krAgg) {
+            // Ưu tiên tính từ KR trực tiếp, nếu không có thì dùng giá trị trong DB
             $avgFromKrs = $krAgg[$obj->objective_id] ?? null;
             $progress = $avgFromKrs !== null ? (float) $avgFromKrs : (float) ($obj->progress_percent ?? 0.0);
             $computedStatus = $progress >= 70 ? 'on_track' : ($progress >= 40 ? 'at_risk' : 'off_track');
@@ -328,29 +521,6 @@ class ReportController extends Controller
                 }, $agg['children']),
             ];
         }
-        foreach ($deptGrouped as $deptIdKey => $items) {
-            $deptIdInt = $deptIdKey ? (int) $deptIdKey : null;
-            $avg = (float) round(collect($items)->avg('progress') ?? 0, 2);
-            $count = collect($items)->count();
-            $on = collect($items)->where('status','on_track')->count();
-            $risk = collect($items)->where('status','at_risk')->count();
-            $off = collect($items)->where('status','off_track')->count();
-            $prevAvg = $deptIdInt && isset($prevCycleAvgByDept[$deptIdInt]) ? (float) $prevCycleAvgByDept[$deptIdInt] : null;
-            $trendDelta = $prevAvg !== null ? round($avg - $prevAvg, 2) : null;
-            $departments[] = [
-                'departmentId' => $deptIdInt,
-                'departmentName' => $deptIdInt ? ($deptNames[$deptIdInt] ?? 'N/A') : 'Công ty',
-                'count' => $count,
-                'averageProgress' => $avg,
-                'onTrack' => $on,
-                'atRisk' => $risk,
-                'offTrack' => $off,
-                'onTrackPct' => $count ? round($on * 100 / $count, 2) : 0,
-                'atRiskPct' => $count ? round($risk * 100 / $count, 2) : 0,
-                'offTrackPct' => $count ? round($off * 100 / $count, 2) : 0,
-                'trendDelta' => $trendDelta,
-            ];
-        }
 
         // Trend over time: weekly average progress_percent from check_ins grouped by KR of filtered objectives
         $trend = [];
@@ -444,6 +614,572 @@ class ReportController extends Controller
         return response()->streamDownload($callback, $filename, [
             'Content-Type' => 'text/csv; charset=UTF-8',
         ]);
+    }
+
+    /**
+     * Export PDF for OKR company report (image-based PDF like Canva)
+     */
+    public function exportCompanyOkrPdf(Request $request)
+    {
+        $cycleId = $request->integer('cycle_id');
+        $departmentId = $request->integer('department_id');
+        $status = $request->string('status');
+        $ownerId = $request->integer('owner_id');
+
+        // Get report data
+        $response = $this->companyOkrReport($request);
+        $payload = $response->getData(true);
+        
+        // Get cycle info
+        $cycle = $cycleId ? Cycle::find($cycleId) : null;
+        $cycleName = $cycle ? $cycle->cycle_name : 'Tất cả chu kỳ';
+
+        // Generate HTML for PDF
+        $html = view('reports.company-okr-pdf', [
+            'data' => $payload['data'],
+            'cycleName' => $cycleName,
+            'generatedAt' => now()->format('d/m/Y H:i'),
+        ])->render();
+
+        try {
+            // Generate PDF as image-based using browsershot
+            $browsershot = Browsershot::html($html)
+                ->format('A4')
+                ->margins(10, 10, 10, 10, 'mm')
+                ->showBackground()
+                ->waitUntilNetworkIdle()
+                ->timeout(120);
+            
+            // Set node binary path (Windows)
+            $nodePath = 'E:\\node\\node.exe';
+            if (file_exists($nodePath)) {
+                $browsershot->setNodeBinary($nodePath);
+            }
+            
+            // Set npm binary path (Windows)
+            $npmPath = 'E:\\node\\npm.cmd';
+            if (file_exists($npmPath)) {
+                $browsershot->setNpmBinary($npmPath);
+            }
+            
+            $pdf = $browsershot->pdf();
+
+            $filename = 'bao_cao_okr_' . now()->format('Ymd_His') . '.pdf';
+            
+            return response($pdf, 200)
+                ->header('Content-Type', 'application/pdf')
+                ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
+        } catch (\Exception $e) {
+            // Log detailed error
+            \Log::error('PDF generation failed', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            
+            // Return JSON error for API calls (always return JSON for API endpoints)
+            return response()->json([
+                'success' => false,
+                'message' => 'Không thể tạo PDF. Lỗi: ' . $e->getMessage(),
+                'error' => config('app.debug') ? $e->getMessage() : 'Lỗi khi tạo PDF. Vui lòng thử lại sau.',
+                'trace' => config('app.debug') ? $e->getTraceAsString() : null,
+            ], 500);
+            
+            // Fallback to HTML if browsershot fails
+            return response($html)
+                ->header('Content-Type', 'text/html; charset=UTF-8')
+                ->header('Content-Disposition', 'inline; filename="bao_cao_okr_' . now()->format('Ymd_His') . '.html"');
+        }
+    }
+
+    /**
+     * Lấy OKR chi tiết theo từng phòng ban cho báo cáo cuối kỳ
+     */
+    public function getOkrsByDepartment(Request $request)
+    {
+        $cycleId = $request->integer('cycle_id');
+        $departmentId = $request->integer('department_id');
+
+        $objectivesQuery = Objective::query()
+            ->with(['cycle', 'department', 'user'])
+            ->when($cycleId, fn($q) => $q->where('cycle_id', $cycleId))
+            ->when($departmentId, fn($q) => $q->where('department_id', $departmentId))
+            ->whereIn('level', ['company', 'unit']);
+
+        $objectives = $objectivesQuery->get();
+
+        // Load key results
+        $objectiveIds = $objectives->pluck('objective_id');
+        $keyResults = KeyResult::whereIn('objective_id', $objectiveIds)
+            ->whereNull('archived_at')
+            ->with(['assignedUser.role', 'assignedUser.department', 'assignee'])
+            ->get()
+            ->groupBy('objective_id');
+
+        // Group by department
+        $okrsByDepartment = $objectives->groupBy('department_id')->map(function($deptObjectives, $deptId) use ($keyResults) {
+            return $deptObjectives->map(function($obj) use ($keyResults) {
+                $krs = $keyResults->get($obj->objective_id, collect());
+                
+                // Tính tiến độ trung bình
+                $totalProgress = 0;
+                $krCount = $krs->count();
+                
+                foreach ($krs as $kr) {
+                    $progress = $kr->progress_percent ?? 0;
+                    if ($kr->target_value && $kr->target_value > 0) {
+                        $calculatedProgress = ($kr->current_value / $kr->target_value) * 100;
+                        $progress = $kr->progress_percent ?? min(100, max(0, $calculatedProgress));
+                    }
+                    $totalProgress += $progress;
+                }
+                
+                $avgProgress = $krCount > 0 ? round($totalProgress / $krCount, 2) : 0;
+                
+                // Xác định trạng thái
+                $overallStatus = 'not_started';
+                if ($avgProgress >= 100) {
+                    $overallStatus = 'completed';
+                } elseif ($avgProgress >= 70) {
+                    $overallStatus = 'in_progress';
+                } elseif ($avgProgress >= 40) {
+                    $overallStatus = 'at_risk';
+                } else {
+                    $overallStatus = 'at_risk';
+                }
+
+                return [
+                    'objective_id' => $obj->objective_id,
+                    'objective_title' => $obj->obj_title,
+                    'objective_description' => $obj->description,
+                    'owner_name' => $obj->user->full_name ?? 'N/A',
+                    'cycle_name' => $obj->cycle->cycle_name ?? 'N/A',
+                    'overall_progress' => $avgProgress,
+                    'overall_status' => $overallStatus,
+                    'key_results' => $krs->map(function($kr) {
+                        $krProgress = $kr->progress_percent ?? 0;
+                        if ($kr->target_value && $kr->target_value > 0) {
+                            $calculatedProgress = ($kr->current_value / $kr->target_value) * 100;
+                            $krProgress = $kr->progress_percent ?? min(100, max(0, $calculatedProgress));
+                        }
+                        
+                        $assigneeUser = $kr->assignedUser ?? $kr->assignee ?? null;
+                        
+                        return [
+                            'kr_id' => $kr->kr_id,
+                            'kr_title' => $kr->kr_title,
+                            'current_value' => $kr->current_value ?? 0,
+                            'target_value' => $kr->target_value,
+                            'progress_percent' => round($krProgress, 2),
+                            'unit' => $kr->unit,
+                            'assignee' => $assigneeUser ? [
+                                'user_id' => $assigneeUser->user_id,
+                                'full_name' => $assigneeUser->full_name,
+                            ] : null,
+                        ];
+                    })->values(),
+                ];
+            })->values();
+        });
+
+        // Format response
+        $result = [];
+        foreach ($okrsByDepartment as $deptId => $okrs) {
+            $dept = Department::find($deptId);
+            $result[] = [
+                'department_id' => $deptId,
+                'department_name' => $dept ? $dept->d_name : 'N/A',
+                'okrs' => $okrs,
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $result,
+        ]);
+    }
+
+    /**
+     * Tạo snapshot báo cáo từ dữ liệu hiện tại
+     */
+    public function createSnapshot(Request $request)
+    {
+        $user = $request->user();
+        
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Người dùng chưa đăng nhập.',
+            ], 401);
+        }
+
+        $reportType = $request->input('report_type'); // 'team', 'manager', 'company'
+        $cycleId = $request->input('cycle_id') ? (int)$request->input('cycle_id') : null;
+        $departmentId = $request->input('department_id') ? (int)$request->input('department_id') : null;
+        $reportName = $request->input('report_name') ?? '';
+        $notes = $request->input('notes') ?? '';
+
+        // Validate report type
+        if (!in_array($reportType, ['team', 'manager', 'company'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Loại báo cáo không hợp lệ.',
+            ], 422);
+        }
+
+        // Validate cycle_id
+        if (!$cycleId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vui lòng chọn chu kỳ.',
+            ], 422);
+        }
+
+        // Lấy dữ liệu báo cáo hiện tại dựa trên loại
+        $snapshotData = null;
+        
+        try {
+            if ($reportType === 'team') {
+                // Báo cáo nhóm
+                $tempRequest = new Request(['cycle_id' => $cycleId]);
+                $tempRequest->setUserResolver(fn() => $user);
+                $response = $this->getMyTeamReport($tempRequest);
+                $snapshotData = $response->getData(true);
+            } elseif ($reportType === 'manager') {
+                // Báo cáo phòng ban (Manager)
+                $tempRequest = new Request([
+                    'cycle_id' => $cycleId,
+                    'member_id' => $request->input('member_id'),
+                    'status' => $request->input('status'),
+                    'objective_id' => $request->input('objective_id'),
+                ]);
+                $tempRequest->setUserResolver(fn() => $user);
+                // Gọi API manager report
+                $snapshotData = $this->getManagerReportData($tempRequest);
+            } elseif ($reportType === 'company') {
+                // Báo cáo công ty
+                $tempRequest = new Request([
+                    'cycle_id' => $cycleId,
+                    'department_id' => $departmentId,
+                    'status' => $request->input('status'),
+                    'owner_id' => $request->input('owner_id'),
+                ]);
+                $tempRequest->setUserResolver(fn() => $user);
+                $response = $this->companyOkrReport($tempRequest);
+                $snapshotData = $response->getData(true);
+            }
+
+            if (!$snapshotData || !isset($snapshotData['success']) || !$snapshotData['success']) {
+                \Log::error('Invalid snapshot data', [
+                    'report_type' => $reportType,
+                    'snapshot_data' => $snapshotData,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Không thể tạo snapshot. Dữ liệu báo cáo không hợp lệ: ' . ($snapshotData['message'] ?? 'Unknown error'),
+                ], 422);
+            }
+
+            // Tạo báo cáo snapshot
+            try {
+                $report = Report::create([
+                    'report_type' => $reportType,
+                    'report_name' => $reportName ?: $this->generateDefaultReportName($reportType, $cycleId),
+                    'snapshot_data' => $snapshotData,
+                    'user_id' => $user->user_id,
+                    'cycle_id' => $cycleId,
+                    'department_id' => $departmentId ?: null,
+                    'notes' => $notes ?: null,
+                ]);
+            } catch (\Illuminate\Database\QueryException $e) {
+                \Log::error('Database error creating report: ' . $e->getMessage(), [
+                    'sql' => $e->getSql(),
+                    'bindings' => $e->getBindings(),
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Lỗi database khi tạo báo cáo. Có thể bảng chưa được tạo. Vui lòng chạy migration.',
+                ], 500);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã tạo snapshot báo cáo thành công.',
+                'data' => [
+                    'report_id' => $report->report_id,
+                    'report_name' => $report->report_name,
+                    'report_type' => $report->report_type,
+                    'created_at' => $report->created_at->toISOString(),
+                    'creator' => [
+                        'user_id' => $user->user_id,
+                        'full_name' => $user->full_name,
+                        'email' => $user->email,
+                    ],
+                ],
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error creating snapshot: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'report_type' => $reportType,
+                'cycle_id' => $cycleId,
+                'user_id' => $user->user_id ?? null,
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi tạo snapshot: ' . $e->getMessage(),
+                'debug' => config('app.debug') ? $e->getTraceAsString() : null,
+            ], 500);
+        }
+    }
+
+    /**
+     * Lấy dữ liệu báo cáo Manager (helper method)
+     */
+    protected function getManagerReportData(Request $request)
+    {
+        try {
+            // Gọi ReportManagerController để lấy dữ liệu
+            $managerController = new \App\Http\Controllers\ReportManagerController();
+            
+            // Đảm bảo request có user resolver - luôn set lại để đảm bảo
+            $user = auth()->user();
+            $request->setUserResolver(fn() => $user);
+            
+            $response = $managerController->getTeamOkrs($request);
+            $data = $response->getData(true);
+            
+            // Trả về structure tương thích
+            return $data;
+        } catch (\Exception $e) {
+            \Log::error('Error getting manager report data: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            return [
+                'success' => false,
+                'message' => 'Lỗi khi lấy dữ liệu báo cáo: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Tạo tên báo cáo mặc định
+     */
+    protected function generateDefaultReportName(string $type, ?int $cycleId): string
+    {
+        $typeNames = [
+            'team' => 'Báo cáo nhóm',
+            'manager' => 'Báo cáo phòng ban',
+            'company' => 'Báo cáo công ty',
+        ];
+        
+        $baseName = $typeNames[$type] ?? 'Báo cáo';
+        
+        if ($cycleId) {
+            $cycle = Cycle::find($cycleId);
+            if ($cycle) {
+                return $baseName . ' - ' . $cycle->cycle_name;
+            }
+        }
+        
+        return $baseName . ' - ' . now()->format('d/m/Y H:i');
+    }
+
+    /**
+     * Lấy danh sách báo cáo đã tạo (timeline)
+     */
+    public function getReportsList(Request $request)
+    {
+        $user = $request->user();
+        $reportType = $request->input('report_type');
+        $cycleId = $request->input('cycle_id') ? (int)$request->input('cycle_id') : null;
+        $limit = $request->input('limit') ? (int)$request->input('limit') : 50;
+
+        $query = Report::query()
+            ->with(['creator', 'cycle', 'department'])
+            ->orderByDesc('created_at');
+
+        // Lọc theo loại báo cáo
+        if ($reportType && in_array($reportType, ['team', 'manager', 'company'], true)) {
+            $query->where('report_type', $reportType);
+        }
+
+        // Lọc theo chu kỳ
+        if ($cycleId) {
+            $query->where('cycle_id', $cycleId);
+        }
+
+        // Nếu không phải admin/CEO, chỉ xem báo cáo của mình hoặc phòng ban mình
+        if (!$user->is_admin && strtolower($user->role->role_name ?? '') !== 'ceo') {
+            $query->where(function ($q) use ($user) {
+                $q->where('user_id', $user->user_id)
+                  ->orWhere('department_id', $user->department_id);
+            });
+        }
+
+        $reports = $query->limit($limit)->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $reports->map(function ($report) {
+                return [
+                    'report_id' => $report->report_id,
+                    'report_type' => $report->report_type,
+                    'report_name' => $report->report_name,
+                    'created_at' => $report->created_at->toISOString(),
+                    'created_at_formatted' => $report->created_at->format('d/m/Y H:i'),
+                    'creator' => [
+                        'user_id' => $report->creator->user_id ?? null,
+                        'full_name' => $report->creator->full_name ?? 'N/A',
+                        'email' => $report->creator->email ?? null,
+                    ],
+                    'cycle' => $report->cycle ? [
+                        'cycle_id' => $report->cycle->cycle_id,
+                        'cycle_name' => $report->cycle->cycle_name,
+                        'start_date' => $report->cycle->start_date,
+                        'end_date' => $report->cycle->end_date,
+                    ] : null,
+                    'department' => $report->department ? [
+                        'department_id' => $report->department->department_id,
+                        'department_name' => $report->department->d_name,
+                    ] : null,
+                    'notes' => $report->notes,
+                ];
+            }),
+        ]);
+    }
+
+    /**
+     * Xem chi tiết một báo cáo snapshot
+     */
+    public function getReportSnapshot(Request $request, int $reportId)
+    {
+        $user = $request->user();
+        
+        $report = Report::with(['creator', 'cycle', 'department'])->find($reportId);
+        
+        if (!$report) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy báo cáo.',
+            ], 404);
+        }
+
+        // Kiểm tra quyền xem
+        if (!$user->is_admin && strtolower($user->role->role_name ?? '') !== 'ceo') {
+            if ($report->user_id !== $user->user_id && $report->department_id !== $user->department_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Bạn không có quyền xem báo cáo này.',
+                ], 403);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'report_id' => $report->report_id,
+                'report_type' => $report->report_type,
+                'report_name' => $report->report_name,
+                'snapshot_data' => $report->snapshot_data,
+                'created_at' => $report->created_at->toISOString(),
+                'created_at_formatted' => $report->created_at->format('d/m/Y H:i'),
+                'creator' => [
+                    'user_id' => $report->creator->user_id ?? null,
+                    'full_name' => $report->creator->full_name ?? 'N/A',
+                    'email' => $report->creator->email ?? null,
+                ],
+                'cycle' => $report->cycle ? [
+                    'cycle_id' => $report->cycle->cycle_id,
+                    'cycle_name' => $report->cycle->cycle_name,
+                ] : null,
+                'department' => $report->department ? [
+                    'department_id' => $report->department->department_id,
+                    'department_name' => $report->department->d_name,
+                ] : null,
+                'notes' => $report->notes,
+            ],
+        ]);
+    }
+
+    /**
+     * Xóa một báo cáo snapshot
+     */
+    public function deleteReport(Request $request, int $reportId)
+    {
+        $user = $request->user();
+        
+        $report = Report::find($reportId);
+        
+        if (!$report) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy báo cáo.',
+            ], 404);
+        }
+
+        // Chỉ người tạo, admin hoặc CEO mới được xóa
+        if ($report->user_id !== $user->user_id && !$user->is_admin && strtolower($user->role->role_name ?? '') !== 'ceo') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bạn không có quyền xóa báo cáo này.',
+            ], 403);
+        }
+
+        $report->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đã xóa báo cáo thành công.',
+        ]);
+    }
+
+    /**
+     * Gửi nhắc nhở check-in cho thành viên
+     */
+    public function remindMember(Request $request)
+    {
+        $user = $request->user();
+        $memberId = $request->input('member_id');
+        $cycleId = $request->input('cycle_id');
+
+        if (!$memberId) {
+             return response()->json(['success' => false, 'message' => 'Thiếu thông tin thành viên'], 400);
+        }
+
+        // Ensure cycle_id is present as it is required by the notifications table
+        if (!$cycleId) {
+            $currentCycle = $this->resolveCycle();
+            if ($currentCycle) {
+                $cycleId = $currentCycle->cycle_id;
+            }
+        }
+
+        if (!$cycleId) {
+            return response()->json(['success' => false, 'message' => 'Không xác định được chu kỳ để tạo thông báo'], 400);
+        }
+
+        $targetUser = User::find($memberId);
+        if (!$targetUser) {
+            return response()->json(['success' => false, 'message' => 'Không tìm thấy thành viên'], 404);
+        }
+
+        // Basic check: same department
+        if ($user->department_id !== $targetUser->department_id && !$user->is_admin) {
+             return response()->json(['success' => false, 'message' => 'Thành viên không thuộc đội nhóm của bạn'], 403);
+        }
+
+        // Gửi noti - Service sẽ lưu vào bảng notifications
+        \App\Services\NotificationService::send(
+            $targetUser->user_id,
+            "Quản lý {$user->full_name} nhắc bạn cập nhật tiến độ OKR.",
+            'reminder',
+            (int) $cycleId,
+            '/my-objectives', // Action URL
+            'Check-in ngay'
+        );
+
+        return response()->json(['success' => true, 'message' => 'Đã gửi nhắc nhở thành công']);
     }
 }
 

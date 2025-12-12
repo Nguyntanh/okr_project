@@ -1,70 +1,147 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import PieChart from '../components/PieChart';
-import LineChart from '../components/LineChart';
 import GroupedBarChart from '../components/GroupedBarChart';
-
-function StatCard({ title, value, suffix = '%', hint }) {
-    return (
-        <div className="rounded-xl border border-slate-200 bg-white p-6">
-            <div className="text-sm font-semibold text-slate-500">{title}</div>
-            <div className="mt-2 text-4xl font-extrabold text-slate-900">{value}{suffix}</div>
-            {hint && <div className="mt-1 text-xs text-slate-500">{hint}</div>}
-        </div>
-    );
-}
+import ToastNotification from '../components/ToastNotification';
+import { CycleDropdown } from '../components/Dropdown';
+import StatCard from '../components/reports/StatCard';
+import TrendIcon from '../components/reports/TrendIcon';
+import Pagination from '../components/reports/Pagination';
+import ObjectivesTable from '../components/reports/ObjectivesTable';
+import KeyResultsTable from '../components/reports/KeyResultsTable';
+import OwnersTable from '../components/reports/OwnersTable';
+import CheckInsTable from '../components/reports/CheckInsTable';
+import SnapshotModal from '../components/reports/SnapshotModal';
+import SnapshotHistoryModal from '../components/reports/SnapshotHistoryModal';
+import OverviewCards from '../components/reports/OverviewCards';
+import ChartSection from '../components/reports/ChartSection';
+import DepartmentTable from '../components/reports/DepartmentTable';
+import { fetchDetailedData, fetchDetailedDataForSnapshot } from '../utils/reports/dataFetchers';
+import { loadSnapshots as loadSnapshotsUtil, loadSnapshot as loadSnapshotUtil } from '../utils/reports/snapshotHelpers';
+import { exportToExcel as exportToExcelUtil } from '../utils/reports/exportHelpers';
+import { FiDownload, FiArchive, FiList } from "react-icons/fi";
 
 export default function CompanyOverviewReport() {
     const [cycles, setCycles] = useState([]);
     const [departments, setDepartments] = useState([]);
     const [owners, setOwners] = useState([]);
     const [filterOpen, setFilterOpen] = useState(false);
-    const [level, setLevel] = useState('departments'); // company | departments | teams
-    const [teamsParentId, setTeamsParentId] = useState('');
+    const [level, setLevel] = useState('departments');
+    const [isCreatingSnapshot, setIsCreatingSnapshot] = useState(false);
+    const [snapshots, setSnapshots] = useState([]);
+    const [showSnapshots, setShowSnapshots] = useState(false);
+    const [selectedSnapshot, setSelectedSnapshot] = useState(null);
+    const [snapshotLevelFilter, setSnapshotLevelFilter] = useState('all');
+    const [snapshotPage, setSnapshotPage] = useState(1);
+    const [snapshotPagination, setSnapshotPagination] = useState({
+        current_page: 1,
+        last_page: 1,
+        total: 0,
+    });
+    const [showSnapshotModal, setShowSnapshotModal] = useState(false);
+    const [snapshotTitleInput, setSnapshotTitleInput] = useState('');
+    const [snapshotCreateLevel, setSnapshotCreateLevel] = useState('company');
+    const [modalCycleFilter, setModalCycleFilter] = useState('');
+    const [toast, setToast] = useState(null);
+    const [isReportReady, setIsReportReady] = useState(false);
 
     const [filters, setFilters] = useState({
         cycleId: '',
         departmentId: '',
-        status: '',
         ownerId: '',
     });
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [report, setReport] = useState({
-        overall: { totalObjectives: 0, averageProgress: 0, statusCounts: { onTrack:0, atRisk:0, offTrack:0 }, statusDistribution: { onTrack:0, atRisk:0, offTrack:0 } },
+        overall: { totalObjectives: 0, averageProgress: 0, statusCounts: { onTrack: 0, atRisk: 0, offTrack: 0 }, statusDistribution: { onTrack: 0, atRisk: 0, offTrack: 0 } },
         departments: [],
         trend: [],
         risks: [],
     });
     const [currentCycleMeta, setCurrentCycleMeta] = useState(null);
+    const [detailedData, setDetailedData] = useState({
+        objectives: [],
+        keyResults: [],
+        owners: [],
+        checkIns: [],
+    });
 
-    const TrendIcon = ({ delta }) => {
-        if (delta === null || delta === undefined) return <span className="text-slate-400">—</span>;
-        const up = delta > 0; const down = delta < 0;
-        const color = up ? 'text-emerald-600' : (down ? 'text-red-600' : 'text-slate-500');
-        return (
-            <span className={`inline-flex items-center gap-1 ${color}`} title={`${delta > 0 ? '+' : ''}${delta.toFixed(2)}%`}>
-                {up && (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M3 12l5-5 4 4 5-5v8H3z"/></svg>
-                )}
-                {down && (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17 8l-5 5-4-4-5 5V6h14z"/></svg>
-                )}
-                {!up && !down && (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M4 10h12v2H4z"/></svg>
-                )}
-                <span>{Math.abs(delta).toFixed(2)}%</span>
-            </span>
-        );
-    };
+    const [userRole, setUserRole] = useState(null);
+    const [isAdminOrCeo, setIsAdminOrCeo] = useState(false);
+
+    // Fetch user profile to check role
+    useEffect(() => {
+        (async () => {
+            try {
+                const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                const res = await fetch('/api/profile', {
+                    headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    const role = data.user?.role?.role_name?.toLowerCase() || '';
+                    setUserRole(role);
+                    setIsAdminOrCeo(role === 'admin' || role === 'ceo');
+                }
+            } catch (error) {
+                console.error('Lỗi khi tải thông tin user:', error);
+            }
+        })();
+    }, []);
+
+    // Đọc query params khi component mount
+    useEffect(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+
+            // Đọc các query params
+            const cycleId = params.get('cycle_id');
+            const departmentId = params.get('department_id');
+            const ownerId = params.get('owner_id');
+            const levelParam = params.get('level');
+            const snapshotLevel = params.get('snapshot_level');
+            const showSnapshotsParam = params.get('show_snapshots');
+
+            // Khôi phục state từ query params
+            if (cycleId) {
+                setFilters(f => ({ ...f, cycleId }));
+            }
+            if (departmentId) {
+                setFilters(f => ({ ...f, departmentId }));
+            }
+            if (ownerId) {
+                setFilters(f => ({ ...f, ownerId }));
+            }
+            if (levelParam === 'company' || levelParam === 'departments') {
+                setLevel(levelParam);
+            }
+            if (snapshotLevel === 'all' || snapshotLevel === 'company' || snapshotLevel === 'departments') {
+                setSnapshotLevelFilter(snapshotLevel);
+            }
+            // show_snapshots = số trang (1, 2, 3...) khi modal mở
+            if (showSnapshotsParam) {
+                const pageNum = parseInt(showSnapshotsParam, 10);
+                if (!isNaN(pageNum) && pageNum > 0) {
+                    // Nếu là số hợp lệ, đó là số trang
+                    setShowSnapshots(true);
+                    setSnapshotPage(pageNum);
+                } else if (showSnapshotsParam === 'true' || showSnapshotsParam === '1') {
+                    // Tương thích với format cũ (boolean), mở modal ở trang 1
+                    setShowSnapshots(true);
+                    setSnapshotPage(1);
+                }
+            }
+        } catch (e) {
+            console.error('Failed to read query params:', e);
+        }
+    }, []);
 
     useEffect(() => {
         (async () => {
             try {
                 const [rCycles, rDepts, rUsers] = await Promise.all([
-                    fetch('/cycles', { headers: { Accept: 'application/json' }}),
-                    fetch('/departments', { headers: { Accept: 'application/json' }}),
-                    fetch('/users?per_page=1000', { headers: { Accept: 'application/json' }})
+                    fetch('/cycles', { headers: { Accept: 'application/json' } }),
+                    fetch('/departments', { headers: { Accept: 'application/json' } }),
+                    fetch('/users?per_page=1000', { headers: { Accept: 'application/json' } })
                 ]);
                 const dCycles = await rCycles.json();
                 const dDepts = await rDepts.json();
@@ -78,24 +155,27 @@ export default function CompanyOverviewReport() {
                 if (listCycles.length) {
                     const now = new Date();
                     const parse = (s) => (s ? new Date(s) : null);
-                    const current = listCycles.find(c => {
-                        const start = parse(c.start_date || c.startDate);
-                        const end = parse(c.end_date || c.endDate);
-                        return start && end && start <= now && now <= end;
-                    }) || listCycles[0];
-                    setFilters(f => ({ ...f, cycleId: current.cycle_id || current.cycleId }));
-                    setCurrentCycleMeta({
-                        id: current.cycle_id || current.cycleId,
-                        name: current.cycle_name || current.cycleName,
-                        start: current.start_date || current.startDate,
-                        end: current.end_date || current.endDate,
-                    });
+                    // Chỉ set cycle mặc định nếu chưa có trong query params
+                    const params = new URLSearchParams(window.location.search);
+                    if (!params.get('cycle_id')) {
+                        const current = listCycles.find(c => {
+                            const start = parse(c.start_date || c.startDate);
+                            const end = parse(c.end_date || c.endDate);
+                            return start && end && start <= now && now <= end;
+                        }) || listCycles[0];
+                        setFilters(f => ({ ...f, cycleId: current.cycle_id || current.cycleId }));
+                        setCurrentCycleMeta({
+                            id: current.cycle_id || current.cycleId,
+                            name: current.cycle_name || current.cycleName,
+                            start: current.start_date || current.startDate,
+                            end: current.end_date || current.endDate,
+                        });
+                    }
                 }
             } catch (e) { /* ignore */ }
         })();
     }, []);
 
-    // Keep current cycle label in sync when user changes dropdown
     useEffect(() => {
         if (!filters.cycleId || !Array.isArray(cycles) || cycles.length === 0) return;
         const c = cycles.find(x => String(x.cycle_id || x.cycleId) === String(filters.cycleId));
@@ -118,92 +198,123 @@ export default function CompanyOverviewReport() {
                 const params = new URLSearchParams();
                 if (filters.cycleId) params.set('cycle_id', filters.cycleId);
                 if (filters.departmentId) params.set('department_id', filters.departmentId);
-                if (filters.status) params.set('status', filters.status);
                 if (filters.ownerId) params.set('owner_id', filters.ownerId);
+                if (level) params.set('level', level);
                 const url = `/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`;
                 const res = await fetch(url, { headers: { Accept: 'application/json' } });
                 const json = await res.json();
                 if (!res.ok || !json.success) throw new Error(json.message || 'Load report failed');
                 setReport(json.data);
+
+                // Fetch detailed data based on current level
+                const detailedDataResult = await fetchDetailedData(filters.cycleId, filters.departmentId, filters.ownerId, level);
+                setDetailedData(detailedDataResult);
             } catch (e) {
                 setError(e.message || 'Có lỗi xảy ra');
             } finally {
                 setLoading(false);
             }
         })();
-    }, [filters.cycleId, filters.departmentId, filters.status, filters.ownerId]);
+    }, [filters.cycleId, filters.departmentId, filters.ownerId, level]);
 
-    // Realtime auto-refresh every 15s
+    // fetchDetailedData and fetchDetailedDataForSnapshot are now imported from utils/reports/dataFetchers
+
     useEffect(() => {
         if (!filters.cycleId) return;
         const timer = setInterval(() => {
             const params = new URLSearchParams();
             if (filters.cycleId) params.set('cycle_id', filters.cycleId);
             if (filters.departmentId) params.set('department_id', filters.departmentId);
-            if (filters.status) params.set('status', filters.status);
             if (filters.ownerId) params.set('owner_id', filters.ownerId);
+            if (level) params.set('level', level); // Add level filter to auto-refresh
             const url = `/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`;
-            fetch(url, { headers: { Accept: 'application/json', 'Cache-Control': 'no-store' }})
+            fetch(url, { headers: { Accept: 'application/json', 'Cache-Control': 'no-store' } })
                 .then(r => r.json().then(j => ({ ok: r.ok, j })))
                 .then(({ ok, j }) => { if (ok && j.success) setReport(j.data); })
-                .catch(() => {});
-        }, 15000);
+                .catch(() => { });
+        }, 60000);
         return () => clearInterval(timer);
-    }, [filters.cycleId, filters.departmentId, filters.status, filters.ownerId]);
+    }, [filters.cycleId, filters.departmentId, filters.ownerId, level]);
 
-    const pieData = useMemo(() => {
-        const counts = report?.overall?.statusCounts || {};
-        return [
-            { label: 'On track', value: counts.onTrack || 0, color: '#22c55e' },
-            { label: 'At risk', value: counts.atRisk || 0, color: '#f59e0b' },
-            { label: 'Off track', value: counts.offTrack || 0, color: '#ef4444' },
-        ];
-    }, [report]);
-
-    const groupedChartData = useMemo(() => {
-        if (level === 'company') {
-            const ov = report?.overall || { statusCounts: {} };
-            return {
-                categories: ['Công ty'],
-                series: [
-                    { name: 'On Track', color: '#22c55e', data: [ov.statusCounts?.onTrack || 0] },
-                    { name: 'At Risk', color: '#f59e0b', data: [ov.statusCounts?.atRisk || 0] },
-                    { name: 'Off Track', color: '#ef4444', data: [ov.statusCounts?.offTrack || 0] },
-                ],
-            };
+    // Đồng bộ filters với query params
+    useEffect(() => {
+        try {
+            const url = new URL(window.location.href);
+            if (filters.cycleId) {
+                url.searchParams.set('cycle_id', filters.cycleId);
+            } else {
+                url.searchParams.delete('cycle_id');
+            }
+            if (filters.departmentId) {
+                url.searchParams.set('department_id', filters.departmentId);
+            } else {
+                url.searchParams.delete('department_id');
+            }
+            if (filters.ownerId) {
+                url.searchParams.set('owner_id', filters.ownerId);
+            } else {
+                url.searchParams.delete('owner_id');
+            }
+            window.history.replaceState({}, '', url.toString());
+        } catch (e) {
+            console.error('Failed to sync filters to URL', e);
         }
-        if (level === 'departments') {
-            const list = (report.departmentsHierarchy || report.departments || [])
-              .filter(d => d.departmentId && (d.departmentName || '').toLowerCase() !== 'công ty');
-            return {
-                categories: list.map(d => d.departmentName),
-                series: [
-                    { name: 'On Track', color: '#22c55e', data: list.map(d => d.onTrack || 0) },
-                    { name: 'At Risk', color: '#f59e0b', data: list.map(d => d.atRisk || 0) },
-                    { name: 'Off Track', color: '#ef4444', data: list.map(d => d.offTrack || 0) },
-                ],
-            };
-        }
-        // teams
-        const list = [];
-        (report.departmentsHierarchy || []).forEach(d => {
-            (d.children || []).forEach(t => {
-                if (!teamsParentId || String(teamsParentId) === String(d.departmentId)) {
-                    list.push(t);
-                }
-            });
-        });
-        return {
-            categories: list.map(t => t.departmentName),
-            series: [
-                { name: 'On Track', color: '#22c55e', data: list.map(t => t.onTrack || 0) },
-                { name: 'At Risk', color: '#f59e0b', data: list.map(t => t.atRisk || 0) },
-                { name: 'Off Track', color: '#ef4444', data: list.map(t => t.offTrack || 0) },
-            ],
-        };
-    }, [report, level, teamsParentId]);
+    }, [filters.cycleId, filters.departmentId, filters.ownerId]);
 
-    // Close filter popover when clicking outside
+    // Đồng bộ level với query params - chỉ thêm vào URL nếu khác mặc định
+    useEffect(() => {
+        try {
+            const url = new URL(window.location.href);
+            // Chỉ thêm level vào URL nếu khác với giá trị mặc định 'departments'
+            if (level && level !== 'departments') {
+                url.searchParams.set('level', level);
+            } else {
+                // Xóa level khỏi URL nếu là giá trị mặc định
+                url.searchParams.delete('level');
+            }
+            window.history.replaceState({}, '', url.toString());
+        } catch (e) {
+            console.error('Failed to sync level to URL', e);
+        }
+    }, [level]);
+
+    // Đồng bộ snapshotLevelFilter với query params
+    useEffect(() => {
+        try {
+            const url = new URL(window.location.href);
+            if (snapshotLevelFilter && snapshotLevelFilter !== 'all') {
+                url.searchParams.set('snapshot_level', snapshotLevelFilter);
+            } else {
+                url.searchParams.delete('snapshot_level');
+            }
+            window.history.replaceState({}, '', url.toString());
+        } catch (e) {
+            console.error('Failed to sync snapshotLevelFilter to URL', e);
+        }
+    }, [snapshotLevelFilter]);
+
+    // Đồng bộ showSnapshots và snapshotPage với query params
+    // show_snapshots = số trang (1, 2, 3...) khi modal mở, xóa khi đóng
+    useEffect(() => {
+        try {
+            const url = new URL(window.location.href);
+            if (showSnapshots) {
+                // Khi modal mở, show_snapshots = số trang hiện tại
+                url.searchParams.set('show_snapshots', String(snapshotPage));
+            } else {
+                // Khi modal đóng, xóa show_snapshots
+                url.searchParams.delete('show_snapshots');
+            }
+            // Xóa snapshot_page cũ nếu có (để tương thích ngược)
+            url.searchParams.delete('snapshot_page');
+            window.history.replaceState({}, '', url.toString());
+        } catch (e) {
+            console.error('Failed to sync showSnapshots to URL', e);
+        }
+    }, [showSnapshots, snapshotPage]);
+
+    // pieData and groupedChartData are now handled in ChartSection component
+
     useEffect(() => {
         const handler = (e) => {
             const pop = document.getElementById('okr-filter-popover');
@@ -217,215 +328,434 @@ export default function CompanyOverviewReport() {
         return () => document.removeEventListener('click', handler);
     }, [filterOpen]);
 
+    useEffect(() => {
+        if (showSnapshotModal || showSnapshots) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, [showSnapshotModal, showSnapshots]);
+
     const resetFilters = () => {
         setFilters(f => ({
             ...f,
             cycleId: currentCycleMeta?.id || f.cycleId,
             departmentId: '',
-            status: '',
         }));
     };
 
+    // Show notification
+    const showNotification = (type, message) => {
+        setToast({ type, message });
+    };
+
+    // Mở modal Chốt + nhập tên
+    const openSnapshotModal = () => {
+        if (!filters.cycleId) {
+            showNotification('error', 'Vui lòng chọn chu kỳ trước khi Tạo báo cáo');
+            return;
+        }
+        setSnapshotTitleInput('');
+        setSnapshotCreateLevel('company');
+        setShowSnapshotModal(true);
+    };
+
+    const confirmCreateSnapshot = async () => {
+        if (!snapshotTitleInput.trim()) {
+            showNotification('error', 'Vui lòng nhập tên báo cáo chốt kỳ');
+            return;
+        }
+
+        setIsCreatingSnapshot(true);
+        try {
+            const baseTitle = snapshotTitleInput.trim();
+            const levelToCreate = snapshotCreateLevel || 'departments';
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+            // Fetch dữ liệu cho cấp độ được chọn
+            const fetchDataForLevel = async (level) => {
+                // Fetch report data
+                const params = new URLSearchParams();
+                if (filters.cycleId) params.set('cycle_id', filters.cycleId);
+                if (filters.departmentId) params.set('department_id', filters.departmentId);
+                if (filters.ownerId) params.set('owner_id', filters.ownerId);
+                params.set('level', level);
+
+                const reportRes = await fetch(`/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`, {
+                    headers: { Accept: 'application/json' }
+                });
+                const reportJson = await reportRes.json();
+                if (!reportRes.ok || !reportJson.success) {
+                    throw new Error(`Không thể tải dữ liệu cho ${level === 'company' ? 'công ty' : 'phòng ban'}`);
+                }
+
+                // Fetch detailed data
+                const detailedDataForLevel = await fetchDetailedDataForSnapshot(
+                    filters.cycleId,
+                    filters.departmentId,
+                    filters.ownerId,
+                    level
+                );
+
+                return {
+                    report: reportJson.data,
+                    detailedData: detailedDataForLevel,
+                };
+            };
+
+            // Lấy dữ liệu chỉ cho cấp độ được chọn
+            const selectedLevelData = await fetchDataForLevel(levelToCreate);
+
+            // Tạo snapshot cho cấp độ được chọn
+            const snapshotData = {
+                overall: selectedLevelData.report.overall,
+                departments: selectedLevelData.report.departmentsHierarchy?.length > 0
+                    ? selectedLevelData.report.departmentsHierarchy
+                    : (selectedLevelData.report.departments || []),
+                trend: selectedLevelData.report.trend || [],
+                risks: selectedLevelData.report.risks || [],
+                detailedData: {
+                    objectives: selectedLevelData.detailedData.objectives || [],
+                    keyResults: selectedLevelData.detailedData.keyResults || [],
+                    owners: selectedLevelData.detailedData.owners || [],
+                    checkIns: selectedLevelData.detailedData.checkIns || [],
+                },
+                level: levelToCreate,
+            };
+
+            // Tạo snapshot
+            const response = await fetch('/api/reports/snapshot', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: JSON.stringify({
+                    cycle_id: filters.cycleId,
+                    title: baseTitle,
+                    data_snapshot: snapshotData,
+                }),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+                throw new Error(result.message || 'Không thể tạo báo cáo');
+            }
+
+            showNotification('success', 'Tạo báo cáo thành công!');
+            setLevel('company');
+            setSnapshotPage(1);
+            await loadSnapshots(1);
+
+            setIsReportReady(true);
+
+            setShowSnapshotModal(false);
+            setSnapshotTitleInput('');
+        } catch (error) {
+            console.error('Lỗi khi Tạo báo cáo:', error);
+            showNotification('error', (error.message || 'Đã có lỗi xảy ra'));
+        } finally {
+            setIsCreatingSnapshot(false);
+        }
+    };
+
+    const loadSnapshots = async (page = 1, cycleId = null) => {
+        try {
+            const useCycle = cycleId || filters.cycleId || modalCycleFilter || '';
+            console.log('Loading snapshots for cycle:', useCycle, 'page:', page);
+            const result = await loadSnapshotsUtil(useCycle, page);
+            console.log('Snapshots loaded:', result);
+            setSnapshots(result.snapshots);
+            setSnapshotPagination(result.pagination);
+        } catch (error) {
+            console.error('Error in loadSnapshots:', error);
+            setSnapshots([]);
+            setSnapshotPagination({ current_page: 1, last_page: 1, total: 0 });
+            showNotification('error', 'Lỗi khi tải danh sách báo cáo');
+        }
+    };
+
+    const loadSnapshot = async (snapshotId) => {
+        try {
+            console.log('Loading snapshot:', snapshotId);
+            const snapshot = await loadSnapshotUtil(snapshotId);
+            console.log('Snapshot loaded:', snapshot);
+            if (snapshot) {
+                setSelectedSnapshot(snapshot);
+            } else {
+                showNotification('error', 'Không thể tải chi tiết báo cáo');
+            }
+        } catch (error) {
+            console.error('Error in loadSnapshot:', error);
+            showNotification('error', 'Lỗi khi tải chi tiết báo cáo');
+        }
+    };
+
+    const handleViewSnapshots = () => {
+        if (!showSnapshots) {
+            setShowSnapshots(true);
+            setSnapshotPage(1);
+            setSelectedSnapshot(null);
+
+            // Khởi tạo modalCycleFilter = filters.cycleId (đồng bộ chu kỳ)
+            const initialCycle = filters.cycleId || modalCycleFilter;
+            setModalCycleFilter(initialCycle);
+
+            loadSnapshots(1, initialCycle || undefined);
+
+        } else {
+            setShowSnapshots(false);
+            setSelectedSnapshot(null);
+            setSnapshotPage(1);
+        }
+    };
+
+    const exportSnapshotToExcel = async (snapshot) => {
+        let targetSnapshot = snapshot || selectedSnapshot;
+
+        if (!targetSnapshot) {
+            if (!snapshots || snapshots.length === 0) {
+                showNotification('error', '⚠ Chưa có báo cáo để xuất file');
+                return;
+            }
+            const filtered = filters.cycleId
+                ? snapshots.filter(s => String(s.cycle_id) === String(filters.cycleId))
+                : snapshots;
+            if (filtered.length === 0) {
+                showNotification('error', 'Chưa có báo cáo cho chu kỳ hiện tại');
+                return;
+            }
+            targetSnapshot = [...filtered].sort((a, b) => new Date(b.snapshotted_at || b.created_at) - new Date(a.snapshotted_at || a.created_at))[0];
+        }
+
+        try {
+            const cycleId = targetSnapshot.cycle_id;
+
+            const snapsSameCycle = snapshots?.filter(s => String(s.cycle_id) === String(cycleId)) || [];
+            const companySnap = snapsSameCycle.find(s => (s.data_snapshot?.level || 'departments') === 'company');
+            const deptSnap = snapsSameCycle.find(s => (s.data_snapshot?.level || 'departments') === 'departments');
+
+            let companyData;
+            let departmentsData;
+
+            if (companySnap && deptSnap) {
+                companyData = {
+                    report: companySnap.data_snapshot,
+                    detailedData: companySnap.data_snapshot?.detailedData || {},
+                };
+                departmentsData = {
+                    report: deptSnap.data_snapshot,
+                    detailedData: deptSnap.data_snapshot?.detailedData || {},
+                };
+            } else {
+                // Trường hợp thiếu snapshot một trong hai cấp, fallback gọi API như cũ
+                const fetchDataForLevel = async (levelToFetch) => {
+                    const params = new URLSearchParams();
+                    if (cycleId) params.set('cycle_id', cycleId);
+                    params.set('level', levelToFetch);
+                    const reportRes = await fetch(`/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`, {
+                        headers: { Accept: 'application/json' }
+                    });
+                    const reportJson = await reportRes.json();
+                    if (!reportRes.ok || !reportJson.success) {
+                        throw new Error(`Không thể tải dữ liệu cho ${levelToFetch === 'company' ? 'công ty' : 'phòng ban'}`);
+                    }
+                    const detailedData = await fetchDetailedDataForSnapshot(
+                        cycleId,
+                        null,
+                        null,
+                        levelToFetch
+                    );
+                    return { report: reportJson.data, detailedData };
+                };
+
+                [companyData, departmentsData] = await Promise.all([
+                    fetchDataForLevel('company'),
+                    fetchDataForLevel('departments'),
+                ]);
+            }
+
+            exportToExcelUtil(
+                companyData,
+                departmentsData,
+                currentCycleMeta,
+                targetSnapshot.title,
+                (message) => showNotification('success', message),
+                (message) => showNotification('error', message)
+            );
+        } catch (error) {
+            console.error('Lỗi khi xuất Excel từ lịch sử:', error);
+            showNotification('error', 'Xuất Excel thất bại: ' + (error.message || 'Lỗi không xác định'));
+        }
+    };
+
     return (
-        <div className="px-6 py-8">
-            <div className="mb-2 flex items-center justify-between">
-                <h1 className="text-2xl font-extrabold text-slate-900">Báo cáo tổng quan</h1>
-                <div className="relative inline-block">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M7 2a1 1 0 011 1v1h8V3a1 1 0 112 0v1h1a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h1V3a1 1 0 011-1zm13 9H4v7a1 1 0 001 1h14a1 1 0 001-1v-7zM6 6h12V5H6v1z" />
-                    </svg>
-                    <select
-                        value={filters.cycleId ?? ''}
-                        onChange={(e) => setFilters(f => ({...f, cycleId: e.target.value}))}
-                        className="w-56 appearance-none rounded-lg bg-white py-2 pl-10 pr-9 text-sm font-semibold text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                    >
-                        {cycles.map(c => (
-                            <option key={c.cycle_id || c.cycleId} value={c.cycle_id || c.cycleId}>
-                                {c.cycle_name || c.cycleName}
-                            </option>
-                        ))}
-                    </select>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-                    </svg>
+        <div className="px-6 py-8 min-h-screen bg-gray-50">
+            {/* ===================== HEADER - LUÔN HIỂN THỊ ===================== */}
+            <div className="mb-8">
+                <div className="flex items-center justify-between mb-4">
+                    <h1 className="text-2xl font-extrabold text-slate-900">Báo cáo tổng quan</h1>
+
+                    <div className="flex items-end gap-3">
+                        {/* Nút Tạo kết chuyển / Lập báo cáo cuối kỳ - Chỉ Admin và CEO */}
+                        {isAdminOrCeo && (
+                            <button
+                                onClick={openSnapshotModal}
+                                disabled={isCreatingSnapshot}
+                                className="flex items-center justify-center gap-2 px-4 h-10 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 whitespace-nowrap"
+                            >
+                                {isCreatingSnapshot ? (
+                                <>
+                                    <svg className="animate-spin h-4 w-4 text-gray-500" viewBox="0 0 24 24" fill="none">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.507 3 7.938l3-2.647z" />
+                                    </svg>
+                                    Đang tạo...
+                                </>
+                                ) : (
+                                <>
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                    </svg>
+                                    Tạo Báo cáo
+                                </>
+                                )}
+                            </button>
+                        )}
+
+                        {/* Nút Xem lịch sử kết chuyển */}
+                        <button
+                            onClick={handleViewSnapshots}
+                            className="flex items-center justify-center gap-2 px-4 h-10 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100 transition-all duration-200 whitespace-nowrap"
+                        >
+                        <FiList className="w-4 h-4" />
+                            Lịch sử
+                        </button>
+
+                        {/* Nút Export Excel - Chỉ cho phép sau khi đã tạo snapshot */}
+                        <button
+                            onClick={() => exportSnapshotToExcel()}
+                            disabled={!isReportReady || snapshots.length === 0}
+                            className="flex items-center justify-center gap-2 px-4 h-10 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 whitespace-nowrap"
+                            title={
+                                !isReportReady || snapshots.length === 0
+                                ? 'Vui lòng tạo snapshot trước khi xuất file'
+                                : 'Xuất báo cáo Excel'
+                            }
+                            >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="7 10 12 15 17 10" />
+                                <line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                            Xuất Excel
+                        </button>
+
+                        {/* Filter chu kỳ */}
+                        <div className="flex items-center gap-4">
+                            <div className="flex flex-col gap-1">
+                                <span className="text-xs font-semibold text-slate-600 leading-none">
+                                    Chu kỳ OKR
+                                </span>
+                                <CycleDropdown
+                                    cyclesList={cycles}
+                                    cycleFilter={filters.cycleId}
+                                    handleCycleChange={(value) => setFilters(f => ({ ...f, cycleId: value || null }))}
+                                    dropdownOpen={filterOpen}
+                                    setDropdownOpen={setFilterOpen}
+                                />
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-            {currentCycleMeta && (
-                <div className="mb-6 text-sm text-slate-600">
-                    Chu kỳ hiện tại: <span className="font-semibold text-slate-800">{currentCycleMeta.name}</span>
+
+            {/* ===================== NOTIFICATION TOAST ===================== */}
+            <ToastNotification toast={toast} onClose={() => setToast(null)} />
+
+            {/* ===================== NỘI DUNG BÁO CÁO - CHỈ HIỂN THỊ SAU KHI TẠO BÁO CÁO ===================== */}
+            {isReportReady ? (
+                <>
+                    {/* 5 Cards Tổng quan */}
+                    <OverviewCards report={report} />
+
+                    {/* Biểu đồ */}
+                    <ChartSection report={report} level={level} onLevelChange={setLevel} />
+
+                    {/* Bảng chi tiết theo cấp độ */}
+                    <DepartmentTable report={report} level={level} />
+
+                    {/* 1. Chi tiết Objectives */}
+                    <ObjectivesTable objectives={detailedData.objectives} level={level} />
+
+                    {/* 2. Chi tiết Key Results */}
+                    <KeyResultsTable keyResults={detailedData.keyResults} />
+
+                    {/* 3. Phân tích theo Owner */}
+                    <OwnersTable owners={detailedData.owners} />
+
+                    {/* 4. Lịch sử Check-in */}
+                    <CheckInsTable checkIns={detailedData.checkIns} objectives={detailedData.objectives} />
+                </>
+            ) : (
+                /* ===================== TRƯỚC KHI TẠO BÁO CÁO - CHỈ HIỂN THỊ THÔNG BÁO ===================== */
+                <div className="flex flex-col items-center justify-center py-32 text-center">
+                    <div className="bg-gray-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-3">Chưa có Báo cáo nào</h3>
+                    <p className="text-slate-600 max-w-md leading-relaxed">
+                        Nhấn <strong className="text-blue-600">Tạo Báo cáo</strong> để tạo Báo cáo chính thức.<br />
+                        Nội dung Báo cáo sẽ hiển thị tại đây sau khi hoàn tất.
+                    </p>
                 </div>
             )}
 
-            {loading && (
-                <div className="rounded-xl border border-slate-200 bg-white p-6 text-slate-500">Đang tải báo cáo...</div>
-            )}
-            {error && (
-                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>
-            )}
+            {/* Modal Tạo báo cáo */}
+            <SnapshotModal
+                isOpen={showSnapshotModal}
+                onClose={() => {
+                    setShowSnapshotModal(false);
+                    setSnapshotTitleInput('');
+                    setSnapshotCreateLevel('company');
+                }}
+                title={snapshotTitleInput}
+                onTitleChange={setSnapshotTitleInput}
+                onSubmit={confirmCreateSnapshot}
+                isSubmitting={isCreatingSnapshot}
+            />
 
-            {!loading && !error && (
-                <>
-                    {/* KPI cards */}
-                    <div className="grid gap-6 md:grid-cols-5">
-                        <div className="rounded-xl border border-slate-200 bg-white p-6">
-                            <div className="text-sm font-semibold text-slate-500">Tổng số OKR</div>
-                            <div className="mt-2 text-4xl font-extrabold text-slate-900">{report.overall.totalObjectives}</div>
-                        </div>
-                        <div className="rounded-xl border border-slate-200 bg-white p-6">
-                            <div className="text-sm font-semibold text-slate-500">Tiến độ trung bình</div>
-                            <div className="mt-2 text-4xl font-extrabold text-slate-900">{report.overall.averageProgress?.toFixed?.(2) ?? report.overall.averageProgress}%</div>
-                        </div>
-                        <div className="rounded-xl border border-slate-200 bg-white p-6">
-                            <div className="text-sm font-semibold text-emerald-600">On Track</div>
-                            <div className="mt-2 text-3xl font-extrabold text-slate-900">{report.overall.statusCounts?.onTrack || 0}
-                                <span className="ml-2 text-base text-slate-500">({report.overall.statusDistribution?.onTrack || 0}%)</span>
-                            </div>
-                        </div>
-                        <div className="rounded-xl border border-slate-200 bg-white p-6">
-                            <div className="text-sm font-semibold text-amber-600">At Risk</div>
-                            <div className="mt-2 text-3xl font-extrabold text-slate-900">{report.overall.statusCounts?.atRisk || 0}
-                                <span className="ml-2 text-base text-slate-500">({report.overall.statusDistribution?.atRisk || 0}%)</span>
-                            </div>
-                        </div>
-                        <div className="rounded-xl border border-slate-200 bg-white p-6">
-                            <div className="text-sm font-semibold text-red-600">Off Track</div>
-                            <div className="mt-2 text-3xl font-extrabold text-slate-900">{report.overall.statusCounts?.offTrack || 0}
-                                <span className="ml-2 text-base text-slate-500">({report.overall.statusDistribution?.offTrack || 0}%)</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Charts */}
-                    <div className="mt-6 space-y-6">
-                        {/* <LineChart data={report.trend || []} label="Xu hướng tiến độ theo tuần" /> */}
-                        <div>
-                            <div className="mb-2 flex items-center justify-between">
-                                <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 text-sm font-semibold text-slate-700">
-                                    <button onClick={() => setLevel('company')} className={`px-3 py-1.5 rounded-md ${level==='company'?'bg-slate-100':''}`}>Công ty</button>
-                                    <button onClick={() => setLevel('departments')} className={`px-3 py-1.5 rounded-md ${level==='departments'?'bg-slate-100':''}`}>Phòng ban</button>
-                                    <button onClick={() => setLevel('teams')} className={`px-3 py-1.5 rounded-md ${level==='teams'?'bg-slate-100':''}`}>Đội nhóm</button>
-                                </div>
-                                {level==='teams' && (
-                                    <select value={teamsParentId} onChange={e=>setTeamsParentId(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm">
-                                        <option value="">Tất cả phòng ban</option>
-                                        {(report.departmentsHierarchy||[])
-                                            .filter(d => d.departmentId && (d.departmentName||'').toLowerCase() !== 'công ty')
-                                            .map(d=> (
-                                                <option key={d.departmentId} value={d.departmentId}>{d.departmentName}</option>
-                                            ))}
-                                    </select>
-                                )}
-                            </div>
-                            <GroupedBarChart
-                                categories={groupedChartData.categories}
-                                series={groupedChartData.series}
-                                label={`Phân bổ trạng thái theo ${level==='company'?'công ty':(level==='departments'?'phòng ban':'đội nhóm')}`}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Detail table by level */}
-                    <div className="mt-6 rounded-xl border border-slate-200 bg-white">
-                        <div className="border-b border-slate-200 px-6 py-4 text-sm font-semibold text-slate-700">{level==='company'?'Chi tiết công ty':(level==='departments'?'Chi tiết theo phòng ban':'Chi tiết theo đội nhóm')}</div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                                <thead className="bg-slate-50 text-slate-600">
-                                    <tr>
-                                        <th className="px-6 py-3">{level==='teams'?'Đội nhóm':(level==='company'?'Công ty':'Phòng ban')}</th>
-                                        <th className="px-6 py-3">Số OKR</th>
-                                        <th className="px-6 py-3">Tiến độ TB</th>
-                                        <th className="px-6 py-3">On Track</th>
-                                        <th className="px-6 py-3">At Risk</th>
-                                        <th className="px-6 py-3">Off Track</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {(level==='company' ? [
-                                        {
-                                            departmentName: 'Công ty',
-                                            count: report.overall?.totalObjectives || 0,
-                                            averageProgress: report.overall?.averageProgress || 0,
-                                            onTrack: report.overall?.statusCounts?.onTrack || 0,
-                                            atRisk: report.overall?.statusCounts?.atRisk || 0,
-                                            offTrack: report.overall?.statusCounts?.offTrack || 0,
-                                            onTrackPct: report.overall?.statusDistribution?.onTrack || 0,
-                                            atRiskPct: report.overall?.statusDistribution?.atRisk || 0,
-                                            offTrackPct: report.overall?.statusDistribution?.offTrack || 0,
-                                        }
-                                    ] : level==='departments' ? (report.departmentsHierarchy || report.departments || [])
-                                      : (()=>{
-                                          const arr = [];
-                                          (report.departmentsHierarchy||[]).forEach(d=>{
-                                              (d.children||[]).forEach(t=>{
-                                                  if (!teamsParentId || String(teamsParentId)===String(d.departmentId)) arr.push(t);
-                                              });
-                                          });
-                                          return arr;
-                                      })()
-                                    ).filter(d => {
-                                        if (level === 'departments') {
-                                            return d.departmentId && (d.departmentName || '').toLowerCase() !== 'công ty';
-                                        }
-                                        if (level === 'teams') return true;
-                                        return true; // company level keeps single row
-                                    }).map((d,i)=> (
-                                        <tr key={i} className="border-t border-slate-100">
-                                            <td className="px-6 py-3">{d.departmentName || 'N/A'}</td>
-                                            <td className="px-6 py-3">{d.count}</td>
-                                            <td className="px-6 py-3">{(d.averageProgress ?? 0).toFixed(2)}%</td>
-                                            <td className="px-6 py-3">{d.onTrack} ({d.onTrackPct}%)</td>
-                                            <td className="px-6 py-3">{d.atRisk} ({d.atRiskPct}%)</td>
-                                            <td className="px-6 py-3">{d.offTrack} ({d.offTrackPct}%)</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    {/* Risk section */}
-                    <div className="mt-6 rounded-xl border border-slate-200 bg-white">
-                        <div className="border-b border-slate-200 px-6 py-4 text-sm font-semibold text-slate-700">Cảnh báo rủi ro</div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                                <thead className="bg-slate-50 text-slate-600">
-                                    <tr>
-                                        <th className="px-6 py-3">Objective</th>
-                                        <th className="px-6 py-3">Phòng ban</th>
-                                        <th className="px-6 py-3">Tiến độ</th>
-                                        <th className="px-6 py-3">Trạng thái</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {((report.risks || [])
-                                        .filter(r => r.status === 'at_risk' || r.status === 'off_track')
-                                        .sort((a,b) => (a.status === 'off_track' ? -1 : 0) - (b.status === 'off_track' ? -1 : 0))
-                                    ).map((r, i) => (
-                                        <tr key={i} className="border-t border-slate-100">
-                                            <td className="px-6 py-3">{r.objective_title || (`#${r.objective_id}`)}</td>
-                                            <td className="px-6 py-3">{(report.departments || []).find(d => d.departmentId === r.department_id)?.departmentName || '—'}</td>
-                                            <td className="px-6 py-3">{(r.progress ?? 0).toFixed(2)}%</td>
-                                            <td className="px-6 py-3">
-                                                {r.status === 'on_track' && (
-                                                    <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">On Track</span>
-                                                )}
-                                                {r.status === 'at_risk' && (
-                                                    <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">At Risk</span>
-                                                )}
-                                                {r.status === 'off_track' && (
-                                                    <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-1 text-xs font-semibold text-red-700">Off Track</span>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </>
+            {showSnapshots && (
+                <SnapshotHistoryModal
+                    isOpen={showSnapshots}
+                    onClose={() => {
+                        setShowSnapshots(false);
+                        setSelectedSnapshot(null);
+                        setSnapshotPage(1);
+                    }}
+                    snapshots={snapshots}
+                    snapshotLevelFilter={snapshotLevelFilter}
+                    onSnapshotLevelChange={setSnapshotLevelFilter}
+                    snapshotPage={snapshotPage}
+                    snapshotPagination={snapshotPagination}
+                    onPageChange={(page) => { setSnapshotPage(page); loadSnapshots(page, modalCycleFilter || filters.cycleId); }}
+                    onLoadSnapshot={(id) => loadSnapshot(id)}
+                    selectedSnapshot={selectedSnapshot}
+                    onBackToList={() => setSelectedSnapshot(null)}
+                    onExportSnapshot={exportSnapshotToExcel}
+                    modalCycleFilter={modalCycleFilter}
+                    onModalCycleFilterChange={setModalCycleFilter}
+                    cyclesList={cycles}
+                />
             )}
         </div>
     );
 }
-
-

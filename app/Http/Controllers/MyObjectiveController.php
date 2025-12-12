@@ -11,6 +11,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
@@ -57,13 +58,16 @@ class MyObjectiveController extends Controller
      */
     public function index(Request $request): JsonResponse|View
     {
-        $user = Auth::user();
+        $user = Auth::user()->load('department');
         if (!$user) {
             return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
         }
 
         $currentCycleId = null;
         $currentCycleName = null;
+        
+        // Kiểm tra nếu là request từ dashboard
+        $isDashboard = $request->boolean('dashboard') || $request->has('dashboard');
 
         if (!$request->filled('cycle_id')) {
             $now = Carbon::now('Asia/Ho_Chi_Minh');
@@ -91,10 +95,24 @@ class MyObjectiveController extends Controller
             $currentCycle = Cycle::find($request->cycle_id);
             if ($currentCycle) $currentCycleName = $currentCycle->cycle_name;
         }
+        
+        $userId = $user->user_id;
+        $query = Objective::with(['keyResults.assignedUser.department', 'keyResults.assignedUser.role', 'department', 'cycle', 'assignments.user', 'assignments.role', 'user'])
+            ->where(function ($q) use ($userId) {
+                $q->where('user_id', $userId)
+                ->orWhereHas('keyResults', function ($subQuery) use ($userId) {
+                    $subQuery->where('assigned_to', $userId);
+                });
+            });
 
-        $query = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role'])
-            // ->with('assignedUser')
-            ->where('user_id', $user->user_id);
+
+        // Filter by view_mode: 'levels' or 'personal'
+        $viewMode = $request->input('view_mode', 'levels'); 
+        if ($viewMode === 'personal') {
+            $query->where('level', 'person');
+        } else { // 'levels'
+            $query->whereIn('level', ['company', 'unit', 'team']);
+        }
 
         if ($request->has('archived') && $request->archived == '1') {
             $query->whereNotNull('archived_at')
@@ -105,19 +123,30 @@ class MyObjectiveController extends Controller
             $query->whereNull('archived_at');
         }
 
-
         if ($request->filled('cycle_id')) {
             $query->where('cycle_id', $request->cycle_id);
+        }
+        
+        // Filter my_okr nếu có (chỉ cho dashboard)
+        if ($isDashboard && $request->boolean('my_okr')) {
+            $query->where('user_id', $user->user_id);
         }
 
         if ($request->boolean('include_archived_kr')) {
             $query->with(['keyResults' => function ($q) {
-    $q->with('assignedUser');}]);
+                $q->with(['assignedUser.department', 'assignedUser.role']);
+            }]);
         } else {
-            $query->with(['keyResults' => fn($q) => $q->with('assignedUser')->whereNull('archived_at')]);
+            $query->with([
+                'keyResults' => fn($q) => $q
+                    ->with(['assignedUser.department', 'assignedUser.role'])
+                    ->whereNull('archived_at'),
+            ]);
         }
 
-        $objectives = $query->paginate(10);
+        // Dashboard có thể cần per_page lớn hơn
+        $perPage = $isDashboard ? ($request->integer('per_page') ?: 1000) : 10;
+        $objectives = $query->orderBy('created_at', 'desc')->paginate($perPage);
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -125,6 +154,7 @@ class MyObjectiveController extends Controller
                 'data' => $objectives,
                 'current_cycle_id' => $currentCycleId,
                 'current_cycle_name' => $currentCycleName,
+                'user_department_name' => $user->department->d_name ?? null,
             ]);
         }
 
@@ -176,7 +206,7 @@ class MyObjectiveController extends Controller
             'key_results.*.kr_title' => 'required|string|max:255',
             'key_results.*.target_value' => 'required|numeric|min:0',
             'key_results.*.current_value' => 'nullable|numeric|min:0',
-            'key_results.*.unit' => 'required|in:number,percent,completion,bai,num,bài',
+            'key_results.*.unit' => 'required|in:number,percent,currency,completion',
             'key_results.*.status' => 'required|in:draft,active,completed',
             'assignments' => 'nullable|array',
             'assignments.*.email' => 'required|email|exists:users,email',
@@ -285,6 +315,8 @@ class MyObjectiveController extends Controller
                             'user_id' => $user->user_id, 
                         ]);
                     }
+                    // Cập nhật updated_at của Objective khi tạo KR mới
+                    $objective->touch();
                 }
 
                 // Gán người dùng
@@ -503,7 +535,22 @@ class MyObjectiveController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
         }
 
-        $objective = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role'])
+        $objective = Objective::with([
+            'keyResults' => function ($query) {
+                $query->with(['assignedUser.role', 'assignedUser.department', 'checkIns.user'])->orderBy('created_at');
+            },
+            'department',
+            'cycle',
+            'assignments.user',
+            'assignments.role',
+            'comments',
+            'childObjectives' => function ($query) {
+                $query->with(['sourceObjective.user', 'sourceObjective.department']);
+            },
+            'sourceLinks' => function ($query) {
+                $query->with(['targetObjective.user', 'targetObjective.department']);
+            }
+        ])
             ->where('user_id', $user->user_id) 
             ->find($id);
 
@@ -511,7 +558,18 @@ class MyObjectiveController extends Controller
             return response()->json(['success' => false, 'message' => 'Không tìm thấy hoặc bạn không có quyền xem.'], 404);
         }
 
-        return response()->json(['success' => true, 'data' => $objective]);
+        // Manually construct the response to ensure all data is included
+        $data = $objective->attributesToArray();
+        $data['user'] = $objective->user;
+        $data['department'] = $objective->department;
+        $data['cycle'] = $objective->cycle;
+        $data['key_results'] = $objective->keyResults->map(function($kr) { return $kr->toArray(); })->values()->all();
+        $data['child_objectives'] = $objective->childObjectives->map(function($link) { return $link->toArray(); })->values()->all();
+        $data['source_links'] = $objective->sourceLinks->map(function($link) { return $link->toArray(); })->values()->all();
+        $data['comments'] = $objective->comments->map(function($comment) { return $comment->toArray(); })->values()->all();
+        $data['progress_percent'] = $objective->progress_percent;
+
+        return response()->json(['success' => true, 'data' => $data]);
     }
 
     /**
@@ -524,7 +582,17 @@ class MyObjectiveController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
         }
 
-        $keyResult = KeyResult::with(['objective', 'cycle'])->findOrFail($id);
+        // Tìm KeyResult, bao gồm cả archived để có thể xem chi tiết
+        $keyResult = KeyResult::with(['objective', 'cycle'])
+            ->where('kr_id', $id)
+            ->first();
+
+        if (!$keyResult) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Không tìm thấy Key Result với ID: ' . $id
+            ], 404);
+        }
 
         // Kiểm tra quyền: Chủ sở hữu hoặc người được gán
         if ($keyResult->objective->user_id !== $user->user_id &&
@@ -559,8 +627,9 @@ class MyObjectiveController extends Controller
      */
     private function getAllowedLevels(string $roleName): array
     {
-        return match ($roleName) {
-            'admin' => ['company', 'person'],  
+        return match (strtolower($roleName)) {
+            'admin' => ['company'],  
+            'ceo' => ['company'],
             'manager' => ['unit', 'person'],  
             'member' => ['person'],  
             default => ['person'],
@@ -597,5 +666,136 @@ class MyObjectiveController extends Controller
             return $assignedUser->department_id === $objective->department_id;
         }
         return true;
+    }
+
+    /**
+     * Lấy danh sách OKR cần check-in (chưa check-in > 7 ngày hoặc chưa check-in lần nào)
+     */
+    public function getCheckInReminders(): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            if (!$user) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+            }
+
+            $now = Carbon::now();
+
+            // Lấy OKR cá nhân của user trong chu kỳ active
+            $objectives = Objective::where('user_id', $user->user_id)
+                ->where('level', 'person')
+                ->whereHas('cycle', function ($query) {
+                    $query->where('status', 'active');
+                })
+                ->with(['keyResults' => function ($query) {
+                    $query->where('status', '!=', 'completed')
+                        ->whereNull('archived_at')
+                        ->with(['checkIns' => function ($q) {
+                            $q->latest('created_at')->limit(1);
+                        }]);
+                }])
+                ->get();
+
+            Log::info('Check-in reminders: Found objectives', [
+                'user_id' => $user->user_id,
+                'objectives_count' => $objectives->count(),
+            ]);
+
+            $reminders = [];
+            
+            foreach ($objectives as $objective) {
+                // Sử dụng keyResults (camelCase) thay vì key_results
+                $keyResults = $objective->keyResults ?? $objective->key_results ?? collect();
+                
+                if (!$keyResults || $keyResults->isEmpty()) {
+                    continue;
+                }
+
+                $krsNeedingCheckIn = [];
+                
+                foreach ($keyResults as $kr) {
+                    $needsReminder = false;
+                    $lastCheckInDate = null;
+                    $daysSinceLastCheckIn = null;
+
+                    // Lấy check-in mới nhất
+                    $checkIns = $kr->checkIns ?? collect();
+                    $latestCheckIn = $checkIns->isNotEmpty() 
+                        ? $checkIns->first() 
+                        : null;
+                    
+                    if ($latestCheckIn) {
+                        $lastCheckInDate = Carbon::parse($latestCheckIn->created_at);
+                        $daysSinceLastCheckIn = $now->diffInDays($lastCheckInDate);
+                        
+                        // Nhắc nhở nếu chưa check-in trong tuần này (>= 7 ngày)
+                        // Hoặc nếu chưa check-in trong 1 ngày để nhắc nhở sớm hơn (hiển thị ngay khi đăng nhập)
+                        if ($daysSinceLastCheckIn >= 1) {
+                            $needsReminder = true;
+                        }
+                    } else {
+                        // Chưa check-in lần nào - luôn nhắc nhở ngay
+                        $krCreatedAt = $kr->created_at ? Carbon::parse($kr->created_at) : Carbon::parse($objective->created_at);
+                        $daysSinceCreation = $now->diffInDays($krCreatedAt);
+                        
+                        // Nhắc nhở ngay nếu chưa check-in lần nào (không cần grace period)
+                        $needsReminder = true;
+                        $daysSinceLastCheckIn = $daysSinceCreation;
+                    }
+
+                    if ($needsReminder) {
+                        $krsNeedingCheckIn[] = [
+                            'kr_id' => $kr->kr_id,
+                            'kr_title' => $kr->kr_title,
+                            'progress_percent' => $kr->progress_percent ?? 0,
+                            'current_value' => $kr->current_value ?? 0,
+                            'target_value' => $kr->target_value ?? 0,
+                            'unit' => $kr->unit ?? '',
+                            'days_since_last_checkin' => $daysSinceLastCheckIn,
+                            'last_checkin_date' => $lastCheckInDate ? $lastCheckInDate->format('Y-m-d H:i:s') : null,
+                        ];
+                    }
+                }
+
+                if (!empty($krsNeedingCheckIn)) {
+                    $reminders[] = [
+                        'objective_id' => $objective->objective_id,
+                        'objective_title' => $objective->obj_title,
+                        'key_results' => $krsNeedingCheckIn,
+                        'total_krs_needing_checkin' => count($krsNeedingCheckIn),
+                    ];
+                }
+            }
+
+            $totalObjectives = count($reminders);
+            $totalKeyResults = array_sum(array_column($reminders, 'total_krs_needing_checkin'));
+
+            Log::info('Check-in reminders: Summary', [
+                'user_id' => $user->user_id,
+                'total_objectives' => $totalObjectives,
+                'total_key_results' => $totalKeyResults,
+                'has_reminders' => $totalKeyResults > 0,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'reminders' => $reminders,
+                    'total_objectives' => $totalObjectives,
+                    'total_key_results' => $totalKeyResults,
+                    'has_reminders' => $totalKeyResults > 0,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in getCheckInReminders: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'user_id' => Auth::id(),
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra khi lấy thông báo nhắc nhở: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

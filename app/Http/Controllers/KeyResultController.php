@@ -35,7 +35,6 @@ class KeyResultController extends Controller
     public function store(Request $request, $objectiveId)
     {
         $user = Auth::user();
-
         
         // Load user relationships
         if (!$user->relationLoaded('role')) {
@@ -111,6 +110,13 @@ class KeyResultController extends Controller
             'department_id' => $validated['department_id'] ?? null,
             'user_id' => $user->user_id, // Lưu người tạo KR
         ]);
+
+        // Cập nhật updated_at của Objective khi tạo KR mới
+        $objective->touch();
+        
+        // Tự động cập nhật progress của Objective từ KeyResults (không cập nhật updated_at)
+        $objective->updateProgressFromKeyResults();
+
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'data' => $kr]);
         }
@@ -126,7 +132,11 @@ class KeyResultController extends Controller
         }
 
         $objective = Objective::findOrFail($objectiveId);
-        $kr = KeyResult::findOrFail($krId);
+        
+        // Tìm KeyResult với điều kiện objective_id để đảm bảo an toàn
+        $kr = KeyResult::where('kr_id', $krId)
+            ->where('objective_id', $objectiveId)
+            ->firstOrFail();
 
         // Kiểm tra quyền
         if (!$this->canManageKeyResult($user, $objective)) {
@@ -134,6 +144,9 @@ class KeyResultController extends Controller
         }
 
         $kr->delete();
+
+        // Tự động cập nhật progress của Objective từ KeyResults
+        $objective->updateProgressFromKeyResults();
 
         return response()->json(['success' => true, 'message' => 'Key Result đã được xóa']);
     }
@@ -144,7 +157,6 @@ class KeyResultController extends Controller
     public function update(Request $request, $objectiveId, $krId)
     {
         $user = Auth::user();
-
         
         // Load user relationships
         if (!$user->relationLoaded('role')) {
@@ -209,6 +221,9 @@ class KeyResultController extends Controller
         $kr->fill($data);
         $kr->save();
 
+        // Tự động cập nhật progress của Objective từ KeyResults
+        $objective->updateProgressFromKeyResults();
+
         // return latest with relations
         $kr->load('objective');
         return response()->json(['success' => true, 'data' => $kr]);
@@ -252,5 +267,27 @@ class KeyResultController extends Controller
         }
 
         return false;
+    }
+
+    /**
+     * Get detailed information for a single Key Result.
+     */
+    public function getDetails(Request $request, $id): \Illuminate\Http\JsonResponse
+    {
+        $kr = KeyResult::with([
+            'objective', 
+            'assignedUser',
+            'checkIns' => function($query) {
+                $query->with('user')->orderBy('created_at', 'asc');
+            },
+            'comments.user',
+            'comments.replies.user'
+        ])->findOrFail($id);
+
+        // Authorization check (optional, but good practice)
+        // You can add logic here to ensure the authenticated user has permission
+        // to view this key result. For now, we'll assume it's public for logged-in users.
+
+        return response()->json(['success' => true, 'data' => $kr]);
     }
 }
