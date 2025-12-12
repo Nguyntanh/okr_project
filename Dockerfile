@@ -1,100 +1,52 @@
-FROM php:8.2-fpm-alpine
+# SỬ DỤNG IMAGE PHP-FPM: Tiêu chuẩn cho môi trường Production
+FROM php:8.2-fpm
 
-# Install system dependencies
-RUN apk update && apk add --no-cache \
+# CÀI ĐẶT CÁC THƯ VIỆN HỆ THỐNG VÀ EXTENSION
+RUN apt-get update && apt-get install -y \
     git \
     curl \
     libpng-dev \
-    oniguruma-dev \
+    libonig-dev \
     libxml2-dev \
     zip \
     unzip \
     libzip-dev \
-    sqlite-dev \
-    mysql-client \
-    nodejs \
-    npm \
-    # Cài đặt extension PHP sau khi các dev-libs đã được cài đặt
-    && docker-php-ext-install pdo_mysql pdo_sqlite mbstring exif pcntl bcmath gd zip
+    # Cài đặt Node.js và NPM để build frontend (Vite/Mix)
+    && curl -sL https://deb.nodesource.com/setup_lts.x | bash - \
+    && apt-get install -y nodejs \
+    # Cài đặt các extension PHP cần thiết
+    && docker-php-ext-install pdo_mysql pdo_sqlite mbstring exif pcntl bcmath gd zip \
+    # Dọn dẹp cache
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install Nginx
-RUN apk add --no-cache nginx
-
-# Install Composer
+# CÀI ĐẶT COMPOSER
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Set working directory
+# THIẾT LẬP THƯ MỤC LÀM VIỆC
 WORKDIR /var/www
 
-# Copy Nginx configuration file
-COPY nginx.conf /etc/nginx/nginx.conf
+# COPY CÁC FILE CẦN THIẾT ĐỂ LỢI DỤNG CACHING
+COPY composer.json composer.lock ./
 
-# Copy all application files first
-
-COPY . .
-
-
-
-# Remove .env file if it exists (ensure Render env vars are used)
-
-RUN rm -f .env
-
-
-
-# Clean npm cache and reinstall dependencies
-
-RUN rm -rf node_modules package-lock.json
-
-RUN npm install
-
-RUN npm run build
-
-
-
-# Install composer dependencies
-
+# CÀI ĐẶT DEPENDENCIES PHP (Sử dụng --no-dev cho Production)
 RUN composer install --no-dev --optimize-autoloader
 
+# COPY TẤT CẢ SOURCE CODE
+COPY . .
 
+# BUILD FRONTEND ASSETS (Vite/Mix)
+# Bước này phải chạy sau khi COPY toàn bộ code và dependencies (node_modules,...)
+RUN npm install && npm run build
 
-# Clear and cache Laravel config/views/routes
+# THIẾT LẬP QUYỀN HẠN VÀ USER (www-data là user mặc định của PHP-FPM)
+RUN chown -R www-data:www-data /var/www \
+    && chmod -R 775 /var/www/storage \
+    && chmod -R 775 /var/www/bootstrap/cache
 
-RUN CACHE_STORE=array SESSION_DRIVER=array QUEUE_CONNECTION=sync php artisan config:clear
+# EXPOSE CỔNG FPM (Cổng mặc định là 9000)
+EXPOSE 9000
 
-RUN CACHE_STORE=array SESSION_DRIVER=array QUEUE_CONNECTION=sync php artisan cache:clear
-
-RUN CACHE_STORE=array SESSION_DRIVER=array QUEUE_CONNECTION=sync php artisan view:clear
-
-RUN CACHE_STORE=array SESSION_DRIVER=array QUEUE_CONNECTION=sync php artisan route:clear
-
-RUN CACHE_STORE=array SESSION_DRIVER=array QUEUE_CONNECTION=sync php artisan config:cache
-
-RUN CACHE_STORE=array SESSION_DRIVER=array QUEUE_CONNECTION=sync php artisan event:cache
-
-
-
-# Set permissions
-
-RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
-
-RUN chmod -R 777 /var/www/storage /var/www/bootstrap/cache
-
-
-
-# THÊM: Tạo thư mục tạm cho Nginx và cấp quyền
-
-RUN mkdir -p /tmp/nginx_client_body /tmp/nginx_proxy /tmp/nginx_fastcgi /tmp/nginx_uwsgi /tmp/nginx_scgi \
-
-    && chown -R www-data:www-data /tmp/nginx_client_body /tmp/nginx_proxy /tmp/nginx_fastcgi /tmp/nginx_uwsgi /tmp/nginx_scgi
-
-
-
-# Switch to www-data user
-
-USER www-data
-
-
-
-# Run migrations first, then start services
-
-CMD ["sh", "-c", "php artisan config:clear && php artisan migrate --force --no-interaction && php-fpm -D && nginx -g 'daemon off; pid /tmp/nginx.pid;'" ]
+# KHỞI ĐỘNG ỨNG DỤNG (Chạy PHP-FPM)
+# Railway sẽ tự động xử lý Web Server (Nginx/Caddy) và proxy tới cổng 9000 này.
+# Chúng ta sẽ định nghĩa lệnh Migration/Caching trong Railway Start Command.
+CMD ["php-fpm"]
