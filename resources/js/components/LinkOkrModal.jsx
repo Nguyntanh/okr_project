@@ -152,10 +152,62 @@ export default function LinkOkrModal({
     useEffect(() => {
         if (open) {
             setPage(1);
-            setSelectedTarget(null);
             setNote("");
+            
+            // Đọc query params để khôi phục selected target
+            const urlParams = new URLSearchParams(window.location.search);
+            const targetIdParam = urlParams.get('target_id');
+            const targetTypeParam = urlParams.get('target_type');
+            
+            if (targetIdParam && targetTypeParam && items.length > 0) {
+                // Tìm target trong danh sách items
+                let foundTarget = null;
+                for (const objective of items) {
+                    if (targetTypeParam === 'objective' && String(objective.objective_id) === String(targetIdParam)) {
+                        foundTarget = {
+                            type: 'objective',
+                            id: objective.objective_id,
+                            label: objective.obj_title,
+                            parent: objective.obj_title,
+                            status: objective.status,
+                            level: objective.level,
+                        };
+                        break;
+                    } else if (targetTypeParam === 'kr' && objective.key_results) {
+                        const foundKR = objective.key_results.find(kr => String(kr.kr_id) === String(targetIdParam));
+                        if (foundKR) {
+                            foundTarget = {
+                                type: 'kr',
+                                id: foundKR.kr_id,
+                                label: `${objective.obj_title} › ${foundKR.kr_title}`,
+                                parent: objective.obj_title,
+                                status: foundKR.status,
+                                level: objective.level,
+                            };
+                            break;
+                        }
+                    }
+                }
+                
+                if (foundTarget) {
+                    setSelectedTarget(foundTarget);
+                } else {
+                    // Nếu không tìm thấy target từ URL, reset selection
+                    setSelectedTarget(null);
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete('target_id');
+                    url.searchParams.delete('target_type');
+                    window.history.replaceState({}, '', url.toString());
+                }
+            } else {
+                // Nếu không có target params, reset selection
+                setSelectedTarget(null);
+            }
+        } else {
+            // Khi đóng modal, reset selection
+            setSelectedTarget(null);
         }
-    }, [open]);
+    }, [open, items]);
 
     useEffect(() => {
         fetchTargets();
@@ -189,6 +241,12 @@ export default function LinkOkrModal({
             level: entity.level || entity.objective_level,
         });
         setError(""); // Clear any previous errors
+        
+        // Cập nhật URL với target_id và target_type
+        const url = new URL(window.location.href);
+        url.searchParams.set('target_id', String(id));
+        url.searchParams.set('target_type', type);
+        window.history.replaceState({}, '', url.toString());
     };
 
     const handleSubmit = async () => {
@@ -285,6 +343,12 @@ export default function LinkOkrModal({
             if (typeof onSuccess === "function") {
                 onSuccess(json.data);
             }
+
+            // Xóa target params khi submit thành công
+            const url = new URL(window.location.href);
+            url.searchParams.delete('target_id');
+            url.searchParams.delete('target_type');
+            window.history.replaceState({}, '', url.toString());
 
             onClose?.();
         } catch (err) {
@@ -403,8 +467,8 @@ export default function LinkOkrModal({
                             </div>
                             <div>
                                 <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                    <span className="ml-1 text-red-500">* </span>
                                     Thông điệp gửi chủ OKR cấp cao
-                                    <span className="ml-1 text-red-500">*</span>
                                 </label>
                                 <textarea
                                     ref={noteTextareaRef}

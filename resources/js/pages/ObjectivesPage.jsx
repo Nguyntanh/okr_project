@@ -860,8 +860,8 @@ export default function ObjectivesPage() {
         try {
             const url = new URL(window.location.href);
             
-            // Giữ lại các query params quan trọng khác (highlight_link, objective_id, highlight_kr)
-            const preserveParams = ['highlight_link', 'objective_id', 'highlight_kr'];
+            // Giữ lại các query params quan trọng khác (highlight_link, objective_id, highlight_kr, link_modal, source_id, source_type, target_id, target_type)
+            const preserveParams = ['highlight_link', 'objective_id', 'highlight_kr', 'link_modal', 'source_id', 'source_type', 'target_id', 'target_type'];
             const preservedValues = {};
             preserveParams.forEach(param => {
                 const value = url.searchParams.get(param);
@@ -916,6 +916,32 @@ export default function ObjectivesPage() {
             console.error("Failed to sync filter params", e);
         }
     }, [cycleFilter, viewMode, departmentFilter, displayMode, treeRootId, treeLayout]);
+
+    // Xử lý query params để mở modal liên kết
+    useEffect(() => {
+        if (items.length === 0 || loading) return;
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        const linkModalParam = urlParams.get('link_modal');
+        const sourceIdParam = urlParams.get('source_id');
+        const sourceTypeParam = urlParams.get('source_type') || 'objective';
+        
+        // Chỉ xử lý nếu modal chưa mở
+        if (linkModalParam === 'open' && sourceIdParam && !linkModal.open) {
+            // Tìm objective trong danh sách
+            const foundObjective = items.find(obj => String(obj.objective_id) === String(sourceIdParam));
+            if (foundObjective) {
+                setLinkModal({
+                    open: true,
+                    source: foundObjective,
+                    sourceType: sourceTypeParam,
+                });
+            } else {
+                // Nếu không tìm thấy, có thể cần load từ API
+                console.warn('Objective not found in current list:', sourceIdParam);
+            }
+        }
+    }, [items, loading, linkModal.open]);
 
     useEffect(() => {
         if (!enrichedItems.length) {
@@ -1117,6 +1143,13 @@ export default function ObjectivesPage() {
             source: payload.source,
             sourceType: payload.sourceType,
         });
+        
+        // Cập nhật URL với query params
+        const url = new URL(window.location.href);
+        url.searchParams.set('link_modal', 'open');
+        url.searchParams.set('source_id', String(payload.source?.objective_id || payload.source?.kr_id || ''));
+        url.searchParams.set('source_type', payload.sourceType || 'objective');
+        window.history.replaceState({}, '', url.toString());
     };
 
     const closeLinkModal = () => {
@@ -1125,6 +1158,15 @@ export default function ObjectivesPage() {
             source: null,
             sourceType: "objective",
         });
+        
+        // Xóa query params khi đóng modal
+        const url = new URL(window.location.href);
+        url.searchParams.delete('link_modal');
+        url.searchParams.delete('source_id');
+        url.searchParams.delete('source_type');
+        url.searchParams.delete('target_id');
+        url.searchParams.delete('target_type');
+        window.history.replaceState({}, '', url.toString());
     };
 
     const handleLinkRequestSuccess = (link) => {
