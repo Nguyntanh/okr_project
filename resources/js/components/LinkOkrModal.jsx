@@ -56,6 +56,26 @@ export default function LinkOkrModal({
         return source.objective_level || source.objective?.level || "person";
     }, [source, sourceType]);
 
+    // Tính toán các level có thể liên kết dựa trên source level
+    const allowedTargetLevels = useMemo(() => {
+        // Quy tắc: 
+        // - Phòng ban (unit) chỉ được liên kết lên công ty (company)
+        // - Cá nhân (person) chỉ được liên kết lên phòng ban (unit)
+        // - Team có thể liên kết lên unit hoặc company
+        switch (sourceLevel) {
+            case 'person':
+                return ['unit']; // Cá nhân chỉ liên kết lên phòng ban
+            case 'unit':
+                return ['company']; // Phòng ban chỉ liên kết lên công ty
+            case 'team':
+                return ['unit', 'company']; // Team có thể liên kết lên unit hoặc company
+            case 'company':
+                return []; // Công ty không thể liên kết lên đâu
+            default:
+                return ['unit', 'company']; // Mặc định
+        }
+    }, [sourceLevel]);
+
     const sourceId = useMemo(() => {
         if (!source) return null;
         return sourceType === "objective" ? source.objective_id : source.kr_id;
@@ -73,7 +93,13 @@ export default function LinkOkrModal({
                 page: page.toString(),
             });
 
-            if (filters.level) params.append("level", filters.level);
+            // Chỉ filter level nếu level đó được phép liên kết
+            if (filters.level && (allowedTargetLevels.length === 0 || allowedTargetLevels.includes(filters.level))) {
+                params.append("level", filters.level);
+            } else if (allowedTargetLevels.length > 0) {
+                // Nếu có level được phép, tự động filter theo level đầu tiên
+                params.append("level", allowedTargetLevels[0]);
+            }
             if (filters.status) params.append("status", filters.status);
             if (filters.keyword) params.append("keyword", filters.keyword);
 
@@ -143,7 +169,7 @@ export default function LinkOkrModal({
     useEffect(() => {
         fetchTargets();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open, page, filters.level, filters.status]);
+    }, [open, page, filters.level, filters.status, allowedTargetLevels]);
 
     const handleKeywordSearch = (e) => {
         e.preventDefault();
@@ -329,11 +355,17 @@ export default function LinkOkrModal({
                                     }
                                     className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
                                 >
-                                    {LEVEL_OPTIONS.map((item) => (
-                                        <option key={item.value} value={item.value}>
-                                            {item.label}
-                                        </option>
-                                    ))}
+                                    {LEVEL_OPTIONS.map((item) => {
+                                        // Chỉ hiển thị các level được phép liên kết
+                                        if (item.value && allowedTargetLevels.length > 0 && !allowedTargetLevels.includes(item.value)) {
+                                            return null;
+                                        }
+                                        return (
+                                            <option key={item.value} value={item.value}>
+                                                {item.label}
+                                            </option>
+                                        );
+                                    })}
                                 </select>
                             </div>
                             <div>

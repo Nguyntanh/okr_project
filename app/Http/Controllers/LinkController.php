@@ -21,7 +21,7 @@ class LinkController extends Controller
 {
     private const LEVEL_ORDER = [
         'person' => 1,
-        'team' => 2,
+        
         'unit' => 3,
         'company' => 4,
     ];
@@ -590,6 +590,28 @@ class LinkController extends Controller
             abort(response()->json(['success' => false, 'message' => 'Không xác định được cấp độ OKR.'], 422));
         }
 
+        // Quy tắc liên kết cụ thể:
+        // 1. Phòng ban (unit) chỉ được liên kết lên công ty (company)
+        if ($sourceLevel === 'unit') {
+            if ($targetLevel !== 'company') {
+                abort(response()->json([
+                    'success' => false, 
+                    'message' => 'OKR cấp phòng ban chỉ được liên kết lên OKR cấp công ty.'
+                ], 422));
+            }
+        }
+
+        // 2. Cá nhân (person) chỉ được liên kết lên phòng ban (unit)
+        if ($sourceLevel === 'person') {
+            if ($targetLevel !== 'unit') {
+                abort(response()->json([
+                    'success' => false, 
+                    'message' => 'OKR cấp cá nhân chỉ được liên kết lên OKR cấp phòng ban.'
+                ], 422));
+            }
+        }
+
+        // Kiểm tra cấp độ chung: target phải cao hơn source
         if ((self::LEVEL_ORDER[$targetLevel] ?? 0) <= (self::LEVEL_ORDER[$sourceLevel] ?? 0)) {
             abort(response()->json(['success' => false, 'message' => 'OKR đích phải có cấp độ cao hơn.'], 422));
         }
