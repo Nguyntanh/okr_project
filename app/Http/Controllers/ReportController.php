@@ -8,12 +8,14 @@ use App\Models\Cycle;
 use App\Models\CheckIn;
 use App\Models\KeyResult;
 use App\Models\User;
+use App\Models\OkrLink;
 use App\Services\ReportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\URL;
 use Spatie\Browsershot\Browsershot;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Carbon\Carbon;
 
 class ReportController extends Controller
 {
@@ -223,8 +225,8 @@ class ReportController extends Controller
                 }
             }
             return [
-                'objective_id' => $obj->objective_id,
-                'department_id' => $obj->department_id,
+                'objective_id' => (int) $obj->objective_id,
+                'department_id' => $obj->department_id ? (int) $obj->department_id : null,
                 'progress' => (float) round($progress, 2),
             ];
         });
@@ -292,325 +294,586 @@ class ReportController extends Controller
     }
 
     /**
-     * Enhanced OKR company report with filters and trend/risk breakdowns.
+     * Main endpoint for the new Company Statistical Report.
+     * Dispatches to different methods based on the requested tab.
      */
     public function companyOkrReport(Request $request)
     {
-        $cycleId = $request->integer('cycle_id');
-        $departmentId = $request->integer('department_id');
-        $status = $request->string('status')->toString(); // on_track | at_risk | off_track
-        $ownerId = $request->integer('owner_id');
-        $level = $request->input('level'); // company | departments
+        $tab = $request->input('tab', 'performance'); // Default to 'performance'
 
-        // Determine current cycle if missing
-        if (!$cycleId) {
-            $now = now();
-            $currentCycle = Cycle::where('start_date', '<=', $now)
-                ->where('end_date', '>=', $now)
-                ->first();
-            if ($currentCycle) {
-                $cycleId = (int) $currentCycle->cycle_id;
+        $cycle = $this->resolveCycle($request->integer('cycle_id'));
+        if (!$cycle) {
+            return response()->json(['success' => false, 'message' => 'Không tìm thấy chu kỳ phù hợp.'], 404);
+        }
+
+        $data = [];
+        $meta = [
+            'cycleId' => $cycle->cycle_id,
+            'cycleName' => $cycle->cycle_name,
+            'computedAt' => now()->toISOString(),
+        ];
+
+        try {
+            switch ($tab) {
+                case 'performance':
+                    $data = $this->_getPerformanceReportData($request, $cycle);
+                    break;
+                case 'process':
+                    $data = $this->_getProcessReportData($request, $cycle);
+                    break;
+                case 'quality':
+                    $data = $this->_getQualityReportData($request, $cycle);
+                    break;
+                default:
+                    return response()->json(['success' => false, 'message' => 'Invalid tab specified.'], 400);
             }
+
+            return response()->json([
+                'success' => true,
+                'data' => $data,
+                'meta' => $meta,
+            ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+
+        } catch (\Exception $e) {
+            \Log::error('Company OKR Report Failed', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'An unexpected error occurred while generating the report.',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal Server Error',
+            ], 500);
         }
+    }
 
-        // Base objectives with optional filters
-        $objectivesQuery = Objective::query()
-            ->select(['objective_id','obj_title','department_id','cycle_id','progress_percent','user_id', 'level'])
-            ->whereNull('archived_at') // Only count active objectives
-            ->when($cycleId, fn ($q) => $q->where('cycle_id', $cycleId))
-            ->when($departmentId, fn ($q) => $q->where('department_id', $departmentId))
-            ->when($ownerId, fn ($q) => $q->where('user_id', $ownerId));
-        
-        // Filter by level - must be explicit
-        if ($level === 'company') {
-            $objectivesQuery->where('level', 'company');
-        } elseif ($level === 'departments') {
-            $objectivesQuery->where('level', 'unit');
-        } else {
-            // Default: exclude person level, include both company and unit
-            $objectivesQuery->whereIn('level', ['company', 'unit']);
+    /**
+     * Gathers data for the "Quality & Structure" tab.
+     */
+    private function _getQualityReportData(Request $request, Cycle $cycle)
+    {
+        try {
+            $allObjectivesInCycle = Objective::where('cycle_id', $cycle->cycle_id)->whereNull('archived_at')->with('department')->get();
+            $allObjectiveIds = $allObjectivesInCycle->pluck('objective_id');
+            $allKrsInCycle = KeyResult::whereIn('objective_id', $allObjectiveIds)->whereNull('archived_at')->get();
+
+            // --- STAT CARDS ---
+            $totalKrsCount = $allKrsInCycle->count();
+            $outcomeKrsCount = $allKrsInCycle->where('type', 'outcome')->count();
+            $outcomeKrRate = $totalKrsCount > 0 ? ($outcomeKrsCount / $totalKrsCount) * 100 : 0;
+
+            $totalObjectivesCount = $allObjectivesInCycle->count();
+            $aspirationalObjectivesCount = $allObjectivesInCycle->where('is_aspirational', true)->count();
+            $aspirationalRate = $totalObjectivesCount > 0 ? ($aspirationalObjectivesCount / $totalObjectivesCount) * 100 : 0;
+
+            $avgKrsPerObjective = $totalObjectivesCount > 0 ? ($totalKrsCount / $totalObjectivesCount) : 0;
+
+            // --- CHARTS ---
+            $strategicTagDistribution = $allObjectivesInCycle
+                ->flatMap(fn($obj) => json_decode($obj->tags, true) ?? [])
+                ->filter()
+                ->groupBy(fn($tag) => $tag)
+                ->map->count();
+
+            $krTypeDistribution = $allKrsInCycle
+                ->groupBy('type')
+                ->map->count();
+
+            // --- TABLE ---
+            $qualityTableData = $allObjectivesInCycle->map(function ($objective) use ($allKrsInCycle, $cycle) {
+                $objectiveKrs = $allKrsInCycle->where('objective_id', $objective->objective_id);
+                $krCount = $objectiveKrs->count();
+                $idealProgress = $this->reportService->getIdealProgress($cycle->start_date, $cycle->end_date);
+
+                return [
+                    'objective_id' => $objective->objective_id,
+                    'objective_name' => $objective->obj_title,
+                    'department_name' => optional($objective->department)->d_name ?? 'N/A',
+                    'kr_type_distribution' => [
+                        'outcome' => $objectiveKrs->where('type', 'outcome')->count(),
+                        'activity' => $objectiveKrs->where('type', 'activity')->count(),
+                    ],
+                    'is_aspirational' => (bool) $objective->is_aspirational,
+                    'kr_count' => $krCount,
+                    'strategic_tags' => json_decode($objective->tags, true) ?? [],
+                    'progress' => $this->clampProgress((float) $objective->progress_percent),
+                    'health_status' => $this->reportService->getHealthStatus((float) $objective->progress_percent, $idealProgress),
+                    'structural_issues' => $this->_getObjectiveStructuralIssues($krCount),
+                ];
+            })->sortByDesc(fn($item) => $item['structural_issues'] ? 1 : 0)->values();
+            
+            return [
+                'statCards' => [
+                    'outcome_kr_rate' => round($outcomeKrRate, 2),
+                    'aspirational_rate' => round($aspirationalRate, 2),
+                    'avg_krs_per_objective' => round($avgKrsPerObjective, 2),
+                ],
+                'charts' => [
+                    'strategic_tag_distribution' => $strategicTagDistribution,
+                    'kr_type_distribution' => $krTypeDistribution,
+                ],
+                'table' => $qualityTableData,
+            ];
+        } catch (\Exception $e) {
+            \Log::error('!!! FAILED in _getQualityReportData: ' . $e->getMessage());
+            throw $e;
         }
+    }
 
-        $objectives = $objectivesQuery->get();
+    /**
+     * Helper to determine structural issues for an objective based on KR count.
+     */
+    private function _getObjectiveStructuralIssues(int $krCount): ?string
+    {
+        if ($krCount === 0) {
+            return 'No KRs defined';
+        }
+        if ($krCount < 2) {
+            return 'Too few KRs (<2)';
+        }
+        if ($krCount > 5) {
+            return 'Too many KRs (>5)';
+        }
+        return null; // No structural issues based on KR count
+    }
 
-        // Compute progress per objective from live KRs (real-time)
-        $objectiveIds = $objectives->pluck('objective_id');
-        // Công thức: O = trung bình cộng của tiến độ KR trực tiếp
-        // Tính progress từ KeyResults trực tiếp, không archived
-        $krAgg = DB::table('key_results')
-            ->select('objective_id', 'progress_percent')
-            ->whereIn('objective_id', $objectiveIds)
-            ->whereNull('archived_at') // Chỉ tính KR chưa archived
-            ->get()
-            ->groupBy('objective_id')
-            ->map(function ($krs) {
-                $progressList = [];
-                foreach ($krs as $kr) {
-                    if ($kr->progress_percent !== null) {
-                        $progressList[] = (float) $kr->progress_percent;
-                    }
-                }
-                return empty($progressList) ? null : (array_sum($progressList) / count($progressList));
+    /**
+     * Gathers data for the "Process Compliance" tab.
+     */
+    private function _getProcessReportData(Request $request, Cycle $cycle)
+    {
+        try {
+            $allObjectivesInCycleQuery = Objective::where('cycle_id', $cycle->cycle_id)->whereNull('archived_at');
+            $allKrsInCycleQuery = KeyResult::whereIn('objective_id', $allObjectivesInCycleQuery->clone()->pluck('objective_id'))->whereNull('archived_at');
+
+            // --- STAT CARDS ---
+            $totalKrsCount = $allKrsInCycleQuery->clone()->count();
+            $krsWithCheckinCount = $allKrsInCycleQuery->clone()->whereHas('checkIns')->count();
+            $checkinRate = $totalKrsCount > 0 ? ($krsWithCheckinCount / $totalKrsCount) * 100 : 0;
+
+            $totalNonCompanyObjectivesCount = $allObjectivesInCycleQuery->clone()->where('level', '!=', 'company')->count();
+            $alignedObjectivesCount = OkrLink::whereIn('source_objective_id', $allObjectivesInCycleQuery->clone()->pluck('objective_id'))->distinct('source_objective_id')->count();
+            $alignmentRate = $totalNonCompanyObjectivesCount > 0 ? ($alignedObjectivesCount / $totalNonCompanyObjectivesCount) * 100 : 0;
+            $totalObjectivesCount = $allObjectivesInCycleQuery->clone()->count();
+            $objectivesWithKrsCount = $allObjectivesInCycleQuery->clone()->whereHas('keyResults')->count();
+            $setupCompletionRate = $totalObjectivesCount > 0 ? ($objectivesWithKrsCount / $totalObjectivesCount) * 100 : 0;
+            
+            $totalCheckinsCount = CheckIn::whereIn('kr_id', $allKrsInCycleQuery->clone()->pluck('kr_id'))->count();
+            $uniqueUsersWithKrsCount = $allKrsInCycleQuery->clone()->select('user_id')->whereNotNull('user_id')->distinct()->count();
+            $avgCheckinsPerUser = $uniqueUsersWithKrsCount > 0 ? $totalCheckinsCount / $uniqueUsersWithKrsCount : 0;
+
+            // --- CHARTS ---
+            // 1. Chart: Check-in Compliance by Department
+            $departments = Department::with(['objectives' => fn($q) => $q->where('cycle_id', $cycle->cycle_id)])->get();
+            $checkinComplianceByDept = $departments->map(function ($dept) {
+                $deptObjectiveIds = $dept->objectives->pluck('objective_id');
+                if ($deptObjectiveIds->isEmpty()) return null;
+
+                $totalKrs = KeyResult::whereIn('objective_id', $deptObjectiveIds)->whereNull('archived_at')->count();
+                if ($totalKrs === 0) return null;
+
+                $krsWithCheckins = KeyResult::whereIn('objective_id', $deptObjectiveIds)->whereNull('archived_at')->whereHas('checkIns')->count();
+                
+                return [
+                    'department_name' => $dept->d_name,
+                    'compliance_rate' => round(($krsWithCheckins / $totalKrs) * 100, 2),
+                ];
+            })->filter()->sortByDesc('compliance_rate')->values();
+
+            // 2. Chart: Overall Health Status Distribution
+            $allObjectives = $allObjectivesInCycleQuery->clone()->get();
+            $idealProgress = $this->reportService->getIdealProgress($cycle->start_date, $cycle->end_date);
+            $healthStatusCounts = ['on_track' => 0, 'at_risk' => 0, 'off_track' => 0];
+            foreach ($allObjectives as $objective) {
+                $status = $this->reportService->getHealthStatus((float) $objective->progress_percent, $idealProgress);
+                $healthStatusCounts[$status]++;
+            }
+
+            // 3. Chart: Process Compliance (Check-in) Trend
+            $firstCheckinsQuery = CheckIn::select('kr_id', DB::raw('MIN(created_at) as first_checkin_date'))
+                ->whereIn('kr_id', $allKrsInCycleQuery->clone()->pluck('kr_id'))
+                ->groupBy('kr_id');
+            
+            if ($request->input('start_date') && $request->input('end_date')) {
+                $firstCheckinsQuery->whereBetween('created_at', [Carbon::parse($request->input('start_date'))->startOfDay(), Carbon::parse($request->input('end_date'))->endOfDay()]);
+            }
+            $firstCheckins = $firstCheckinsQuery->get();
+
+            $weeklyCheckinCounts = $firstCheckins
+                ->groupBy(fn($checkin) => Carbon::parse($checkin->first_checkin_date)->format('Y-W'))
+                ->map(fn($group) => $group->count())
+                ->sortKeys();
+
+            $cumulative = 0;
+            $processComplianceTrend = $weeklyCheckinCounts->map(function ($count) use (&$cumulative) {
+                $cumulative += $count;
+                return $cumulative;
             });
 
-        $objectiveProgress = $objectives->map(function ($obj) use ($krAgg) {
-            // Ưu tiên tính từ KR trực tiếp, nếu không có thì dùng giá trị trong DB
-            $avgFromKrs = $krAgg[$obj->objective_id] ?? null;
-            $progress = $avgFromKrs !== null ? (float) $avgFromKrs : (float) ($obj->progress_percent ?? 0.0);
-            $computedStatus = $progress >= 70 ? 'on_track' : ($progress >= 40 ? 'at_risk' : 'off_track');
-            return [
-                'objective_id' => (int) $obj->objective_id,
-                'objective_title' => (string) ($obj->obj_title ?? ''),
-                'department_id' => $obj->department_id ? (int) $obj->department_id : null,
-                'user_id' => $obj->user_id ? (int) $obj->user_id : null,
-                'progress' => (float) round((float) $progress, 2),
-                'status' => $computedStatus,
-            ];
-        });
+            // --- TABLE ---
+            $latestCheckins = CheckIn::select('kr_id', DB::raw('MAX(created_at) as last_checkin_date'))
+                ->whereIn('kr_id', $allKrsInCycleQuery->clone()->pluck('kr_id'))
+                ->groupBy('kr_id')
+                ->get()
+                ->keyBy('kr_id');
 
-        // Filter by computed status if requested
-        if (in_array($status, ['on_track','at_risk','off_track'], true)) {
-            $objectiveProgress = $objectiveProgress->where('status', $status)->values();
-        }
+            $okrsForTable = $allObjectivesInCycleQuery->with(['keyResults', 'department', 'user'])->get();
 
-        $totalObjectives = $objectiveProgress->count();
-        $overall = (float) round($objectiveProgress->avg('progress') ?? 0, 2);
-
-        $onTrackCount = $objectiveProgress->where('status', 'on_track')->count();
-        $atRiskCount = $objectiveProgress->where('status', 'at_risk')->count();
-        $offTrackCount = $objectiveProgress->where('status', 'off_track')->count();
-
-        $statusDistribution = [
-            'onTrack' => $totalObjectives ? round($onTrackCount * 100 / $totalObjectives, 2) : 0,
-            'atRisk' => $totalObjectives ? round($atRiskCount * 100 / $totalObjectives, 2) : 0,
-            'offTrack' => $totalObjectives ? round($offTrackCount * 100 / $totalObjectives, 2) : 0,
-        ];
-        $statusCounts = [
-            'onTrack' => $onTrackCount,
-            'atRisk' => $atRiskCount,
-            'offTrack' => $offTrackCount,
-        ];
-
-        // Department details with trend vs previous cycle
-        $deptGrouped = $objectiveProgress->groupBy('department_id');
-        $deptIds = $deptGrouped->keys()->filter()->values();
-        $allDeptRecords = Department::whereIn('department_id', $deptIds)
-            ->get(['department_id','d_name','type','parent_department_id']);
-        $deptNames = $allDeptRecords->pluck('d_name', 'department_id');
-
-        // Previous cycle for trend
-        $prevCycleAvgByDept = [];
-        if ($cycleId) {
-            $currentCycle = Cycle::find($cycleId);
-            if ($currentCycle) {
-                $prevCycle = Cycle::where('end_date', '<', $currentCycle->start_date)
-                    ->orderBy('end_date', 'desc')
-                    ->first();
-                if ($prevCycle) {
-                    $prevObjs = Objective::query()
-                        ->select(['objective_id','department_id','progress_percent'])
-                        ->where('cycle_id', $prevCycle->cycle_id)
-                        ->when($departmentId, fn ($q) => $q->where('department_id', $departmentId))
-                        ->get();
-                    $tmp = $prevObjs->map(function ($obj) {
-                        $p = $obj->progress_percent;
-                        if ($p === null) $p = 0.0;
-                        return [
-                            'department_id' => $obj->department_id ? (int) $obj->department_id : null,
-                            'progress' => (float) $p,
-                        ];
-                    })->groupBy('department_id');
-                    foreach ($tmp as $deptIdKey => $items) {
-                        $prevCycleAvgByDept[(int) $deptIdKey] = round(collect($items)->avg('progress') ?? 0, 2);
+            $processTableData = $okrsForTable->map(function ($objective) use ($latestCheckins, $idealProgress) {
+                $objectiveKrs = $objective->keyResults;
+                $totalKrs = $objectiveKrs->count();
+                $krsWithCheckins = $objectiveKrs->filter(fn($kr) => $kr->checkIns->isNotEmpty())->count();
+                $periodicCheckinRate = $totalKrs > 0 ? ($krsWithCheckins / $totalKrs) * 100 : 0;
+                
+                $lastCheckinDate = null;
+                foreach ($objective->keyResults as $kr) {
+                    if (isset($latestCheckins[$kr->kr_id])) {
+                        $krLastCheckin = Carbon::parse($latestCheckins[$kr->kr_id]->last_checkin_date);
+                        if (!$lastCheckinDate || $krLastCheckin->isAfter($lastCheckinDate)) {
+                            $lastCheckinDate = $krLastCheckin;
+                        }
                     }
                 }
-            }
-        }
 
-        $departments = [];
-        $departmentsHierarchy = [];
-
-        // Build top-level and teams metrics
-        $deptInfoById = $allDeptRecords->keyBy('department_id');
-        $topLevelAgg = [];
-        $teamsAgg = [];
-        foreach ($deptGrouped as $deptIdKey => $items) {
-            $deptIdInt = $deptIdKey ? (int) $deptIdKey : null;
-            $avg = (float) round(collect($items)->avg('progress') ?? 0, 2);
-            $count = collect($items)->count();
-            $on = collect($items)->where('status','on_track')->count();
-            $risk = collect($items)->where('status','at_risk')->count();
-            $off = collect($items)->where('status','off_track')->count();
-            $prevAvg = $deptIdInt && isset($prevCycleAvgByDept[$deptIdInt]) ? (float) $prevCycleAvgByDept[$deptIdInt] : null;
-            $trendDelta = $prevAvg !== null ? round($avg - $prevAvg, 2) : null;
-
-            $row = [
-                'departmentId' => $deptIdInt,
-                'departmentName' => $deptIdInt ? ($deptNames[$deptIdInt] ?? 'N/A') : 'Công ty',
-                'count' => $count,
-                'averageProgress' => $avg,
-                'onTrack' => $on,
-                'atRisk' => $risk,
-                'offTrack' => $off,
-                'onTrackPct' => $count ? round($on * 100 / $count, 2) : 0,
-                'atRiskPct' => $count ? round($risk * 100 / $count, 2) : 0,
-                'offTrackPct' => $count ? round($off * 100 / $count, 2) : 0,
-                'trendDelta' => $trendDelta,
-            ];
-            $departments[] = $row;
-
-            // Hierarchy aggregation
-            $deptRec = $deptInfoById->get($deptIdInt);
-            $parentId = $deptRec && $deptRec->parent_department_id ? (int) $deptRec->parent_department_id : null;
-            $isTeam = $deptRec && $deptRec->type === 'đội nhóm' && $parentId;
-            $topKey = $isTeam ? $parentId : $deptIdInt;
-            if (!isset($topLevelAgg[$topKey])) {
-                $topLevelAgg[$topKey] = [
-                    'departmentId' => $topKey,
-                    'departmentName' => $topKey ? ($deptNames[$topKey] ?? 'N/A') : 'Công ty',
-                    'count' => 0,'averageProgressSum' => 0,'averageProgressDen' => 0,
-                    'onTrack' => 0,'atRisk' => 0,'offTrack' => 0,
-                    'trendDeltaSum' => 0,'trendDeltaDen' => 0,
-                    'children' => [],
+                return [
+                    'objective_id' => $objective->objective_id,
+                    'objective_name' => $objective->obj_title,
+                    'department_name' => optional($objective->department)->d_name ?? 'Công ty',
+                    'owner_name' => optional($objective->user)->full_name ?? 'N/A',
+                    'health_status' => $this->reportService->getHealthStatus((float) $objective->progress_percent, $idealProgress),
+                    'last_checkin_date' => $lastCheckinDate ? $lastCheckinDate->toDateString() : null,
+                    'days_overdue' => $lastCheckinDate ? $lastCheckinDate->diffInDays(now(), false) : null,
+                    'periodic_checkin_rate' => round($periodicCheckinRate, 2),
                 ];
-            }
-            // Add to top-level agg
-            $top = &$topLevelAgg[$topKey];
-            $top['count'] += $count;
-            $top['onTrack'] += $on; $top['atRisk'] += $risk; $top['offTrack'] += $off;
-            $top['averageProgressSum'] += $avg; $top['averageProgressDen'] += 1;
-            if ($trendDelta !== null) { $top['trendDeltaSum'] += $trendDelta; $top['trendDeltaDen'] += 1; }
+            })->sortBy('days_overdue', SORT_REGULAR, true)->values();
 
-            if ($isTeam) {
-                $top['children'][] = $row + ['teamId' => $deptIdInt, 'teamName' => $row['departmentName']];
-            }
-            unset($top);
+
+            return [
+                'statCards' => [
+                    'check_in_rate' => round($checkinRate, 2),
+                    'alignment_rate' => round($alignmentRate, 2),
+                    'setup_completion_rate' => round($setupCompletionRate, 2),
+                    'avg_checkins_per_user' => round($avgCheckinsPerUser, 1),
+                ],
+                'charts' => [
+                    'checkin_compliance_by_dept' => $checkinComplianceByDept,
+                    'health_status_distribution' => $healthStatusCounts,
+                    'process_compliance_trend' => $processComplianceTrend,
+                ],
+                'table' => $processTableData,
+            ];
+        } catch (\Exception $e) {
+            \Log::error('!!! FAILED in _getProcessReportData: ' . $e->getMessage());
+            throw $e;
         }
+    }
 
-        // Normalize top-level averages
-        foreach ($topLevelAgg as $k => $agg) {
-            $avgProg = $agg['averageProgressDen'] ? round($agg['averageProgressSum'] / $agg['averageProgressDen'], 2) : 0.0;
-            $trendDelta = $agg['trendDeltaDen'] ? round($agg['trendDeltaSum'] / $agg['trendDeltaDen'], 2) : null;
-            $count = max(1, (int) $agg['count']);
-            $departmentsHierarchy[] = [
-                'departmentId' => $agg['departmentId'],
-                'departmentName' => $agg['departmentName'],
-                'count' => (int) $agg['count'],
-                'averageProgress' => $avgProg,
-                'onTrack' => (int) $agg['onTrack'],
-                'atRisk' => (int) $agg['atRisk'],
-                'offTrack' => (int) $agg['offTrack'],
-                'onTrackPct' => round($agg['onTrack'] * 100 / $count, 2),
-                'atRiskPct' => round($agg['atRisk'] * 100 / $count, 2),
-                'offTrackPct' => round($agg['offTrack'] * 100 / $count, 2),
-                'trendDelta' => $trendDelta,
-                'children' => array_map(function ($child) {
-                    return [
-                        'departmentId' => $child['departmentId'],
-                        'departmentName' => $child['departmentName'],
-                        'count' => $child['count'],
-                        'averageProgress' => $child['averageProgress'],
-                        'onTrack' => $child['onTrack'],
-                        'atRisk' => $child['atRisk'],
-                        'offTrack' => $child['offTrack'],
-                        'onTrackPct' => $child['onTrackPct'],
-                        'atRiskPct' => $child['atRiskPct'],
-                        'offTrackPct' => $child['offTrackPct'],
-                        'trendDelta' => $child['trendDelta'],
-                    ];
-                }, $agg['children']),
+
+    /**
+     * Gathers data for the "Performance" tab.
+     */
+    private function _getPerformanceReportData(Request $request, Cycle $cycle)
+    {
+        // Base query for all objectives in the cycle for department/alignment calculations
+        $allObjectivesInCycle = Objective::query()
+            ->with(['department:department_id,d_name', 'user:user_id,full_name'])
+            ->where('cycle_id', $cycle->cycle_id)
+            ->whereNull('archived_at')
+            ->get();
+
+        // 1. Get all company-level objectives for the given cycle
+        $companyObjectives = $allObjectivesInCycle->where('level', 'company');
+
+        if ($companyObjectives->isEmpty()) {
+            return [
+                'statCards' => ['avg_company_progress' => 0, 'completed_company_rate' => 0, 'avg_confidence_score' => 0],
+                'charts' => ['progress_over_time' => [], 'performance_by_department' => []],
+                'table' => [],
             ];
         }
 
-        // Trend over time: weekly average progress_percent from check_ins grouped by KR of filtered objectives
-        $trend = [];
-        if ($cycleId) {
-            $krIds = DB::table('key_results as kr')
-                ->join('objectives as obj', 'obj.objective_id', '=', 'kr.objective_id')
-                ->when($departmentId, fn ($q) => $q->where('obj.department_id', $departmentId))
-                ->when($ownerId, fn ($q) => $q->where('obj.user_id', $ownerId))
-                ->where('obj.cycle_id', $cycleId)
-                ->pluck('kr.kr_id');
-            if ($krIds->count() > 0) {
-                $checkIns = CheckIn::query()
-                    ->select(DB::raw("DATE_FORMAT(created_at, '%Y-%u') as year_week"), DB::raw('AVG(progress_percent) as avg_progress'))
-                    ->whereIn('kr_id', $krIds)
-                    ->groupBy('year_week')
-                    ->orderBy('year_week')
-                    ->get();
-                $trend = $checkIns->map(fn ($r) => [
-                    'bucket' => $r->year_week,
-                    'avgProgress' => (float) round((float) $r->avg_progress, 2),
-                ])->all();
+        $companyObjectiveIds = $companyObjectives->pluck('objective_id');
+
+        // 2. Calculate Stat Cards
+        $avgCompanyProgress = (float) $companyObjectives->avg('progress_percent');
+        $completedCount = $companyObjectives->where('progress_percent', '>=', 70)->count();
+        $totalCompanyObjectives = $companyObjectives->count();
+        $completedRate = $totalCompanyObjectives > 0 ? ($completedCount / $totalCompanyObjectives) * 100 : 0;
+
+        $latestCheckInIdsSub = DB::table('check_ins as ci')
+            ->select(DB::raw('MAX(ci.check_in_id) as max_id'))
+            ->join('key_results as kr', 'ci.kr_id', '=', 'kr.kr_id')
+            ->whereIn('kr.objective_id', $companyObjectiveIds)
+            ->whereNotNull('ci.confidence_score')
+            ->groupBy('ci.kr_id');
+        
+        $avgConfidenceScore = 0;
+        if ($latestCheckInIdsSub->count() > 0) {
+             $avgConfidenceScore = DB::table('check_ins')
+                ->whereIn('check_in_id', $latestCheckInIdsSub)
+                ->avg('confidence_score');
+        }
+
+        // 3. Chart Data
+        $dateRange = ['start' => $request->input('start_date'), 'end' => $request->input('end_date')];
+        $progressOverTime = $this->_getCompanyProgressTrend($cycle, $companyObjectiveIds, $dateRange);
+        
+        $departmentPerformance = $allObjectivesInCycle
+            ->where('department_id', '!=', null)
+            ->groupBy('department_id')
+            ->map(function ($objectivesInDept, $deptId) {
+                $department = $objectivesInDept->first()->department;
+                return [
+                    'department_id' => $deptId,
+                    'department_name' => $department ? $department->d_name : 'N/A',
+                    'average_progress' => (float) $objectivesInDept->avg('progress_percent'),
+                ];
+            })
+            ->sortByDesc('average_progress')
+            ->values();
+
+        // 4. Table Data
+        $links = OkrLink::whereIn('target_objective_id', $companyObjectiveIds)->get();
+        $alignedObjectiveIds = $links->pluck('source_objective_id');
+        
+        $alignedObjectivesByParent = $allObjectivesInCycle
+            ->whereIn('objective_id', $alignedObjectiveIds)
+            ->keyBy('objective_id'); 
+
+        $childrenByParentId = $links->groupBy('target_objective_id');
+
+        $allTableObjectiveIds = $companyObjectiveIds->merge($alignedObjectiveIds);
+        $allConfidenceScores = collect();
+        
+        if ($allTableObjectiveIds->isNotEmpty()) {
+            $latestCheckinIdsForTable = DB::table('check_ins as ci')
+                ->select(DB::raw('MAX(ci.check_in_id) as max_id'))
+                ->join('key_results as kr', 'ci.kr_id', '=', 'kr.kr_id')
+                ->whereIn('kr.objective_id', $allTableObjectiveIds)
+                ->whereNotNull('ci.confidence_score')
+                ->groupBy('kr.objective_id');
+
+            if ($latestCheckinIdsForTable->count() > 0) {
+                 $allConfidenceScores = DB::table('check_ins as ci')
+                    ->join('key_results as kr', 'ci.kr_id', '=', 'kr.kr_id')
+                    ->whereIn('ci.check_in_id', $latestCheckinIdsForTable)
+                    ->select('kr.objective_id', 'ci.confidence_score')
+                    ->get()
+                    ->keyBy('objective_id');
             }
         }
 
-        // Risk section: objectives with low progress
-        $riskObjectives = $objectiveProgress
-            ->filter(fn ($o) => $o['status'] === 'at_risk' || $o['status'] === 'off_track' || $o['progress'] < 50)
-            ->sortBy('progress')
-            ->take(5)
-            ->values()
-            ->all();
+        $tableData = $companyObjectives->map(function ($companyO) use ($childrenByParentId, $alignedObjectivesByParent, $allConfidenceScores, $cycle) {
+            $childLinks = $childrenByParentId->get($companyO->objective_id, collect());
+            $children = $childLinks->map(function($link) use ($alignedObjectivesByParent, $allConfidenceScores, $cycle, $companyO) {
+                $childObjective = $alignedObjectivesByParent->get($link->source_objective_id);
+                if ($childObjective) {
+                    return $this->_formatObjectiveForTable($childObjective, $allConfidenceScores, $cycle, $companyO);
+                }
+                return null;
+            })->filter()->values();
 
-        $json = response()->json([
-            'success' => true,
-            'data' => [
-                'overall' => [
-                    'totalObjectives' => $totalObjectives,
-                    'averageProgress' => $overall,
-                    'statusCounts' => $statusCounts,
-                    'statusDistribution' => $statusDistribution,
-                ],
-                'departments' => $departments,
-                'departmentsHierarchy' => $departmentsHierarchy,
-                'trend' => $trend,
-                'risks' => $riskObjectives,
+            return array_merge(
+                $this->_formatObjectiveForTable($companyO, $allConfidenceScores, $cycle),
+                ['children' => $children]
+            );
+        })->values();
+
+        return [
+            'statCards' => [
+                'avg_company_progress' => $this->clampProgress($avgCompanyProgress),
+                'completed_company_rate' => round($completedRate, 2),
+                'avg_confidence_score' => $avgConfidenceScore ? round($avgConfidenceScore, 1) : 0,
             ],
-            'meta' => [
-                'cycleId' => $cycleId,
-                'departmentId' => $departmentId,
-                'ownerId' => $ownerId,
-                'status' => $status ?: null,
-                'computedAt' => now()->toISOString(),
+            'charts' => [
+                'progress_over_time' => $progressOverTime,
+                'performance_by_department' => $departmentPerformance,
             ],
-        ]);
-        return $json->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+            'table' => $tableData,
+        ];
     }
+
+    /**
+     * Helper to format a single objective for the performance table response.
+     */
+    private function _formatObjectiveForTable(Objective $objective, $confidenceScores, Cycle $cycle, ?Objective $parent = null): array
+    {
+        $progress = (float) $objective->progress_percent;
+        $idealProgress = $this->reportService->getIdealProgress($cycle->start_date, $cycle->end_date);
+        
+        $healthStatus = 'on_track'; // Green
+        if ($progress < $idealProgress - 20) {
+            $healthStatus = 'off_track'; // Red
+        } elseif ($progress < $idealProgress - 10) {
+            $healthStatus = 'at_risk'; // Yellow
+        }
+
+        return [
+            'objective_id' => $objective->objective_id,
+            'objective_name' => $objective->obj_title,
+            'level' => $objective->level,
+            'department_name' => $objective->department->d_name ?? 'Công ty',
+            'owner_name' => $objective->user->full_name ?? 'N/A',
+            'progress' => $this->clampProgress($progress),
+            'health_status' => $healthStatus,
+            'confidence_score' => $confidenceScores->get($objective->objective_id)->confidence_score ?? null,
+            'parent_objective_id' => $parent ? $parent->objective_id : null,
+            'parent_objective_name' => $parent ? $parent->obj_title : null,
+        ];
+    }
+    
+    /**
+     * Gets the weekly progress trend for company-level objectives.
+     */
+    private function _getCompanyProgressTrend(Cycle $cycle, $companyObjectiveIds, array $dateRange)
+    {
+        if ($companyObjectiveIds->isEmpty()) {
+            return [];
+        }
+
+        $krsUnderCompanyObjectives = KeyResult::whereIn('objective_id', $companyObjectiveIds)->pluck('kr_id');
+        
+        if ($krsUnderCompanyObjectives->isEmpty()) {
+            return [];
+        }
+
+        $trendQuery = CheckIn::query()
+            ->select([
+                DB::raw("DATE_FORMAT(check_ins.created_at, '%Y-%u') as bucket"), // Group by week
+                DB::raw('AVG(check_ins.progress_percent) as avg_progress'),
+            ])
+            ->join('key_results as kr', 'check_ins.kr_id', '=', 'kr.kr_id') // Join to access cycle_id
+            ->whereIn('check_ins.kr_id', $krsUnderCompanyObjectives)
+            ->where('kr.cycle_id', $cycle->cycle_id) // Filter by cycle_id on key_results
+            ->whereNotNull('check_ins.progress_percent');
+
+        if (!empty($dateRange['start']) && !empty($dateRange['end'])) {
+            $trendQuery->whereBetween('created_at', [Carbon::parse($dateRange['start'])->startOfDay(), Carbon::parse($dateRange['end'])->endOfDay()]);
+        }
+
+        $trend = $trendQuery->groupBy('bucket')->orderBy('bucket')->get();
+            
+        // Also get ideal progress for each week
+        $startDate = !empty($dateRange['start']) ? Carbon::parse($dateRange['start']) : Carbon::parse($cycle->start_date);
+        $endDate = !empty($dateRange['end']) ? Carbon::parse($dateRange['end']) : Carbon::parse($cycle->end_date);
+        
+        $cycleDurationInDays = $endDate->diffInDays($startDate);
+        if ($cycleDurationInDays <= 0) $cycleDurationInDays = 1;
+
+        $idealTrend = [];
+        $currentDate = $startDate->copy();
+        while($currentDate->lessThanOrEqualTo($endDate)) {
+            $weekBucket = $currentDate->format('Y-W');
+            $daysIntoCycle = $currentDate->diffInDays($startDate);
+            $ideal = min(100, ($daysIntoCycle / $cycleDurationInDays) * 100);
+            $idealTrend[$weekBucket] = round($ideal, 2);
+            $currentDate->addWeek();
+        }
+        
+        $actualTrend = $trend->keyBy('bucket');
+
+        $combinedTrend = [];
+        foreach($idealTrend as $bucket => $ideal) {
+             $combinedTrend[] = [
+                'bucket' => $bucket,
+                'avg_progress' => $this->clampProgress($actualTrend[$bucket]->avg_progress ?? 0),
+                'ideal_progress' => $ideal,
+            ];
+        }
+
+        return $combinedTrend;
+    }
+
 
     /**
      * Export CSV for OKR company report (Excel-friendly).
      */
     public function exportCompanyOkrCsv(Request $request): StreamedResponse
     {
-        $response = $this->companyOkrReport($request);
-        $payload = $response->getData(true);
+        $tab = $request->input('tab', 'performance');
+        $cycle = $this->resolveCycle($request->integer('cycle_id'));
+        if (!$cycle) {
+            // Handle error case where cycle is not found, maybe return an error response or an empty CSV.
+            // For now, we'll proceed and let it result in an empty CSV.
+        }
+
+        $data = [];
+        switch ($tab) {
+            case 'performance':
+                $data = $this->_getPerformanceReportData($request, $cycle);
+                break;
+            case 'process':
+                $data = $this->_getProcessReportData($request, $cycle);
+                break;
+            case 'quality':
+                $data = $this->_getQualityReportData($request, $cycle);
+                break;
+        }
+
+        $tableData = $data['table'] ?? [];
         $rows = [];
-        $rows[] = ['Department','Count','Avg Progress','On Track','At Risk','Off Track','On%','At%','Off%','Trend Δ'];
-        foreach ($payload['data']['departments'] as $d) {
-            $rows[] = [
-                $d['departmentName'],
-                $d['count'],
-                $d['averageProgress'],
-                $d['onTrack'],
-                $d['atRisk'],
-                $d['offTrack'],
-                $d['onTrackPct'],
-                $d['atRiskPct'],
-                $d['offTrackPct'],
-                $d['trendDelta'] ?? '',
-            ];
+
+        // Define headers and format rows based on the tab
+        switch ($tab) {
+            case 'performance':
+                $rows[] = ['Tên Mục tiêu (O/KR)', 'Cấp độ', 'Phòng ban/Đơn vị', 'Tiến độ (%)', 'Tình trạng (Health)', 'Điểm Tự tin', 'Liên kết với O Cấp trên'];
+                foreach ($tableData as $parent) {
+                    $rows[] = [
+                        $parent['objective_name'], $parent['level'], $parent['department_name'], $parent['progress'], 
+                        $parent['health_status'], $parent['confidence_score'], $parent['parent_objective_name']
+                    ];
+                    if (!empty($parent['children'])) {
+                        foreach($parent['children'] as $child) {
+                            $rows[] = [
+                                '  -- ' . $child['objective_name'], // Indent child
+                                $child['level'], $child['department_name'], $child['progress'], $child['health_status'], 
+                                $child['confidence_score'], $child['parent_objective_name']
+                            ];
+                        }
+                    }
+                }
+                break;
+
+            case 'process':
+                $rows[] = ['Tên Mục tiêu (O/KR)', 'Phòng ban/Đơn vị', 'Người Sở hữu Chính', 'Tình trạng (Health)', 'Check-in Gần nhất', 'Quá hạn Check-in (Ngày)', 'Tỷ lệ Check-in Định kỳ (%)'];
+                foreach ($tableData as $row) {
+                    $rows[] = [
+                        $row['objective_name'], $row['department_name'], $row['owner_name'], $row['health_status'],
+                        $row['last_checkin_date'], $row['days_overdue'], $row['periodic_checkin_rate'] . '%'
+                    ];
+                }
+                break;
+
+            case 'quality':
+                $rows[] = ['Tên Mục tiêu (O/KR)', 'Phòng ban/Đơn vị', 'Loại KR (Kết quả/Hoạt động)', 'Tham vọng', 'Số lượng KR', 'Thẻ Chiến lược', 'Tiến độ (%)', 'Vấn đề Cấu trúc'];
+                foreach ($tableData as $row) {
+                     $krDist = "Kết quả: {$row['kr_type_distribution']['outcome']}, Hoạt động: {$row['kr_type_distribution']['activity']}";
+                    $rows[] = [
+                        $row['objective_name'], $row['department_name'], $krDist,
+                        $row['is_aspirational'] ? 'Yes' : 'No', $row['kr_count'], implode(', ', $row['strategic_tags']),
+                        $row['progress'] . '%', $row['structural_issues']
+                    ];
+                }
+                break;
+            
+default:
+                $rows[] = ['Invalid tab specified for export.'];
+                break;
         }
 
         $callback = function () use ($rows) {
             $handle = fopen('php://output', 'w');
+            // Add UTF-8 BOM for Excel compatibility
+            fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
             foreach ($rows as $row) {
                 fputcsv($handle, $row);
             }
             fclose($handle);
         };
 
-        $filename = 'okr_company_report_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'okr_report_' . $tab . '_' . now()->format('Ymd_His') . '.csv';
         return response()->streamDownload($callback, $filename, [
             'Content-Type' => 'text/csv; charset=UTF-8',
         ]);
@@ -635,6 +898,7 @@ class ReportController extends Controller
         $cycleName = $cycle ? $cycle->cycle_name : 'Tất cả chu kỳ';
 
         // Generate HTML for PDF
+        // Note: The view 'reports.company-okr-pdf' needs to be updated for the new data structure
         $html = view('reports.company-okr-pdf', [
             'data' => $payload['data'],
             'cycleName' => $cycleName,
@@ -1109,7 +1373,7 @@ class ReportController extends Controller
     {
         $user = $request->user();
         
-        $report = Report::find($reportId);
+        $report = Report::with(['creator', 'cycle', 'department'])->find($reportId);
         
         if (!$report) {
             return response()->json([
@@ -1182,5 +1446,3 @@ class ReportController extends Controller
         return response()->json(['success' => true, 'message' => 'Đã gửi nhắc nhở thành công']);
     }
 }
-
-

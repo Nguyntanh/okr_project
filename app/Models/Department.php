@@ -9,7 +9,16 @@ class Department extends Model
     protected $fillable = ['d_name', 'd_description', 'type', 'parent_department_id'];
     protected $primaryKey = 'department_id';
 
-    public function users() {
+    public function users()
+    {
         return $this->hasMany(User::class, 'department_id', 'department_id');
+    }
+
+    /**
+     * Mối quan hệ với Objectives
+     */
+    public function objectives()
+    {
+        return $this->hasMany(Objective::class, 'department_id', 'department_id');
     }
 }
