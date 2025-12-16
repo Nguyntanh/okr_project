@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { Select } from "../components/ui";
 import ToastNotification from "../components/ToastNotification";
 import { exportTeamReportToExcel } from "../utils/reports/exportHelpers";
-import { FiDownload, FiAlertTriangle, FiEye, FiTrendingUp, FiUsers, FiActivity, FiCheckCircle, FiClock, FiLink, FiUserX, FiSave, FiList, FiTrash2 } from "react-icons/fi";
+import { FiDownload, FiAlertTriangle, FiEye, FiTrendingUp, FiUsers, FiActivity, FiCheckCircle, FiClock, FiLink, FiUserX, FiSave, FiList, FiTrash2, FiChevronDown, FiChevronRight, FiTarget } from "react-icons/fi";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -29,6 +29,126 @@ ChartJS.register(
   Legend
 );
 
+// --- HELPER COMPONENTS ---
+const StatusBadge = ({ status }) => {
+    const config = {
+        completed: { color: "bg-green-100 text-green-700", text: "Hoàn thành" },
+        on_track: { color: "bg-blue-50 text-blue-700", text: "Đúng tiến độ" },
+        at_risk: { color: "bg-yellow-50 text-yellow-700", text: "Rủi ro" },
+        behind: { color: "bg-red-50 text-red-700", text: "Chậm trễ" },
+        pending: { color: "bg-gray-50 text-gray-600", text: "Chờ duyệt" }
+    };
+    const { color, text } = config[status] || config.pending;
+    return <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${color} border border-transparent`}>{text}</span>;
+};
+
+// Row Component for Expandable Tree View
+const ComplianceRow = ({ item, level = 0, getOwner }) => {
+    const [expanded, setExpanded] = useState(true); // Default expanded for visibility
+    const hasChildren = (item.children && item.children.length > 0) || (item.key_results && item.key_results.length > 0);
+    const isUnit = (item.level || '').toLowerCase() === 'unit';
+    
+    const paddingLeft = level * 20 + 24; // Indentation
+
+    return (
+        <>
+            <tr className={`hover:bg-slate-50 transition-colors text-sm border-b border-slate-100 ${level > 0 ? 'bg-slate-50/30' : 'bg-white'}`}>
+                <td className="py-3 pr-6 text-left" style={{ paddingLeft: `${paddingLeft}px` }}>
+                    <div className="flex items-start gap-2">
+                        {hasChildren ? (
+                            <button 
+                                onClick={() => setExpanded(!expanded)}
+                                className="mt-0.5 text-slate-400 hover:text-slate-600 transition-colors p-0.5 rounded hover:bg-slate-200"
+                            >
+                                {expanded ? <FiChevronDown className="w-4 h-4" /> : <FiChevronRight className="w-4 h-4" />}
+                            </button>
+                        ) : (
+                            <span className="w-5 h-5 flex-shrink-0"></span> // Spacer
+                        )}
+                        
+                        <div>
+                            <div className="flex items-center gap-2">
+                                {isUnit && <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0"></span>}
+                                <a href="#" className={`hover:text-blue-600 hover:underline line-clamp-2 ${isUnit ? 'font-bold text-slate-800' : 'font-medium text-slate-700'}`} title={item.obj_title}>
+                                    {item.obj_title}
+                                </a>
+                            </div>
+                            <span className="text-[10px] text-slate-400 block font-semibold tracking-wide mt-0.5 ml-3.5 uppercase">{item.level}</span>
+                        </div>
+                    </div>
+                </td>
+                <td className="px-6 py-3">
+                    <div className="flex items-center gap-2">
+                        <img 
+                            src={getOwner(item.user_id).avatar || `https://ui-avatars.com/api/?name=${getOwner(item.user_id).name || 'U'}&background=random`} 
+                            alt={getOwner(item.user_id).name} 
+                            className="w-6 h-6 rounded-full border border-white shadow-sm"
+                        />
+                        <span className="text-slate-600 truncate max-w-[100px] text-xs" title={getOwner(item.user_id).name}>
+                            {getOwner(item.user_id).name}
+                        </span>
+                    </div>
+                </td>
+                <td className="px-6 py-3"><StatusBadge status={item.status} /></td>
+                <td className="px-6 py-3 text-slate-500 text-xs">
+                    {item.last_checkin_date ? new Date(item.last_checkin_date).toLocaleDateString('vi-VN') : 'Chưa check-in'}
+                </td>
+                <td className="px-6 py-3 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                        <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${item.personal_checkin_rate >= 80 ? 'bg-green-500' : item.personal_checkin_rate >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${item.personal_checkin_rate || 0}%` }}></div>
+                        </div>
+                        <span className="text-[10px] text-slate-500 font-medium">{item.personal_checkin_rate || 0}%</span>
+                    </div>
+                </td>
+                <td className="px-6 py-3 text-center">
+                    {!isUnit ? (
+                        <button className="text-[10px] px-2 py-1 bg-white border border-slate-200 text-slate-600 rounded hover:bg-slate-50 transition-colors" onClick={() => alert(`Nhắc nhở ${getOwner(item.user_id).name}`)}>
+                            Nhắc
+                        </button>
+                    ) : (
+                        <span className="text-[10px] text-slate-300 italic">Quản lý</span>
+                    )}
+                </td>
+            </tr>
+
+            {expanded && (
+                <>
+                    {/* Render Key Results */}
+                    {(item.key_results || []).map(kr => (
+                        <tr key={`kr-${kr.id}`} className="bg-slate-50/50 hover:bg-slate-100/50 transition-colors text-xs border-b border-slate-100 border-dashed">
+                            <td className="py-2 pr-6 text-left" style={{ paddingLeft: `${paddingLeft + 28}px` }}>
+                                <div className="flex items-center gap-2 text-slate-500">
+                                    <FiTarget className="w-3 h-3 flex-shrink-0 text-slate-400" />
+                                    <span className="truncate max-w-[300px]" title={kr.title}>{kr.title}</span>
+                                    <span className="text-[9px] px-1 bg-slate-100 rounded text-slate-400">KR</span>
+                                </div>
+                            </td>
+                            <td className="px-6 py-2">
+                                <div className="flex items-center gap-2 opacity-75">
+                                    <img src={`https://ui-avatars.com/api/?name=${getOwner(kr.owner_id).name || 'U'}&background=random&size=16`} className="w-4 h-4 rounded-full" />
+                                    <span className="text-slate-500 truncate max-w-[80px]">{getOwner(kr.owner_id).name}</span>
+                                </div>
+                            </td>
+                            <td className="px-6 py-2"><StatusBadge status={kr.status} /></td>
+                            <td className="px-6 py-2 text-slate-400">
+                                {kr.last_checkin_date ? new Date(kr.last_checkin_date).toLocaleDateString('vi-VN') : '-'}
+                            </td>
+                            <td className="px-6 py-2 text-center text-slate-300">-</td>
+                            <td className="px-6 py-2 text-center"></td>
+                        </tr>
+                    ))}
+
+                    {/* Render Child Objectives */}
+                    {(item.children || []).map(child => (
+                        <ComplianceRow key={child.objective_id} item={child} level={level + 1} getOwner={getOwner} />
+                    ))}
+                </>
+            )}
+        </>
+    );
+};
+
 export default function ReportPage() {
     const [loading, setLoading] = useState(true);
     const [cycles, setCycles] = useState([]);
@@ -43,7 +163,7 @@ export default function ReportPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [savedReports, setSavedReports] = useState([]);
-    const [selectedSnapshot, setSelectedSnapshot] = useState(null); // If viewing a snapshot
+    const [selectedSnapshot, setSelectedSnapshot] = useState(null); 
 
     // UI State
     const [toast, setToast] = useState({ message: null, type: null });
@@ -52,9 +172,8 @@ export default function ReportPage() {
     const loadReportData = async (cycleId) => {
         setLoading(true);
         setError(null);
-        setSelectedSnapshot(null); // Reset snapshot view when cycle changes
+        setSelectedSnapshot(null); 
         try {
-            // Load main report
             const res = await fetch(`/api/reports/my-team?cycle_id=${cycleId}`, { headers: { Accept: "application/json" } });
             const json = await res.json();
             if (json.success) {
@@ -63,10 +182,7 @@ export default function ReportPage() {
             } else {
                 setError(json.message);
             }
-
-            // Load trend data
             await fetchTrendData(cycleId);
-
         } catch (e) {
             console.error("Error loading report:", e);
             setError("Lỗi kết nối server");
@@ -117,13 +233,11 @@ export default function ReportPage() {
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json',
-                    // Add CSRF token if needed, or rely on cookie
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
                 },
                 body: JSON.stringify({
                     report_type: 'team',
                     cycle_id: selectedCycle,
-                    // Optional: prompt user for name/notes
                 })
             });
             const json = await res.json();
@@ -160,7 +274,7 @@ export default function ReportPage() {
             const json = await res.json();
             if (json.success) {
                 setReportData(json.data.snapshot_data);
-                setSelectedSnapshot(json.data); // Store metadata
+                setSelectedSnapshot(json.data); 
                 setToast({ message: `Đang xem: ${json.data.report_name}`, type: 'info' });
             }
         } catch (e) {
@@ -208,20 +322,25 @@ export default function ReportPage() {
         const members = reportData.members || [];
         const okrs = reportData.team_okrs || [];
         
-        // Filter for Unit (Department) level OKRs first
-        const unitOkrs = okrs.filter(okr => (okr.level || '').toLowerCase() === 'unit');
+        const flattenOkrs = (items) => {
+            let result = [];
+            items.forEach(item => {
+                result.push(item);
+                if (item.children) result = result.concat(flattenOkrs(item.children));
+            });
+            return result;
+        };
+        const allOkrs = flattenOkrs(okrs);
+        const unitOkrs = allOkrs.filter(okr => (okr.level || '').toLowerCase() === 'unit');
         
-        // 1. Avg Dept Progress
         let totalProgress = 0;
         unitOkrs.forEach(okr => {
             totalProgress += Number(okr.progress || 0);
         });
         const avgProgress = unitOkrs.length > 0 ? (totalProgress / unitOkrs.length) : 0;
 
-        // 2. At Risk Rate
         let riskCount = 0;
         const riskStatuses = ['at_risk', 'behind', 'off_track', 'in_trouble'];
-        
         unitOkrs.forEach(okr => {
             if (riskStatuses.includes((okr.status || '').toLowerCase())) {
                 riskCount++;
@@ -229,7 +348,6 @@ export default function ReportPage() {
         });
         const atRiskRate = unitOkrs.length > 0 ? (riskCount / unitOkrs.length) * 100 : 0;
 
-        // 3. Avg Contribution / User
         const totalPersonalProgress = members.reduce((acc, m) => acc + (Number(m.average_completion) || 0), 0);
         const avgContribution = members.length > 0 ? (totalPersonalProgress / members.length) : 0;
 
@@ -239,7 +357,6 @@ export default function ReportPage() {
     const chartData = useMemo(() => {
         if (!reportData) return { bar: null, line: null };
 
-        // Bar Chart: Member Ranking
         const sortedMembers = [...(reportData.members || [])].sort((a, b) => (b.average_completion || 0) - (a.average_completion || 0));
         const barData = {
             labels: sortedMembers.map(m => m.full_name),
@@ -253,11 +370,6 @@ export default function ReportPage() {
             ]
         };
 
-        // Line Chart: Progress vs Ideal
-        // Note: When viewing a snapshot, trend data might not be available or might be static.
-        // For now, we keep using the 'trendData' state which is fetched separately.
-        // Ideally, snapshot should include trend data too.
-        
         let lineLabels = [];
         let actualData = [];
         let idealData = [];
@@ -323,11 +435,10 @@ export default function ReportPage() {
         return { bar: barData, line: lineData };
     }, [reportData, stats, trendData, cycles, selectedCycle]);
 
-    // --- TAB 2: COMPLIANCE LOGIC (ISOLATED) ---
+    // --- TAB 2: COMPLIANCE LOGIC ---
     const complianceCharts = useMemo(() => {
         if (!reportData) return { complianceBar: null, statusDoughnut: null };
 
-        // 1. Compliance Ranking (Bar)
         const sortedByCompliance = [...(reportData.members || [])].sort((a, b) => (b.checkin_compliance_score || 0) - (a.checkin_compliance_score || 0));
         const complianceBarData = {
             labels: sortedByCompliance.map(m => m.full_name),
@@ -337,16 +448,15 @@ export default function ReportPage() {
                     data: sortedByCompliance.map(m => m.checkin_compliance_score || 0),
                     backgroundColor: sortedByCompliance.map(m => {
                         const score = m.checkin_compliance_score || 0;
-                        if (score >= 80) return 'rgba(34, 197, 94, 0.7)'; // Green
-                        if (score >= 50) return 'rgba(234, 179, 8, 0.7)'; // Yellow
-                        return 'rgba(239, 68, 68, 0.7)'; // Red
+                        if (score >= 80) return 'rgba(34, 197, 94, 0.7)'; 
+                        if (score >= 50) return 'rgba(234, 179, 8, 0.7)'; 
+                        return 'rgba(239, 68, 68, 0.7)'; 
                     }),
                     borderRadius: 4,
                 }
             ]
         };
 
-        // 2. Status Distribution (Doughnut)
         const statusCounts = { completed: 0, on_track: 0, at_risk: 0, behind: 0 };
         
         const countStatus = (status) => {
@@ -358,10 +468,7 @@ export default function ReportPage() {
         };
 
         (reportData.team_okrs || []).forEach(parent => {
-            // Count Parent
             countStatus(parent.status);
-            
-            // Count Children
             if (parent.children && parent.children.length > 0) {
                 parent.children.forEach(child => countStatus(child.status));
             }
@@ -373,10 +480,10 @@ export default function ReportPage() {
                 {
                     data: [statusCounts.completed, statusCounts.on_track, statusCounts.at_risk, statusCounts.behind],
                     backgroundColor: [
-                        'rgba(34, 197, 94, 0.8)', // Green
-                        'rgba(59, 130, 246, 0.8)', // Blue
-                        'rgba(234, 179, 8, 0.8)', // Yellow
-                        'rgba(239, 68, 68, 0.8)', // Red
+                        'rgba(34, 197, 94, 0.8)',
+                        'rgba(59, 130, 246, 0.8)',
+                        'rgba(234, 179, 8, 0.8)',
+                        'rgba(239, 68, 68, 0.8)',
                     ],
                     borderWidth: 0,
                 }
@@ -393,19 +500,6 @@ export default function ReportPage() {
         return user ? { name: user.full_name, avatar: user.avatar } : { name: 'Unknown', avatar: null };
     };
 
-    const StatusBadge = ({ status }) => {
-        const config = {
-            completed: { color: "bg-green-100 text-green-700", text: "Hoàn thành" },
-            on_track: { color: "bg-green-100 text-green-700", text: "Đúng tiến độ" },
-            at_risk: { color: "bg-yellow-100 text-yellow-700", text: "Rủi ro" },
-            behind: { color: "bg-red-100 text-red-700", text: "Chậm trễ" },
-            pending: { color: "bg-gray-100 text-gray-600", text: "Chờ duyệt" }
-        };
-        const { color, text } = config[status] || config.pending;
-        return <span className={`px-2 py-1 rounded-full text-xs font-semibold ${color}`}>{text}</span>;
-    };
-
-    // --- RENDER ---
     return (
         <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-12">
             <div className="max-w-7xl mx-auto px-6 py-8">
@@ -435,36 +529,20 @@ export default function ReportPage() {
                                         placeholder="Chọn chu kỳ"
                                     />
                                 </div>
-                                <button
-                                    onClick={fetchSavedReports}
-                                    className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                                    title="Lịch sử báo cáo"
-                                >
+                                <button onClick={fetchSavedReports} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" title="Lịch sử báo cáo">
                                     <FiList className="w-5 h-5" />
                                 </button>
-                                <button
-                                    onClick={handleSaveSnapshot}
-                                    disabled={isSaving}
-                                    className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg shadow-sm transition-colors text-sm font-medium"
-                                >
+                                <button onClick={handleSaveSnapshot} disabled={isSaving} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg shadow-sm transition-colors text-sm font-medium">
                                     {isSaving ? <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-600"></span> : <FiSave className="w-4 h-4" />}
                                     <span>Lưu</span>
                                 </button>
                             </>
                         ) : (
-                            <button
-                                onClick={() => { setSelectedSnapshot(null); loadReportData(selectedCycle); }}
-                                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg shadow-sm transition-colors text-sm font-medium"
-                            >
+                            <button onClick={() => { setSelectedSnapshot(null); loadReportData(selectedCycle); }} className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg shadow-sm transition-colors text-sm font-medium">
                                 Quay lại Hiện tại
                             </button>
                         )}
-                        
-                        <button
-                            onClick={handleExportExcel}
-                            disabled={!reportData}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm transition-colors text-sm font-medium disabled:opacity-50"
-                        >
+                        <button onClick={handleExportExcel} disabled={!reportData} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm transition-colors text-sm font-medium disabled:opacity-50">
                             <FiDownload className="w-4 h-4" />
                             <span>Xuất Excel</span>
                         </button>
@@ -477,18 +555,8 @@ export default function ReportPage() {
                         {['Hiệu suất', 'Tuân thủ Quy trình', 'Chất lượng & Cấu trúc'].map((tab) => {
                             const key = tab === 'Hiệu suất' ? 'performance' : (tab === 'Tuân thủ Quy trình' ? 'compliance' : 'quality');
                             const isActive = activeTab === key;
-                            
                             return (
-                                <button
-                                    key={tab}
-                                    onClick={() => setActiveTab(key)}
-                                    className={`
-                                        whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
-                                        ${isActive
-                                            ? 'border-blue-600 text-blue-600'
-                                            : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}
-                                    `}
-                                >
+                                <button key={tab} onClick={() => setActiveTab(key)} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${isActive ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}>
                                     {tab}
                                 </button>
                             );
@@ -504,52 +572,36 @@ export default function ReportPage() {
                     </div>
                 ) : activeTab === 'performance' ? (
                     <div className="space-y-8">
-                        
                         {/* STAT CARDS */}
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                            {/* Card 1 */}
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
                                 <div className="flex justify-between items-start">
                                     <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider" title="Tiến độ Trung bình Phòng ban">Tiến độ Trung bình</h3>
-                                    <div className="p-2 bg-blue-50 rounded-lg text-blue-600 flex-shrink-0">
-                                        <FiActivity className="w-5 h-5" />
-                                    </div>
+                                    <div className="p-2 bg-blue-50 rounded-lg text-blue-600 flex-shrink-0"><FiActivity className="w-5 h-5" /></div>
                                 </div>
                                 <div className="text-3xl font-bold text-slate-900">{stats.avgProgress.toFixed(1)}%</div>
                             </div>
-
-                            {/* Card 2 */}
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
                                 <div className="flex justify-between items-start">
                                     <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider">Tỷ lệ Rủi ro</h3>
-                                    <div className="p-2 bg-yellow-50 rounded-lg text-yellow-600 flex-shrink-0">
-                                        <FiAlertTriangle className="w-5 h-5" />
-                                    </div>
+                                    <div className="p-2 bg-yellow-50 rounded-lg text-yellow-600 flex-shrink-0"><FiAlertTriangle className="w-5 h-5" /></div>
                                 </div>
                                 <div className="flex items-end gap-2">
                                     <span className="text-3xl font-bold text-slate-900">{stats.atRiskRate.toFixed(1)}%</span>
                                     <span className="text-sm text-slate-400 mb-1">trên tổng số OKR</span>
                                 </div>
                             </div>
-
-                            {/* Card 3 */}
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
                                 <div className="flex justify-between items-start">
                                     <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider" title="Đóng góp Trung bình mỗi Thành viên">Đóng góp/Thành viên</h3>
-                                    <div className="p-2 bg-green-50 rounded-lg text-green-600 flex-shrink-0">
-                                        <FiUsers className="w-5 h-5" />
-                                    </div>
+                                    <div className="p-2 bg-green-50 rounded-lg text-green-600 flex-shrink-0"><FiUsers className="w-5 h-5" /></div>
                                 </div>
                                 <div className="text-3xl font-bold text-slate-900">{stats.avgContribution.toFixed(1)}%</div>
                             </div>
-
-                            {/* Card 4: Dept -> Company Alignment */}
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
                                 <div className="flex justify-between items-start">
                                     <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider" title="Tỷ lệ Liên kết với Công ty">Liên kết Công ty</h3>
-                                    <div className="p-2 bg-purple-50 rounded-lg text-purple-600 flex-shrink-0">
-                                        <FiLink className="w-5 h-5" />
-                                    </div>
+                                    <div className="p-2 bg-purple-50 rounded-lg text-purple-600 flex-shrink-0"><FiLink className="w-5 h-5" /></div>
                                 </div>
                                 <div className="text-3xl font-bold text-slate-900">{reportData?.alignment_rate || 0}%</div>
                             </div>
@@ -557,71 +609,13 @@ export default function ReportPage() {
 
                         {/* CHARTS ROW */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                            {/* Bar Chart */}
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                                 <h3 className="text-lg font-bold text-slate-800 mb-6">Xếp hạng Tiến độ theo Thành viên</h3>
-                                <div className="h-64">
-                                    {chartData.bar && (
-                                        <Bar 
-                                            data={chartData.bar} 
-                                            options={{
-                                                responsive: true,
-                                                maintainAspectRatio: false,
-                                                plugins: { legend: { display: false } },
-                                                scales: { y: { beginAtZero: true, max: 100 } }
-                                            }} 
-                                        />
-                                    )}
-                                </div>
+                                <div className="h-64"><Bar data={chartData.bar} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, max: 100 } } }} /></div>
                             </div>
-
-                            {/* Line Chart */}
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                                 <h3 className="text-lg font-bold text-slate-800 mb-6">Tiến độ Phòng ban vs Kế hoạch</h3>
-                                <div className="h-64">
-                                    {chartData.line && (
-                                        <Line 
-                                            data={{
-                                                ...chartData.line,
-                                                datasets: chartData.line.datasets.map(ds => ({
-                                                    ...ds,
-                                                    label: ds.label === 'Kế hoạch (Ideal)' ? 'Kế hoạch (Lý tưởng)' : ds.label
-                                                }))
-                                            }}
-                                            options={{
-                                                responsive: true,
-                                                maintainAspectRatio: false,
-                                                plugins: { 
-                                                    legend: { position: 'bottom' },
-                                                    tooltip: {
-                                                        callbacks: {
-                                                            label: function(context) {
-                                                                let label = context.dataset.label || '';
-                                                                if (label) {
-                                                                    label += ': ';
-                                                                }
-                                                                if (context.parsed.y !== null) {
-                                                                    label += context.parsed.y + '%';
-                                                                }
-                                                                
-                                                                // Show OKR Count for "Thực tế" dataset
-                                                                // Only show count if NOT in snapshot view (since snapshot might not have trendData)
-                                                                if (!selectedSnapshot && context.datasetIndex === 0 && trendData && trendData[context.dataIndex]) {
-                                                                     const count = trendData[context.dataIndex].okr_count;
-                                                                     if (count !== undefined) {
-                                                                         return [label, `Số lượng OKR: ${count}`];
-                                                                     }
-                                                                }
-                                                                return label;
-                                                            }
-                                                        }
-                                                    }
-                                                },
-                                                scales: { y: { beginAtZero: true, max: 100 } }
-                                            }}
-                                        />
-                                    )}
-                                </div>
+                                <div className="h-64"><Line data={{ ...chartData.line, datasets: chartData.line.datasets.map(ds => ({ ...ds, label: ds.label === 'Kế hoạch (Ideal)' ? 'Kế hoạch (Lý tưởng)' : ds.label })) }} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: function(context) { let label = context.dataset.label || ''; if (label) label += ': '; if (context.parsed.y !== null) label += context.parsed.y + '%'; if (!selectedSnapshot && context.datasetIndex === 0 && trendData && trendData[context.dataIndex]) { const count = trendData[context.dataIndex].okr_count; if (count !== undefined) return [label, `Số lượng OKR: ${count}`]; } return label; } } } }, scales: { y: { beginAtZero: true, max: 100 } } }} /></div>
                             </div>
                         </div>
 
@@ -647,237 +641,87 @@ export default function ReportPage() {
                                             ?.filter(okr => (okr.level || '').toLowerCase() === 'unit')
                                             .map((okr, index) => {
                                                 const owner = getOwner(okr.user_id);
-                                                
                                                 return (
                                                     <tr key={index} className="hover:bg-slate-50 transition-colors text-sm">
                                                         <td className="px-6 py-4">
-                                                            <a href="#" className="font-medium text-blue-600 hover:underline line-clamp-2" title={okr.obj_title}>
-                                                                {okr.obj_title}
-                                                            </a>
+                                                            <a href="#" className="font-medium text-blue-600 hover:underline line-clamp-2" title={okr.obj_title}>{okr.obj_title}</a>
                                                         </td>
                                                         <td className="px-6 py-4">
                                                             <div className="flex items-center gap-2">
-                                                                <img 
-                                                                    src={owner.avatar || `https://ui-avatars.com/api/?name=${owner.name || 'U'}&background=random`} 
-                                                                    alt={owner.name} 
-                                                                    className="w-6 h-6 rounded-full"
-                                                                />
-                                                                <span className="text-slate-700 truncate max-w-[100px]" title={owner.name}>
-                                                                    {owner.name}
-                                                                </span>
+                                                                <img src={owner.avatar || `https://ui-avatars.com/api/?name=${owner.name || 'U'}&background=random`} alt={owner.name} className="w-6 h-6 rounded-full" />
+                                                                <span className="text-slate-700 truncate max-w-[100px]" title={owner.name}>{owner.name}</span>
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4">
-                                                            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase border bg-indigo-50 text-indigo-600 border-indigo-100">
-                                                                P.BAN
-                                                            </span>
+                                                            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase border bg-indigo-50 text-indigo-600 border-indigo-100">P.BAN</span>
                                                         </td>
                                                         <td className="px-6 py-4">
                                                             <div className="flex items-center gap-2">
                                                                 <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                                                                    <div 
-                                                                        className={`h-full rounded-full ${okr.progress >= 70 ? 'bg-green-500' : okr.progress >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`} 
-                                                                        style={{ width: `${okr.progress}%` }}
-                                                                    ></div>
+                                                                    <div className={`h-full rounded-full ${okr.progress >= 70 ? 'bg-green-500' : okr.progress >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${okr.progress}%` }}></div>
                                                                 </div>
                                                                 <span className="text-xs font-bold text-slate-700">{okr.progress}%</span>
                                                             </div>
                                                         </td>
-                                                        <td className="px-6 py-4">
-                                                            <StatusBadge status={okr.status} />
-                                                        </td>
+                                                        <td className="px-6 py-4"><StatusBadge status={okr.status} /></td>
                                                         <td className="px-6 py-4 text-slate-500 text-xs">
-                                                            {/* Placeholder for Linked To */}
-                                                            {okr.parent_objective_title ? (
-                                                                <span className="text-blue-600 cursor-pointer block truncate max-w-[150px]" title={okr.parent_objective_title}>
-                                                                    {okr.parent_objective_title}
-                                                                </span>
-                                                            ) : (
-                                                                <span className="text-slate-400">-</span>
-                                                            )}
+                                                            {okr.parent_objective_title ? <span className="text-blue-600 cursor-pointer block truncate max-w-[150px]" title={okr.parent_objective_title}>{okr.parent_objective_title}</span> : <span className="text-slate-400">-</span>}
                                                         </td>
                                                     </tr>
                                                 );
                                         })}
                                         {(!reportData?.team_okrs || reportData.team_okrs.filter(okr => (okr.level || '').toLowerCase() === 'unit').length === 0) && (
-                                            <tr>
-                                                <td colSpan="6" className="px-6 py-12 text-center text-slate-400">
-                                                    Không có dữ liệu OKR phòng ban nào trong chu kỳ này.
-                                                </td>
-                                            </tr>
+                                            <tr><td colSpan="6" className="px-6 py-12 text-center text-slate-400">Không có dữ liệu OKR phòng ban nào trong chu kỳ này.</td></tr>
                                         )}
                                     </tbody>
                                 </table>
                             </div>
                         </div>
-
                     </div>
                 ) : activeTab === 'compliance' ? (
                     // --- TAB 2: QUY TRÌNH & TUÂN THỦ ---
                     <div className="space-y-8">
-                        
-                                                                                                {/* COMPLIANCE STAT CARDS */}
-                        
-                                                                                                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        
-                                                                                                    {/* Card 1: Check-in Rate */}
-                        
-                                                                                                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
-                        
-                                                                                                        <div className="flex justify-between items-start">
-                        
-                                                                                                            <div>
-                        
-                                                                                                                <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider" title="Tỷ lệ Check-in Key Results (Tuần)">Check-in KR (Tuần)</h3>
-                        
-                                                                                                                <p className="text-[10px] text-slate-400 mt-0.5">(% KR đã cập nhật tuần này)</p>
-                        
-                                                                                                            </div>
-                        
-                                                                                                            <div className="p-2 bg-green-50 rounded-lg text-green-600 flex-shrink-0">
-                        
-                                                                                                                <FiCheckCircle className="w-5 h-5" />
-                        
-                                                                                                            </div>
-                        
-                                                                                                        </div>
-                        
-                                                                                                        <div className="text-3xl font-bold text-slate-900">{reportData?.checkin_compliance_rate || 0}%</div>
-                        
-                                                                                                    </div>
-                        
-                                                                        
-                        
-                                                                                                    {/* Card 2: Missed Check-ins */}
-                        
-                                                                                                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
-                        
-                                                                                                        <div className="flex justify-between items-start">
-                        
-                                                                                                            <div>
-                        
-                                                                                                                <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider" title="Số lượng Objective chưa được Check-in">Objective Chờ Cập nhật</h3>
-                        
-                                                                                                                <p className="text-[10px] text-slate-400 mt-0.5">(Chưa cập nhật tuần này)</p>
-                        
-                                                                                                            </div>
-                        
-                                                                                                            <div className="p-2 bg-red-50 rounded-lg text-red-600 flex-shrink-0">
-                        
-                                                                                                                <FiClock className="w-5 h-5" />
-                        
-                                                                                                            </div>
-                        
-                                                                                                        </div>
-                        
-                                                                                                        <div className="flex items-end gap-2">
-                        
-                                                                                                            <span className="text-3xl font-bold text-slate-900">{reportData?.missed_checkins_count || 0}</span>
-                        
-                                                                                                            <span className="text-sm text-slate-400 mb-1">mục tiêu</span>
-                        
-                                                                                                        </div>
-                        
-                                                                                                    </div>
-                        
-                                                                        
-                        
-                                                                                                    {/* Card 3: Alignment Rate */}
-                        
-                                                                                                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
-                        
-                                                                                                        <div className="flex justify-between items-start">
-                        
-                                                                                                            <div>
-                        
-                                                                                                                <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider" title="Tỷ lệ Liên kết Cá nhân với Phòng ban">Liên kết Nội bộ</h3>
-                        
-                                                                                                                <p className="text-[10px] text-slate-400 mt-0.5">(Độ phủ liên kết)</p>
-                        
-                                                                                                            </div>
-                        
-                                                                                                            <div className="p-2 bg-blue-50 rounded-lg text-blue-600 flex-shrink-0">
-                        
-                                                                                                                <FiLink className="w-5 h-5" />
-                        
-                                                                                                            </div>
-                        
-                                                                                                        </div>
-                        
-                                                                                                        <div className="text-3xl font-bold text-slate-900">{reportData?.internal_alignment_rate || 0}%</div>
-                        
-                                                                                                    </div>
-                        
-                                                                        
-                        
-                                                                                                    {/* Card 4: Unchecked Members */}
-                        
-                                                                                                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
-                        
-                                                                                                        <div className="flex justify-between items-start">
-                        
-                                                                                                            <div>
-                        
-                                                                                                                <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider" title="Số lượng Nhân sự chưa Check-in">Nhân sự Chưa Check-in</h3>
-                        
-                                                                                                                <p className="text-[10px] text-slate-400 mt-0.5">(Trong tuần này)</p>
-                        
-                                                                                                            </div>
-                        
-                                                                                                            <div className="p-2 bg-gray-100 rounded-lg text-gray-600 flex-shrink-0">
-                        
-                                                                                                                <FiUserX className="w-5 h-5" />
-                        
-                                                                                                            </div>
-                        
-                                                                                                        </div>
-                        
-                                                                                                        <div className="flex items-end gap-2">
-                        
-                                                                                                            <span className="text-3xl font-bold text-slate-900">{reportData?.members_without_checkin_count || 0}</span>
-                        
-                                                                                                            <span className="text-sm text-slate-400 mb-1">người</span>
-                        
-                                                                                                        </div>
-                        
-                                                                                                    </div>
-                        
-                                                                                                </div>
+                        {/* COMPLIANCE STAT CARDS */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
+                                <div className="flex justify-between items-start">
+                                    <div><h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider" title="Tỷ lệ Check-in Key Results (Tuần)">Check-in KR (Tuần)</h3><p className="text-[10px] text-slate-400 mt-0.5">(% KR đã cập nhật tuần này)</p></div>
+                                    <div className="p-2 bg-green-50 rounded-lg text-green-600 flex-shrink-0"><FiCheckCircle className="w-5 h-5" /></div>
+                                </div>
+                                <div className="text-3xl font-bold text-slate-900">{reportData?.checkin_compliance_rate || 0}%</div>
+                            </div>
+                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
+                                <div className="flex justify-between items-start">
+                                    <div><h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider" title="Số lượng Objective chưa được Check-in">Objective Chờ Cập nhật</h3><p className="text-[10px] text-slate-400 mt-0.5">(Chưa cập nhật tuần này)</p></div>
+                                    <div className="p-2 bg-red-50 rounded-lg text-red-600 flex-shrink-0"><FiClock className="w-5 h-5" /></div>
+                                </div>
+                                <div className="flex items-end gap-2"><span className="text-3xl font-bold text-slate-900">{reportData?.missed_checkins_count || 0}</span><span className="text-sm text-slate-400 mb-1">mục tiêu</span></div>
+                            </div>
+                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
+                                <div className="flex justify-between items-start">
+                                    <div><h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider" title="Tỷ lệ Liên kết Cá nhân với Phòng ban">Liên kết Nội bộ</h3><p className="text-[10px] text-slate-400 mt-0.5">(Độ phủ liên kết)</p></div>
+                                    <div className="p-2 bg-blue-50 rounded-lg text-blue-600 flex-shrink-0"><FiLink className="w-5 h-5" /></div>
+                                </div>
+                                <div className="text-3xl font-bold text-slate-900">{reportData?.internal_alignment_rate || 0}%</div>
+                            </div>
+                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
+                                <div className="flex justify-between items-start">
+                                    <div><h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider" title="Số lượng Nhân sự chưa Check-in">Nhân sự Chưa Check-in</h3><p className="text-[10px] text-slate-400 mt-0.5">(Trong tuần này)</p></div>
+                                    <div className="p-2 bg-gray-100 rounded-lg text-gray-600 flex-shrink-0"><FiUserX className="w-5 h-5" /></div>
+                                </div>
+                                <div className="flex items-end gap-2"><span className="text-3xl font-bold text-slate-900">{reportData?.members_without_checkin_count || 0}</span><span className="text-sm text-slate-400 mb-1">người</span></div>
+                            </div>
+                        </div>
+
                         {/* CHARTS ROW */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                            {/* Bar Chart: Compliance Ranking */}
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                                 <h3 className="text-lg font-bold text-slate-800 mb-6">Mức độ Cập nhật KR Tuần này</h3>
-                                <div className="h-64">
-                                    {complianceCharts.complianceBar && (
-                                        <Bar 
-                                            data={complianceCharts.complianceBar} 
-                                            options={{
-                                                responsive: true,
-                                                maintainAspectRatio: false,
-                                                plugins: { legend: { display: false } },
-                                                scales: { y: { beginAtZero: true, max: 100 } }
-                                            }} 
-                                        />
-                                    )}
-                                </div>
+                                <div className="h-64"><Bar data={complianceCharts.complianceBar} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, max: 100 } } }} /></div>
                             </div>
-
-                            {/* Doughnut Chart: OKR Health */}
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                                 <h3 className="text-lg font-bold text-slate-800 mb-6">Phân bổ Trạng thái Sức khỏe OKR</h3>
-                                <div className="h-64 flex justify-center">
-                                    {complianceCharts.statusDoughnut && (
-                                        <Doughnut 
-                                            data={complianceCharts.statusDoughnut} 
-                                            options={{
-                                                responsive: true,
-                                                maintainAspectRatio: false,
-                                                plugins: { legend: { position: 'right' } }
-                                            }} 
-                                        />
-                                    )}
-                                </div>
+                                <div className="h-64 flex justify-center"><Doughnut data={complianceCharts.statusDoughnut} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }} /></div>
                             </div>
                         </div>
 
@@ -894,121 +738,21 @@ export default function ReportPage() {
                                             <th className="px-6 py-4">Người sở hữu</th>
                                             <th className="px-6 py-4">Tình trạng</th>
                                             <th className="px-6 py-4">Check-in gần nhất</th>
-                                            <th className="px-6 py-4 text-center">Quá hạn (Ngày)</th>
                                             <th className="px-6 py-4 text-center">Tỷ lệ Check-in</th>
                                             <th className="px-6 py-4 text-center">Hành động</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {(reportData?.team_okrs || []).map((parent, index) => (
-                                            <React.Fragment key={parent.objective_id}>
-                                                {/* Parent Row */}
-                                                <tr className="hover:bg-slate-50 transition-colors text-sm bg-white">
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex items-start gap-2">
-                                                            {(parent.level || '').toLowerCase() === 'unit' && <span className="mt-1 w-2 h-2 rounded-full bg-indigo-500 flex-shrink-0"></span>}
-                                                            <div>
-                                                                <a href="#" className="font-bold text-slate-900 hover:text-blue-600 hover:underline line-clamp-2" title={parent.obj_title}>
-                                                                    {parent.obj_title}
-                                                                </a>
-                                                                <span className="text-[10px] text-slate-400 block uppercase font-semibold tracking-wide mt-0.5">{parent.level}</span>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex items-center gap-2">
-                                                            <img 
-                                                                src={getOwner(parent.user_id).avatar || `https://ui-avatars.com/api/?name=${getOwner(parent.user_id).name || 'U'}&background=random`} 
-                                                                alt={getOwner(parent.user_id).name} 
-                                                                className="w-6 h-6 rounded-full"
-                                                            />
-                                                            <span className="text-slate-700 truncate max-w-[100px]" title={getOwner(parent.user_id).name}>
-                                                                {getOwner(parent.user_id).name}
-                                                            </span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4"><StatusBadge status={parent.status} /></td>
-                                                    <td className="px-6 py-4 text-slate-600">
-                                                        {parent.last_checkin_date ? new Date(parent.last_checkin_date).toLocaleDateString('vi-VN') : 'Chưa check-in'}
-                                                    </td>
-                                                    <td className={`px-6 py-4 text-center font-bold ${(parent.days_overdue > 7 && parent.status !== 'completed') ? 'text-red-600' : 'text-slate-600'}`}>
-                                                        {parent.days_overdue > 0 ? parent.days_overdue : '-'}
-                                                    </td>
-                                                    <td className="px-6 py-4 text-center">
-                                                        <div className="flex items-center justify-center gap-2">
-                                                            <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                                <div className={`h-full rounded-full ${parent.personal_checkin_rate >= 80 ? 'bg-green-500' : parent.personal_checkin_rate >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${parent.personal_checkin_rate || 0}%` }}></div>
-                                                            </div>
-                                                            <span className="text-xs text-slate-600">{parent.personal_checkin_rate || 0}%</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-center">
-                                                        <span className="text-[10px] text-slate-400 font-medium px-2 py-1 bg-slate-100 rounded">Quản lý</span>
-                                                    </td>
-                                                </tr>
-
-                                                {/* Children Rows */}
-                                                {(parent.children || []).map(child => (
-                                                    <tr key={child.objective_id} className="hover:bg-slate-50 transition-colors text-sm bg-slate-50/50">
-                                                        <td className="px-6 py-3 pl-12 relative">
-                                                            {/* Tree Connector Graphic */}
-                                                            <div className="absolute left-6 top-0 bottom-1/2 w-4 border-l-2 border-b-2 border-slate-200 rounded-bl-lg"></div>
-                                                            
-                                                            <div className="flex items-start gap-2 relative z-10">
-                                                                <div>
-                                                                    <a href="#" className="font-medium text-slate-700 hover:text-blue-600 hover:underline line-clamp-2" title={child.obj_title}>
-                                                                        {child.obj_title}
-                                                                    </a>
-                                                                    <span className="text-[10px] text-slate-400 block uppercase mt-0.5">{child.level} (Liên kết)</span>
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-6 py-3">
-                                                            <div className="flex items-center gap-2">
-                                                                <img 
-                                                                    src={getOwner(child.user_id).avatar || `https://ui-avatars.com/api/?name=${getOwner(child.user_id).name || 'U'}&background=random`} 
-                                                                    alt={getOwner(child.user_id).name} 
-                                                                    className="w-5 h-5 rounded-full"
-                                                                />
-                                                                <span className="text-slate-600 truncate max-w-[100px] text-xs" title={getOwner(child.user_id).name}>
-                                                                    {getOwner(child.user_id).name}
-                                                                </span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-6 py-3"><StatusBadge status={child.status} /></td>
-                                                        <td className="px-6 py-3 text-slate-500 text-xs">
-                                                            {child.last_checkin_date ? new Date(child.last_checkin_date).toLocaleDateString('vi-VN') : 'Chưa check-in'}
-                                                        </td>
-                                                        <td className={`px-6 py-3 text-center text-xs font-bold ${(child.days_overdue > 7 && child.status !== 'completed') ? 'text-red-500' : 'text-slate-500'}`}>
-                                                            {child.days_overdue > 0 ? child.days_overdue : '-'}
-                                                        </td>
-                                                        <td className="px-6 py-3 text-center">
-                                                            <div className="flex items-center justify-center gap-2">
-                                                                <div className="w-12 h-1 bg-slate-200 rounded-full overflow-hidden">
-                                                                    <div className={`h-full rounded-full ${child.personal_checkin_rate >= 80 ? 'bg-green-500' : child.personal_checkin_rate >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${child.personal_checkin_rate || 0}%` }}></div>
-                                                                </div>
-                                                                <span className="text-[10px] text-slate-500">{child.personal_checkin_rate || 0}%</span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-6 py-3 text-center">
-                                                            <button className="text-[10px] px-2 py-0.5 border border-slate-300 text-slate-500 rounded hover:bg-slate-100" onClick={() => alert(`Nhắc nhở ${getOwner(child.user_id).name}`)}>Nhắc</button>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </React.Fragment>
+                                        {(reportData?.team_okrs || []).map((parent) => (
+                                            <ComplianceRow key={parent.objective_id} item={parent} level={0} getOwner={getOwner} />
                                         ))}
                                         {(!reportData?.team_okrs || reportData.team_okrs.length === 0) && (
-                                            <tr>
-                                                <td colSpan="7" className="px-6 py-12 text-center text-slate-400">
-                                                    Chưa có dữ liệu.
-                                                </td>
-                                            </tr>
+                                            <tr><td colSpan="7" className="px-6 py-12 text-center text-slate-400">Chưa có dữ liệu.</td></tr>
                                         )}
                                     </tbody>
                                 </table>
                             </div>
                         </div>
-
                     </div>
                 ) : (
                     <div className="h-96 flex items-center justify-center bg-white rounded-xl border border-slate-200 border-dashed">
@@ -1018,80 +762,7 @@ export default function ReportPage() {
                         </div>
                     </div>
                 )}
-                
-                {/* REPORTS HISTORY MODAL */}
-                {showHistoryModal && (
-                    <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-                        <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onClick={() => setShowHistoryModal(false)}></div>
-                            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-                            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
-                                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                                    <div className="flex justify-between items-center mb-4">
-                                        <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">
-                                            Danh sách báo cáo đã lưu
-                                        </h3>
-                                        <button onClick={() => setShowHistoryModal(false)} className="text-gray-400 hover:text-gray-500">✕</button>
-                                    </div>
-                                    <div className="mt-2 overflow-x-auto max-h-96">
-                                        <table className="min-w-full divide-y divide-gray-200">
-                                            <thead className="bg-gray-50">
-                                                <tr>
-                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên báo cáo</th>
-                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Người tạo</th>
-                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày tạo</th>
-                                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="bg-white divide-y divide-gray-200">
-                                                {savedReports.map((report) => (
-                                                    <tr key={report.report_id} className="hover:bg-gray-50">
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                                            {report.report_name}
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                            {report.creator?.full_name}
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                            {report.created_at_formatted}
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                            <button 
-                                                                onClick={() => loadSnapshot(report.report_id)}
-                                                                className="text-blue-600 hover:text-blue-900 mr-4"
-                                                            >
-                                                                Xem
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => deleteReport(report.report_id)}
-                                                                className="text-red-600 hover:text-red-900"
-                                                            >
-                                                                <FiTrash2 />
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                                {savedReports.length === 0 && (
-                                                    <tr>
-                                                        <td colSpan="4" className="px-6 py-4 text-center text-sm text-gray-500">
-                                                            Chưa có báo cáo nào được lưu.
-                                                        </td>
-                                                    </tr>
-                                                )}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Toast Notification */}
-                <ToastNotification 
-                    toast={toast}
-                    onClose={() => setToast({ message: null, type: null })}
-                />
+                <ToastNotification toast={toast} onClose={() => setToast({ message: null, type: null })} />
             </div>
         </div>
     );
