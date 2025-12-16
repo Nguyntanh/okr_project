@@ -174,7 +174,7 @@ export default function ProcessTab({ data }) {
             {
                 title: 'Xếp hạng Tuân thủ Check-in theo Phòng ban',
                 component: (charts.checkin_compliance_by_dept?.length > 0) ? (
-                    <div className="absolute inset-0 overflow-y-auto pr-2">
+                    <div className="absolute inset-0 overflow-y-auto pr-2 flex flex-col justify-end">
                         <div style={{ height: `${barCanvasHeight}px` }}>
                             <Bar data={complianceByDeptData} options={complianceByDeptOptions} />
                         </div>
