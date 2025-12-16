@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { Select } from "../components/ui";
 import ToastNotification from "../components/ToastNotification";
 import { exportTeamReportToExcel } from "../utils/reports/exportHelpers";
-import { FiDownload, FiAlertTriangle, FiEye, FiTrendingUp, FiUsers, FiActivity, FiCheckCircle, FiClock, FiLink, FiUserX, FiSave, FiList, FiTrash2, FiChevronDown, FiChevronRight, FiTarget } from "react-icons/fi";
+import { FiDownload, FiAlertTriangle, FiEye, FiTrendingUp, FiUsers, FiActivity, FiCheckCircle, FiClock, FiLink, FiUserX, FiSave, FiList, FiTrash2, FiChevronDown, FiChevronRight, FiTarget, FiBell } from "react-icons/fi";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -42,13 +42,61 @@ const StatusBadge = ({ status }) => {
     return <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${color} border border-transparent`}>{text}</span>;
 };
 
+const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, isLoading }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 z-[100] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+            <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onClick={!isLoading ? onClose : undefined}></div>
+                
+                {/* Spacer element to center the modal vertically */}
+                <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+                <div className="relative inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                    <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                        <div className="sm:flex sm:items-start">
+                            <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 sm:mx-0 sm:h-10 sm:w-10">
+                                <FiBell className="h-6 w-6 text-indigo-600" />
+                            </div>
+                            <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                                <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">{title}</h3>
+                                <div className="mt-2">
+                                    <p className="text-sm text-gray-500">{message}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                        <button 
+                            type="button" 
+                            disabled={isLoading}
+                            className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
+                            onClick={onConfirm}
+                        >
+                            {isLoading ? 'Đang gửi...' : 'Gửi nhắc nhở'}
+                        </button>
+                        <button 
+                            type="button" 
+                            disabled={isLoading}
+                            className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                            onClick={onClose}
+                        >
+                            Hủy bỏ
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // Row Component for Expandable Tree View
-const ComplianceRow = ({ item, level = 0, getOwner }) => {
-    const [expanded, setExpanded] = useState(true); // Default expanded for visibility
+const ComplianceRow = ({ item, level = 0, getOwner, onRemind }) => {
+    const [expanded, setExpanded] = useState(true); 
     const hasChildren = (item.children && item.children.length > 0) || (item.key_results && item.key_results.length > 0);
     const isUnit = (item.level || '').toLowerCase() === 'unit';
     
-    const paddingLeft = level * 20 + 24; // Indentation
+    const paddingLeft = level * 20 + 24; 
 
     return (
         <>
@@ -90,6 +138,14 @@ const ComplianceRow = ({ item, level = 0, getOwner }) => {
                     </div>
                 </td>
                 <td className="px-6 py-3"><StatusBadge status={item.status} /></td>
+                <td className="px-6 py-3">
+                    <div className="flex items-center gap-2">
+                        <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${item.progress >= 70 ? 'bg-green-500' : item.progress >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${item.progress}%` }}></div>
+                        </div>
+                        <span className="text-xs font-bold text-slate-700">{item.progress}%</span>
+                    </div>
+                </td>
                 <td className="px-6 py-3 text-slate-500 text-xs">
                     {item.last_checkin_date ? new Date(item.last_checkin_date).toLocaleDateString('vi-VN') : 'Chưa check-in'}
                 </td>
@@ -103,8 +159,13 @@ const ComplianceRow = ({ item, level = 0, getOwner }) => {
                 </td>
                 <td className="px-6 py-3 text-center">
                     {!isUnit ? (
-                        <button className="text-[10px] px-2 py-1 bg-white border border-slate-200 text-slate-600 rounded hover:bg-slate-50 transition-colors" onClick={() => alert(`Nhắc nhở ${getOwner(item.user_id).name}`)}>
-                            Nhắc
+                        <button 
+                            className="text-[10px] px-2 py-1 bg-white border border-indigo-200 text-indigo-600 rounded hover:bg-indigo-50 transition-colors flex items-center gap-1 mx-auto" 
+                            onClick={() => onRemind(item.user_id, getOwner(item.user_id).name)}
+                            title="Gửi thông báo nhắc nhở"
+                        >
+                            <FiBell className="w-3 h-3" />
+                            <span>Nhắc</span>
                         </button>
                     ) : (
                         <span className="text-[10px] text-slate-300 italic">Quản lý</span>
@@ -131,6 +192,14 @@ const ComplianceRow = ({ item, level = 0, getOwner }) => {
                                 </div>
                             </td>
                             <td className="px-6 py-2"><StatusBadge status={kr.status} /></td>
+                            <td className="px-6 py-2">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                        <div className={`h-full rounded-full ${kr.progress >= 70 ? 'bg-green-500' : kr.progress >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${kr.progress}%` }}></div>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-slate-500">{kr.progress}%</span>
+                                </div>
+                            </td>
                             <td className="px-6 py-2 text-slate-400">
                                 {kr.last_checkin_date ? new Date(kr.last_checkin_date).toLocaleDateString('vi-VN') : '-'}
                             </td>
@@ -141,7 +210,7 @@ const ComplianceRow = ({ item, level = 0, getOwner }) => {
 
                     {/* Render Child Objectives */}
                     {(item.children || []).map(child => (
-                        <ComplianceRow key={child.objective_id} item={child} level={level + 1} getOwner={getOwner} />
+                        <ComplianceRow key={child.objective_id} item={child} level={level + 1} getOwner={getOwner} onRemind={onRemind} />
                     ))}
                 </>
             )}
@@ -164,6 +233,11 @@ export default function ReportPage() {
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [savedReports, setSavedReports] = useState([]);
     const [selectedSnapshot, setSelectedSnapshot] = useState(null); 
+    
+    // Remind Modal States
+    const [remindModalOpen, setRemindModalOpen] = useState(false);
+    const [userToRemind, setUserToRemind] = useState({ id: null, name: '' });
+    const [isReminding, setIsReminding] = useState(false);
 
     // UI State
     const [toast, setToast] = useState({ message: null, type: null });
@@ -313,6 +387,38 @@ export default function ReportPage() {
             (msg) => setToast({ message: msg, type: 'success' }),
             (msg) => setToast({ message: msg, type: 'error' })
         );
+    };
+
+    const openRemindModal = (userId, userName) => {
+        setUserToRemind({ id: userId, name: userName });
+        setRemindModalOpen(true);
+    };
+
+    const confirmRemind = async () => {
+        if (!userToRemind.id) return;
+        setIsReminding(true);
+        try {
+            const res = await fetch('/api/reports/remind', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                },
+                body: JSON.stringify({ member_id: userToRemind.id, cycle_id: selectedCycle })
+            });
+            const json = await res.json();
+            if (json.success) {
+                setToast({ message: `Đã gửi nhắc nhở đến ${userToRemind.name}`, type: 'success' });
+            } else {
+                setToast({ message: json.message || "Lỗi khi gửi nhắc nhở", type: 'error' });
+            }
+        } catch (e) {
+            setToast({ message: "Lỗi kết nối server", type: 'error' });
+        } finally {
+            setIsReminding(false);
+            setRemindModalOpen(false);
+        }
     };
 
     // --- TAB 1: PERFORMANCE LOGIC ---
@@ -737,6 +843,7 @@ export default function ReportPage() {
                                             <th className="px-6 py-4 pl-6">Tên Mục tiêu</th>
                                             <th className="px-6 py-4">Người sở hữu</th>
                                             <th className="px-6 py-4">Tình trạng</th>
+                                            <th className="px-6 py-4 w-32">Tiến độ</th>
                                             <th className="px-6 py-4">Check-in gần nhất</th>
                                             <th className="px-6 py-4 text-center">Tỷ lệ Check-in</th>
                                             <th className="px-6 py-4 text-center">Hành động</th>
@@ -744,10 +851,10 @@ export default function ReportPage() {
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
                                         {(reportData?.team_okrs || []).map((parent) => (
-                                            <ComplianceRow key={parent.objective_id} item={parent} level={0} getOwner={getOwner} />
+                                            <ComplianceRow key={parent.objective_id} item={parent} level={0} getOwner={getOwner} onRemind={openRemindModal} />
                                         ))}
                                         {(!reportData?.team_okrs || reportData.team_okrs.length === 0) && (
-                                            <tr><td colSpan="7" className="px-6 py-12 text-center text-slate-400">Chưa có dữ liệu.</td></tr>
+                                            <tr><td colSpan="8" className="px-6 py-12 text-center text-slate-400">Chưa có dữ liệu.</td></tr>
                                         )}
                                     </tbody>
                                 </table>
@@ -763,6 +870,7 @@ export default function ReportPage() {
                     </div>
                 )}
                 <ToastNotification toast={toast} onClose={() => setToast({ message: null, type: null })} />
+                <ConfirmModal isOpen={remindModalOpen} onClose={() => setRemindModalOpen(false)} onConfirm={confirmRemind} title="Xác nhận nhắc nhở" message={`Bạn có chắc chắn muốn gửi thông báo nhắc nhở check-in đến ${userToRemind.name} không?`} isLoading={isReminding} />
             </div>
         </div>
     );
