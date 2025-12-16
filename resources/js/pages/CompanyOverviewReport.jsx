@@ -207,7 +207,7 @@ export default function CompanyOverviewReport() {
     ];
 
     return (
-        <div className="px-6 py-8 min-h-screen bg-gray-50">
+        <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8 py-8 min-h-screen">
             {/* Header */}
             <div className="mb-6">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">

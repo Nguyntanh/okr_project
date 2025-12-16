@@ -980,7 +980,7 @@ export default function DashboardLayout({ children, user }) {
             <div
                 className={`${
                     sidebarOpen ? "ml-67" : "ml-20"
-                } transition-all duration-300`}
+                } transition-all duration-300 overflow-x-auto`}
             >
                 {children}
             </div>

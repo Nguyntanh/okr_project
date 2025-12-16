@@ -58,7 +58,7 @@ const ProcessTable = ({ tableData }) => {
     return (
         <div className="bg-white rounded-lg shadow-sm overflow-x-auto mt-6">
             <h3 className="font-bold text-lg mb-2 p-4">Chi tiết Tuân thủ Quy trình (Sắp xếp theo mức độ bị lãng quên)</h3>
-            <table className="min-w-full divide-y divide-gray-200">
+            <table className="divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                     <tr>
                         {columns.map(col => (
