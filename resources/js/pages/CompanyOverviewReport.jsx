@@ -98,7 +98,8 @@ export default function CompanyOverviewReport() {
     const loadSnapshots = async (cycleId) => {
         if (!cycleId) return;
         try {
-            const result = await loadSnapshotsUtil(cycleId);
+            // Always fetch 'company' type snapshots for this report page
+            const result = await loadSnapshotsUtil(cycleId, 'company');
             setSnapshots(result.snapshots || []);
         } catch (error) {
             showNotification('error', 'Không thể tải lịch sử snapshot.');

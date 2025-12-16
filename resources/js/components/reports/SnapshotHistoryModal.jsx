@@ -29,17 +29,12 @@ export default function SnapshotHistoryModal({
     const [snapshotLevelDropdownOpen, setSnapshotLevelDropdownOpen] = useState(false);
     const [creatorTooltip, setCreatorTooltip] = useState(null);
 
-    // Lọc snapshot theo cấp độ và chu kỳ
+    // Lọc snapshot theo cấp độ
     const filteredSnapshots = (snapshots || []).filter((snap) => {
         // Filter by level
         if (showLevelFilter && snapshotLevelFilter && snapshotLevelFilter !== 'all') {
             const snapLevel = snap.data_snapshot?.level || 'departments';
             if (snapLevel !== snapshotLevelFilter) return false;
-        }
-
-        // Filter by cycle
-        if (modalCycleFilter && snap.cycle_id !== parseInt(modalCycleFilter)) {
-            return false;
         }
 
         return true;

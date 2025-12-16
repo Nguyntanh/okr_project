@@ -1,16 +1,17 @@
 /**
  * Load snapshots from API
  */
-export async function loadSnapshots(cycleId, page = 1, filters = {}) {
+export async function loadSnapshots(cycleId, reportType = null, page = 1, filters = {}) {
     try {
         const params = new URLSearchParams();
         if (cycleId) params.set('cycle_id', cycleId);
+        if (reportType) params.set('report_type', reportType);
         params.set('page', page);
         
         if (filters.level) params.set('level', filters.level);
         if (filters.department_name) params.set('department_name', filters.department_name);
 
-        const url = `/api/reports/snapshots?${params.toString()}`;
+        const url = `/api/reports/snapshots/list?${params.toString()}`;
         console.log('Fetching snapshots from:', url);
         
         const response = await fetch(url, {
@@ -22,11 +23,11 @@ export async function loadSnapshots(cycleId, page = 1, filters = {}) {
         console.log('Response data:', data);
         
         if (data.success) {
-            console.log('Snapshots count:', data.data.data?.length || 0);
+            console.log('Snapshots count:', data.data?.length || 0);
             return {
-                snapshots: data.data.data || [],
+                snapshots: data.data || [],
                 pagination: {
-                    current_page: data.data.current_page || 1,
+                    current_page: data.data.current_page || 1, // Assuming pagination data might still be present if data is a paginator object
                     last_page: data.data.last_page || 1,
                     total: data.data.total || 0,
                 }

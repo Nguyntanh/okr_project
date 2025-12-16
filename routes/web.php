@@ -323,6 +323,18 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::delete('/{notificationId}', [\App\Http\Controllers\NotificationController::class, 'destroy'])->name('api.notifications.destroy');
     });
 
+    // Report Snapshots API - Tạo và quản lý snapshot báo cáo
+    Route::prefix('api/reports/snapshots')->middleware('auth')->group(function () {
+        Route::post('/create', [\App\Http\Controllers\ReportController::class, 'createSnapshot'])
+            ->name('api.reports.snapshots.create');
+        Route::get('/list', [\App\Http\Controllers\ReportController::class, 'getReportsList'])
+            ->name('api.reports.snapshots.list');
+        Route::get('/{reportId}', [\App\Http\Controllers\ReportController::class, 'getReportSnapshot'])
+            ->name('api.reports.snapshots.show');
+        Route::delete('/{reportId}', [\App\Http\Controllers\ReportController::class, 'deleteReport'])
+            ->name('api.reports.snapshots.delete');
+    });
+
     // Reports API (Admin hoặc CEO)
     Route::prefix('api/reports')->middleware(['auth'])->group(function () {
         Route::get('/company-overview', [\App\Http\Controllers\ReportController::class, 'companyOverview'])
@@ -337,18 +349,6 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
             ->name('api.reports.snapshots.index');
         Route::get('/snapshots/{id}', [\App\Http\Controllers\ReportSnapshotController::class, 'show'])
             ->name('api.reports.snapshots.show');
-    });
-
-    // Report Snapshots API - Tạo và quản lý snapshot báo cáo
-    Route::prefix('api/reports/snapshots')->middleware('auth')->group(function () {
-        Route::post('/create', [\App\Http\Controllers\ReportController::class, 'createSnapshot'])
-            ->name('api.reports.snapshots.create');
-        Route::get('/list', [\App\Http\Controllers\ReportController::class, 'getReportsList'])
-            ->name('api.reports.snapshots.list');
-        Route::get('/{reportId}', [\App\Http\Controllers\ReportController::class, 'getReportSnapshot'])
-            ->name('api.reports.snapshots.show');
-        Route::delete('/{reportId}', [\App\Http\Controllers\ReportController::class, 'deleteReport'])
-            ->name('api.reports.snapshots.delete');
     });
 
     // Frontend page route for Reports (SPA) - Admin hoặc CEO
