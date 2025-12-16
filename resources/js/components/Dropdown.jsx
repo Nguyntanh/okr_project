@@ -190,12 +190,24 @@ export function CycleDropdown({
     cyclesList = [],
     cycleFilter,
     handleCycleChange,
-    dropdownOpen,
-    setDropdownOpen,
 }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef(null);
+
     // Đảm bảo cyclesList luôn là array
     const safeCyclesList = Array.isArray(cyclesList) ? cyclesList : [];
     const selectedCycle = safeCyclesList.find(c => String(c.cycle_id) === String(cycleFilter));
+
+    // Click outside handler
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [dropdownRef]);
 
     const formatDate = (dateString) => {
         if (!dateString) return '';
@@ -206,9 +218,9 @@ export function CycleDropdown({
     };
     
     return (
-        <div className="relative w-52">
+        <div className="relative w-52" ref={dropdownRef}>
             <button
-            onClick={() => setDropdownOpen((prev) => !prev)}
+            onClick={() => setIsOpen((prev) => !prev)}
             className={`flex w-full h-10 items-center justify-between rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-gray-50 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-150 `}
             >
             <div className="flex items-center flex-1 truncate">
@@ -224,7 +236,7 @@ export function CycleDropdown({
 
             <svg
                 className={`w-4 h-4 text-gray-500 transition-transform flex-shrink-0 ${
-                dropdownOpen ? "rotate-180" : ""
+                isOpen ? "rotate-180" : ""
                 }`}
                 fill="none"
                 stroke="currentColor"
@@ -234,7 +246,7 @@ export function CycleDropdown({
             </svg>
             </button>
 
-            {dropdownOpen && (
+            {isOpen && (
                 <div className="absolute top-full left-0 mt-1 w-full bg-white rounded-lg shadow-lg border border-slate-200 z-50 max-h-96 overflow-y-auto">
                     {safeCyclesList.map((cycle) => {
                         const match =
@@ -269,7 +281,7 @@ export function CycleDropdown({
                                     }
                                     onChange={(e) => {
                                         handleCycleChange(e.target.value);
-                                        setDropdownOpen(false);
+                                        setIsOpen(false);
                                     }}
                                     className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                                 />
@@ -300,12 +312,24 @@ export default Dropdown;
 export function ViewModeDropdown({
     viewMode,
     setViewMode,
-    dropdownOpen,
-    setDropdownOpen,
     currentUser,
     userDepartmentName,
     setDepartmentFilter,
 }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef(null);
+
+    // Click outside handler
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [dropdownRef]);
+
     const role = currentUser?.role?.role_name?.toLowerCase();
 
     const getLevelsLabel = () => {
@@ -332,13 +356,13 @@ export function ViewModeDropdown({
             // Khi chọn "personal", xóa department filter
             setDepartmentFilter?.(null);
         }
-        setDropdownOpen(false);
+        setIsOpen(false);
     };
 
     return (
-        <div className="relative w-52">
+        <div className="relative w-52" ref={dropdownRef}>
             <button
-                onClick={() => setDropdownOpen((prev) => !prev)}
+                onClick={() => setIsOpen((prev) => !prev)}
                 className="flex w-full h-10 items-center justify-between rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-gray-50 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-150"
             >
                 <span className="truncate">
@@ -346,7 +370,7 @@ export function ViewModeDropdown({
                 </span>
                 <svg
                     className={`w-4 h-4 text-gray-500 transition-transform flex-shrink-0 ${
-                        dropdownOpen ? "rotate-180" : ""
+                        isOpen ? "rotate-180" : ""
                     }`}
                     fill="none"
                     stroke="currentColor"
@@ -361,7 +385,7 @@ export function ViewModeDropdown({
                 </svg>
             </button>
 
-            {dropdownOpen && (
+            {isOpen && (
                 <div className="absolute top-full left-0 mt-1 w-full bg-white rounded-lg shadow-lg border border-slate-200 z-50 max-h-96 overflow-y-auto">
                     {Object.entries(options).map(([key, label]) => (
                         <label

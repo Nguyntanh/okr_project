@@ -306,23 +306,31 @@ class ReportController extends Controller
             return response()->json(['success' => false, 'message' => 'Không tìm thấy chu kỳ phù hợp.'], 404);
         }
 
+        // --- Filters ---
+        $departmentId = $request->integer('department_id');
+        $level = $request->input('level');
+
         $data = [];
         $meta = [
             'cycleId' => $cycle->cycle_id,
             'cycleName' => $cycle->cycle_name,
             'computedAt' => now()->toISOString(),
+            'filters' => [
+                'department_id' => $departmentId,
+                'level' => $level,
+            ]
         ];
 
         try {
             switch ($tab) {
                 case 'performance':
-                    $data = $this->_getPerformanceReportData($request, $cycle);
+                    $data = $this->_getPerformanceReportData($request, $cycle, $departmentId, $level);
                     break;
                 case 'process':
-                    $data = $this->_getProcessReportData($request, $cycle);
+                    $data = $this->_getProcessReportData($request, $cycle, $departmentId, $level);
                     break;
                 case 'quality':
-                    $data = $this->_getQualityReportData($request, $cycle);
+                    $data = $this->_getQualityReportData($request, $cycle, $departmentId, $level);
                     break;
                 default:
                     return response()->json(['success' => false, 'message' => 'Invalid tab specified.'], 400);
@@ -352,10 +360,15 @@ class ReportController extends Controller
     /**
      * Gathers data for the "Quality & Structure" tab.
      */
-    private function _getQualityReportData(Request $request, Cycle $cycle)
+    private function _getQualityReportData(Request $request, Cycle $cycle, ?int $departmentId, ?string $level)
     {
         try {
-            $allObjectivesInCycle = Objective::where('cycle_id', $cycle->cycle_id)->whereNull('archived_at')->with('department')->get();
+            $allObjectivesInCycleQuery = Objective::where('cycle_id', $cycle->cycle_id)
+                ->whereNull('archived_at')
+                ->when($departmentId, fn($q) => $q->where('department_id', $departmentId))
+                ->when($level, fn($q) => $q->where('level', $level));
+            
+            $allObjectivesInCycle = $allObjectivesInCycleQuery->with('department')->get();
             $allObjectiveIds = $allObjectivesInCycle->pluck('objective_id');
             $allKrsInCycle = KeyResult::whereIn('objective_id', $allObjectiveIds)->whereNull('archived_at')->get();
 
@@ -442,10 +455,14 @@ class ReportController extends Controller
     /**
      * Gathers data for the "Process Compliance" tab.
      */
-    private function _getProcessReportData(Request $request, Cycle $cycle)
+    private function _getProcessReportData(Request $request, Cycle $cycle, ?int $departmentId, ?string $level)
     {
         try {
-            $allObjectivesInCycleQuery = Objective::where('cycle_id', $cycle->cycle_id)->whereNull('archived_at');
+            $allObjectivesInCycleQuery = Objective::where('cycle_id', $cycle->cycle_id)
+                ->whereNull('archived_at')
+                ->when($departmentId, fn($q) => $q->where('department_id', $departmentId))
+                ->when($level, fn($q) => $q->where('level', $level));
+
             $allKrsInCycleQuery = KeyResult::whereIn('objective_id', $allObjectivesInCycleQuery->clone()->pluck('objective_id'))->whereNull('archived_at');
 
             // --- STAT CARDS ---
@@ -453,9 +470,15 @@ class ReportController extends Controller
             $krsWithCheckinCount = $allKrsInCycleQuery->clone()->whereHas('checkIns')->count();
             $checkinRate = $totalKrsCount > 0 ? ($krsWithCheckinCount / $totalKrsCount) * 100 : 0;
 
-            $totalNonCompanyObjectivesCount = $allObjectivesInCycleQuery->clone()->where('level', '!=', 'company')->count();
-            $alignedObjectivesCount = OkrLink::whereIn('source_objective_id', $allObjectivesInCycleQuery->clone()->pluck('objective_id'))->distinct('source_objective_id')->count();
+            $totalNonCompanyObjectivesQuery = $allObjectivesInCycleQuery->clone()->where('level', '!=', 'company');
+            $totalNonCompanyObjectivesCount = $totalNonCompanyObjectivesQuery->count();
+            
+            $alignedObjectivesCount = OkrLink::whereIn('source_objective_id', $totalNonCompanyObjectivesQuery->pluck('objective_id'))
+                ->distinct('source_objective_id')
+                ->count();
+            
             $alignmentRate = $totalNonCompanyObjectivesCount > 0 ? ($alignedObjectivesCount / $totalNonCompanyObjectivesCount) * 100 : 0;
+            
             $totalObjectivesCount = $allObjectivesInCycleQuery->clone()->count();
             $objectivesWithKrsCount = $allObjectivesInCycleQuery->clone()->whereHas('keyResults')->count();
             $setupCompletionRate = $totalObjectivesCount > 0 ? ($objectivesWithKrsCount / $totalObjectivesCount) * 100 : 0;
@@ -466,7 +489,12 @@ class ReportController extends Controller
 
             // --- CHARTS ---
             // 1. Chart: Check-in Compliance by Department
-            $departments = Department::with(['objectives' => fn($q) => $q->where('cycle_id', $cycle->cycle_id)])->get();
+            $departmentsQuery = Department::query();
+            if ($departmentId) {
+                $departmentsQuery->where('department_id', $departmentId);
+            }
+            $departments = $departmentsQuery->with(['objectives' => fn($q) => $q->where('cycle_id', $cycle->cycle_id)])->get();
+            
             $checkinComplianceByDept = $departments->map(function ($dept) {
                 $deptObjectiveIds = $dept->objectives->pluck('objective_id');
                 if ($deptObjectiveIds->isEmpty()) return null;
@@ -574,17 +602,23 @@ class ReportController extends Controller
     /**
      * Gathers data for the "Performance" tab.
      */
-    private function _getPerformanceReportData(Request $request, Cycle $cycle)
+    private function _getPerformanceReportData(Request $request, Cycle $cycle, ?int $departmentId, ?string $level)
     {
-        // Base query for all objectives in the cycle for department/alignment calculations
-        $allObjectivesInCycle = Objective::query()
+        // Base query for all objectives in the cycle, already filtered by cycle
+        $baseObjectivesQuery = Objective::query()
             ->with(['department:department_id,d_name', 'user:user_id,full_name'])
             ->where('cycle_id', $cycle->cycle_id)
-            ->whereNull('archived_at')
-            ->get();
+            ->whereNull('archived_at');
 
-        // 1. Get all company-level objectives for the given cycle
-        $companyObjectives = $allObjectivesInCycle->where('level', 'company');
+        // Apply filters to a clone for department-specific/level-specific calculations
+        $filteredObjectivesQuery = $baseObjectivesQuery->clone()
+            ->when($departmentId, fn($q) => $q->where('department_id', $departmentId))
+            ->when($level, fn($q) => $q->where('level', $level));
+        
+        $filteredObjectives = $filteredObjectivesQuery->get();
+
+        // 1. Get all company-level objectives for the given cycle (always needed for context)
+        $companyObjectives = $baseObjectivesQuery->clone()->where('level', 'company')->get();
 
         if ($companyObjectives->isEmpty()) {
             return [
@@ -597,31 +631,45 @@ class ReportController extends Controller
         $companyObjectiveIds = $companyObjectives->pluck('objective_id');
 
         // 2. Calculate Stat Cards
-        $avgCompanyProgress = (float) $companyObjectives->avg('progress_percent');
-        $completedCount = $companyObjectives->where('progress_percent', '>=', 70)->count();
-        $totalCompanyObjectives = $companyObjectives->count();
-        $completedRate = $totalCompanyObjectives > 0 ? ($completedCount / $totalCompanyObjectives) * 100 : 0;
-
-        $latestCheckInIdsSub = DB::table('check_ins as ci')
-            ->select(DB::raw('MAX(ci.check_in_id) as max_id'))
-            ->join('key_results as kr', 'ci.kr_id', '=', 'kr.kr_id')
-            ->whereIn('kr.objective_id', $companyObjectiveIds)
-            ->whereNotNull('ci.confidence_score')
-            ->groupBy('ci.kr_id');
+        // These cards should reflect the company-level unless filtered down
+        $statCardObjectives = ($departmentId || $level) ? $filteredObjectives : $companyObjectives;
+        $avgProgress = (float) $statCardObjectives->avg('progress_percent');
+        $completedCount = $statCardObjectives->where('progress_percent', '>=', 70)->count();
+        $totalObjectives = $statCardObjectives->count();
+        $completedRate = $totalObjectives > 0 ? ($completedCount / $totalObjectives) * 100 : 0;
         
+        $statCardObjectiveIds = $statCardObjectives->pluck('objective_id');
         $avgConfidenceScore = 0;
-        if ($latestCheckInIdsSub->count() > 0) {
-             $avgConfidenceScore = DB::table('check_ins')
-                ->whereIn('check_in_id', $latestCheckInIdsSub)
-                ->avg('confidence_score');
+        if($statCardObjectiveIds->isNotEmpty()) {
+            $latestCheckInIdsSub = DB::table('check_ins as ci')
+                ->select(DB::raw('MAX(ci.check_in_id) as max_id'))
+                ->join('key_results as kr', 'ci.kr_id', '=', 'kr.kr_id')
+                ->whereIn('kr.objective_id', $statCardObjectiveIds)
+                ->whereNotNull('ci.confidence_score')
+                ->groupBy('ci.kr_id');
+            
+            if ($latestCheckInIdsSub->count() > 0) {
+                 $avgConfidenceScore = DB::table('check_ins')
+                    ->whereIn('check_in_id', $latestCheckInIdsSub)
+                    ->avg('confidence_score');
+            }
         }
 
         // 3. Chart Data
         $dateRange = ['start' => $request->input('start_date'), 'end' => $request->input('end_date')];
+        // The trend chart should probably show company trend, and maybe a second line for the filtered dept
         $progressOverTime = $this->_getCompanyProgressTrend($cycle, $companyObjectiveIds, $dateRange);
         
-        $departmentPerformance = $allObjectivesInCycle
-            ->where('department_id', '!=', null)
+        $allObjectivesInCycle = $baseObjectivesQuery->clone()->get();
+        $departmentPerformanceQuery = $allObjectivesInCycle
+            ->where('department_id', '!=', null);
+
+        // If filtering by department, only show that one
+        if ($departmentId) {
+            $departmentPerformanceQuery = $departmentPerformanceQuery->where('department_id', $departmentId);
+        }
+
+        $departmentPerformance = $departmentPerformanceQuery
             ->groupBy('department_id')
             ->map(function ($objectivesInDept, $deptId) {
                 $department = $objectivesInDept->first()->department;
@@ -636,15 +684,24 @@ class ReportController extends Controller
 
         // 4. Table Data
         $links = OkrLink::whereIn('target_objective_id', $companyObjectiveIds)->get();
-        $alignedObjectiveIds = $links->pluck('source_objective_id');
         
-        $alignedObjectivesByParent = $allObjectivesInCycle
-            ->whereIn('objective_id', $alignedObjectiveIds)
-            ->keyBy('objective_id'); 
+        $alignedObjectiveIdsQuery = $links->pluck('source_objective_id');
+        
+        $alignedObjectivesQuery = $allObjectivesInCycle->whereIn('objective_id', $alignedObjectiveIdsQuery);
 
+        // If filtering, this is where we apply it to the children
+        if ($departmentId) {
+            $alignedObjectivesQuery = $alignedObjectivesQuery->where('department_id', $departmentId);
+        }
+        if ($level) {
+            $alignedObjectivesQuery = $alignedObjectivesQuery->where('level', $level);
+        }
+
+        $alignedObjectivesByParent = $alignedObjectivesQuery->keyBy('objective_id');
+        
         $childrenByParentId = $links->groupBy('target_objective_id');
 
-        $allTableObjectiveIds = $companyObjectiveIds->merge($alignedObjectiveIds);
+        $allTableObjectiveIds = $companyObjectiveIds->merge($alignedObjectivesQuery->pluck('objective_id'));
         $allConfidenceScores = collect();
         
         if ($allTableObjectiveIds->isNotEmpty()) {
@@ -664,26 +721,33 @@ class ReportController extends Controller
                     ->keyBy('objective_id');
             }
         }
-
-        $tableData = $companyObjectives->map(function ($companyO) use ($childrenByParentId, $alignedObjectivesByParent, $allConfidenceScores, $cycle) {
+        
+        $tableData = $companyObjectives->map(function ($companyO) use ($childrenByParentId, $alignedObjectivesByParent, $allConfidenceScores, $cycle, $departmentId, $level) {
             $childLinks = $childrenByParentId->get($companyO->objective_id, collect());
+            
             $children = $childLinks->map(function($link) use ($alignedObjectivesByParent, $allConfidenceScores, $cycle, $companyO) {
                 $childObjective = $alignedObjectivesByParent->get($link->source_objective_id);
                 if ($childObjective) {
-                    return $this->_formatObjectiveForTable($childObjective, $allConfidenceScores, $cycle, $companyO);
+                     return $this->_formatObjectiveForTable($childObjective, $allConfidenceScores, $cycle, $companyO);
                 }
                 return null;
             })->filter()->values();
+
+            // If filtering by department or level, a company objective might not have any visible children.
+            // We can decide to hide it if it has no matching children.
+            if (($departmentId || $level) && $children->isEmpty()) {
+                return null;
+            }
 
             return array_merge(
                 $this->_formatObjectiveForTable($companyO, $allConfidenceScores, $cycle),
                 ['children' => $children]
             );
-        })->values();
+        })->filter()->values();
 
         return [
             'statCards' => [
-                'avg_company_progress' => $this->clampProgress($avgCompanyProgress),
+                'avg_company_progress' => $this->clampProgress($avgProgress),
                 'completed_company_rate' => round($completedRate, 2),
                 'avg_confidence_score' => $avgConfidenceScore ? round($avgConfidenceScore, 1) : 0,
             ],
@@ -798,18 +862,24 @@ class ReportController extends Controller
             // Handle error case where cycle is not found, maybe return an error response or an empty CSV.
             // For now, we'll proceed and let it result in an empty CSV.
         }
+        
+        // --- Filters ---
+        $departmentId = $request->integer('department_id');
+        $level = $request->input('level');
 
         $data = [];
-        switch ($tab) {
-            case 'performance':
-                $data = $this->_getPerformanceReportData($request, $cycle);
-                break;
-            case 'process':
-                $data = $this->_getProcessReportData($request, $cycle);
-                break;
-            case 'quality':
-                $data = $this->_getQualityReportData($request, $cycle);
-                break;
+        if ($cycle) {
+            switch ($tab) {
+                case 'performance':
+                    $data = $this->_getPerformanceReportData($request, $cycle, $departmentId, $level);
+                    break;
+                case 'process':
+                    $data = $this->_getProcessReportData($request, $cycle, $departmentId, $level);
+                    break;
+                case 'quality':
+                    $data = $this->_getQualityReportData($request, $cycle, $departmentId, $level);
+                    break;
+            }
         }
 
         $tableData = $data['table'] ?? [];
