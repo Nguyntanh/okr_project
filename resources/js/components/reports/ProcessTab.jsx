@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import StatCard from './StatCard';
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, LineElement, PointElement, Title, Tooltip, Legend, Filler } from 'chart.js';
 import EmptyState from './EmptyState';
-import { FiBarChart2, FiPieChart, FiTrendingDown, FiCheckSquare, FiLink, FiLayers, FiRepeat } from 'react-icons/fi';
+import { FiBarChart2, FiPieChart, FiTrendingDown, FiCheckSquare, FiLink, FiLayers, FiRepeat, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, LineElement, PointElement, Title, Tooltip, Legend, Filler);
 
@@ -13,9 +13,8 @@ const createGradient = (ctx, area, colorStops) => {
     return gradient;
 };
 
-// A flexible wrapper that provides a title and a relative container for the chart
 const ChartWrapper = ({ title, children, className = '' }) => (
-    <div className={`bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition-shadow duration-300 flex flex-col ${className}`}>
+    <div className={`bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition-shadow duration-300 flex flex-col h-full ${className}`}>
         <h3 className="font-semibold text-lg mb-4 text-gray-800 flex-shrink-0">{title}</h3>
         <div className="relative flex-grow min-h-0">
             {children}
@@ -108,90 +107,105 @@ const tooltipOptions = {
 };
 
 export default function ProcessTab({ data }) {
+    const [activeIndex, setActiveIndex] = useState(0);
+
+    const { statCards, charts, table } = data || {};
+
+    const allCharts = useMemo(() => {
+        if (!charts) return [];
+        
+        // --- Chart 1: Compliance by Dept (Bar) ---
+        const complianceByDeptData = {
+            labels: charts.checkin_compliance_by_dept?.map(d => d.department_name) || [],
+            datasets: [{
+                label: 'Tỷ lệ Tuân thủ (%)',
+                data: charts.checkin_compliance_by_dept?.map(d => d.compliance_rate) || [],
+                backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                borderColor: 'rgb(54, 162, 235)',
+                borderWidth: 1,
+                borderRadius: 6,
+                borderSkipped: false,
+            }]
+        };
+        const complianceByDeptOptions = {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { ...tooltipOptions, callbacks: { label: ctx => `Tuân thủ: ${ctx.parsed.x?.toFixed(2) || 0}%` }} },
+            scales: { x: { beginAtZero: true, max: 100, grid: { drawBorder: false } }, y: { grid: { display: false } } }
+        };
+        const barCanvasHeight = Math.max(320, (complianceByDeptData.labels.length || 1) * 35);
+
+        // --- Chart 2: Health Distribution (Doughnut) ---
+        const healthDistData = {
+            labels: ['On Track', 'At Risk', 'Off Track'],
+            datasets: [{
+                data: [ charts.health_status_distribution?.on_track || 0, charts.health_status_distribution?.at_risk || 0, charts.health_status_distribution?.off_track || 0 ],
+                backgroundColor: ['rgba(22, 163, 74, 0.7)', 'rgba(245, 158, 11, 0.7)', 'rgba(220, 38, 38, 0.7)'],
+                borderColor: ['rgb(22, 163, 74)', 'rgb(245, 158, 11)', 'rgb(220, 38, 38)'],
+                borderWidth: 2, hoverOffset: 4,
+            }]
+        };
+        const healthDistOptions = {
+            responsive: true, maintainAspectRatio: false, cutout: '60%',
+            plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, padding: 15 } }, tooltip: { ...tooltipOptions, callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed || 0} mục tiêu` }} }
+        };
+        
+        // --- Chart 3: Compliance Trend (Line) ---
+        const trendData = {
+            labels: Object.keys(charts.process_compliance_trend || {}),
+            datasets: [{
+                label: 'Số KR đã Check-in (Tích lũy)',
+                data: Object.values(charts.process_compliance_trend || {}),
+                borderColor: 'rgb(139, 92, 246)',
+                backgroundColor: (context) => {
+                    const { ctx, chartArea } = context.chart;
+                    if (!chartArea) return null;
+                    return createGradient(ctx, chartArea, [{ offset: 0, color: 'rgba(139, 92, 246, 0)' }, { offset: 1, color: 'rgba(139, 92, 246, 0.4)' }]);
+                },
+                fill: true, tension: 0.4, pointBackgroundColor: 'rgb(139, 92, 246)',
+            }]
+        };
+        const trendOptions = {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { ...tooltipOptions } },
+            scales: { y: { grid: { drawBorder: false } }, x: { grid: { display: false } } }
+        };
+
+        return [
+            {
+                title: 'Xếp hạng Tuân thủ Check-in theo Phòng ban',
+                component: (charts.checkin_compliance_by_dept?.length > 0) ? (
+                    <div className="absolute inset-0 overflow-y-auto pr-2">
+                        <div style={{ height: `${barCanvasHeight}px` }}>
+                            <Bar data={complianceByDeptData} options={complianceByDeptOptions} />
+                        </div>
+                    </div>
+                ) : <div className="flex items-center justify-center h-full"><EmptyState icon={FiBarChart2} title="Không có dữ liệu" /></div>
+            },
+            {
+                title: 'Phân bổ Trạng thái (Health) OKR',
+                component: (charts.health_status_distribution?.on_track + charts.health_status_distribution?.at_risk + charts.health_status_distribution?.off_track) > 0 ? (
+                    <div className="absolute inset-0"><Doughnut data={healthDistData} options={healthDistOptions} /></div>
+                ) : <div className="flex items-center justify-center h-full"><EmptyState icon={FiPieChart} title="Không có dữ liệu" /></div>
+            },
+            {
+                title: 'Xu hướng Tuân thủ Check-in',
+                component: (Object.keys(charts.process_compliance_trend || {}).length > 0) ? (
+                    <div className="absolute inset-0"><Line data={trendData} options={trendOptions} /></div>
+                ) : <div className="flex items-center justify-center h-full"><EmptyState icon={FiTrendingDown} title="Không có dữ liệu" /></div>
+            }
+        ];
+    }, [charts]);
+
     if (!data) {
         return <div className="text-center p-8">Không có dữ liệu để hiển thị.</div>;
     }
 
-    const { statCards, charts, table } = data;
-    
-    // --- Chart 1: Compliance by Dept (Bar) ---
-    const complianceByDeptData = {
-        labels: charts?.checkin_compliance_by_dept?.map(d => d.department_name) || [],
-        datasets: [{
-            label: 'Tỷ lệ Tuân thủ (%)',
-            data: charts?.checkin_compliance_by_dept?.map(d => d.compliance_rate) || [],
-            backgroundColor: 'rgba(54, 162, 235, 0.8)',
-            borderColor: 'rgb(54, 162, 235)',
-            borderWidth: 1,
-            borderRadius: 6,
-            borderSkipped: false,
-        }]
-    };
-    const complianceByDeptOptions = {
-        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-        plugins: {
-            legend: { display: false },
-            tooltip: { ...tooltipOptions, callbacks: {
-                label: ctx => `Tuân thủ: ${ctx.parsed.x?.toFixed(2) || 0}%`
-            }}
-        },
-        scales: { x: { beginAtZero: true, max: 100, grid: { drawBorder: false } }, y: { grid: { display: false } } }
-    };
-    // Calculate a dynamic height for the canvas, ensuring it's not too small
-    const barCanvasHeight = Math.max(280, (complianceByDeptData.labels.length || 1) * 35);
-
-
-    // --- Chart 2: Health Distribution (Doughnut) ---
-    const healthDistData = {
-        labels: ['On Track', 'At Risk', 'Off Track'],
-        datasets: [{
-            data: [
-                charts?.health_status_distribution?.on_track || 0, 
-                charts?.health_status_distribution?.at_risk || 0, 
-                charts?.health_status_distribution?.off_track || 0
-            ],
-            backgroundColor: ['rgba(22, 163, 74, 0.7)', 'rgba(245, 158, 11, 0.7)', 'rgba(220, 38, 38, 0.7)'],
-            borderColor: ['rgb(22, 163, 74)', 'rgb(245, 158, 11)', 'rgb(220, 38, 38)'],
-            borderWidth: 2,
-            hoverOffset: 4,
-        }]
-    };
-    const healthDistOptions = {
-        responsive: true, maintainAspectRatio: false,
-        cutout: '60%',
-        plugins: {
-            legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, padding: 15 } },
-            tooltip: { ...tooltipOptions, callbacks: {
-                label: ctx => ` ${ctx.label}: ${ctx.parsed || 0} mục tiêu`
-            }}
-        }
+    const handleNext = () => {
+        setActiveIndex((prevIndex) => (prevIndex + 1) % allCharts.length);
     };
 
-    // --- Chart 3: Compliance Trend (Line) ---
-    const trendData = {
-        labels: Object.keys(charts?.process_compliance_trend || {}),
-        datasets: [{
-            label: 'Số KR đã Check-in (Tích lũy)',
-            data: Object.values(charts?.process_compliance_trend || {}),
-            borderColor: 'rgb(139, 92, 246)',
-            backgroundColor: (context) => {
-                const chart = context.chart;
-                const { ctx, chartArea } = chart;
-                if (!chartArea) return null;
-                return createGradient(ctx, chartArea, [{ offset: 0, color: 'rgba(139, 92, 246, 0)' }, { offset: 1, color: 'rgba(139, 92, 246, 0.4)' }]);
-            },
-            fill: true,
-            tension: 0.4,
-            pointBackgroundColor: 'rgb(139, 92, 246)',
-        }]
-    };
-    const trendOptions = {
-        responsive: true, maintainAspectRatio: false,
-        plugins: {
-            legend: { display: false },
-            tooltip: { ...tooltipOptions }
-        },
-        scales: { y: { grid: { drawBorder: false } }, x: { grid: { display: false } } }
+    const handlePrev = () => {
+        setActiveIndex((prevIndex) => (prevIndex - 1 + allCharts.length) % allCharts.length);
     };
 
     return (
@@ -204,40 +218,35 @@ export default function ProcessTab({ data }) {
                 <StatCard icon={<FiRepeat className="w-6 h-6" />} title="Tần suất Check-in TB/Người" value={`${statCards.avg_checkins_per_user}`} tooltip="Số lần check-in trung bình trên mỗi người dùng (có sở hữu KR) trong chu kỳ này." />
             </div>
             
-            {/* Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ height: '28rem' }}>
-                <ChartWrapper title="Xếp hạng Tuân thủ Check-in theo Phòng ban">
-                    {(charts?.checkin_compliance_by_dept || []).length > 0 ? (
-                        <div className="absolute inset-0 overflow-y-auto pr-2">
-                            <div style={{ height: `${barCanvasHeight}px` }}>
-                                <Bar data={complianceByDeptData} options={complianceByDeptOptions} />
-                            </div>
-                        </div>
-                    ) : (
-                         <div className="flex items-center justify-center h-full"><EmptyState icon={FiBarChart2} title="Không có dữ liệu" /></div>
-                    )}
-                </ChartWrapper>
+            {/* Chart Carousel */}
+            {allCharts.length > 0 && (
+                <div className="relative w-full h-0" style={{ paddingBottom: '50%' }}>
+                    <div className="absolute top-0 left-0 w-full h-full">
+                        <ChartWrapper title={allCharts[activeIndex].title}>
+                            {allCharts[activeIndex].component}
+                        </ChartWrapper>
+                    </div>
 
-                <ChartWrapper title="Phân bổ Trạng thái (Health) OKR">
-                    {(charts?.health_status_distribution?.on_track + charts?.health_status_distribution?.at_risk + charts?.health_status_distribution?.off_track) > 0 ? (
-                        <div className="absolute inset-0">
-                            <Doughnut data={healthDistData} options={healthDistOptions} />
-                        </div>
-                    ) : (
-                         <div className="flex items-center justify-center h-full"><EmptyState icon={FiPieChart} title="Không có dữ liệu" /></div>
+                    {allCharts.length > 1 && (
+                        <>
+                            <button 
+                                onClick={handlePrev} 
+                                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 bg-white/70 backdrop-blur-sm rounded-full p-2 text-slate-600 hover:text-slate-900 shadow-md hover:shadow-lg transition-all z-10"
+                                aria-label="Previous chart"
+                            >
+                                <FiChevronLeft className="w-6 h-6" />
+                            </button>
+                            <button 
+                                onClick={handleNext} 
+                                className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 bg-white/70 backdrop-blur-sm rounded-full p-2 text-slate-600 hover:text-slate-900 shadow-md hover:shadow-lg transition-all z-10"
+                                aria-label="Next chart"
+                            >
+                                <FiChevronRight className="w-6 h-6" />
+                            </button>
+                        </>
                     )}
-                </ChartWrapper>
-                
-                <ChartWrapper title="Xu hướng Tuân thủ Check-in">
-                    {Object.keys(charts?.process_compliance_trend || {}).length > 0 ? (
-                        <div className="absolute inset-0">
-                            <Line data={trendData} options={trendOptions} />
-                        </div>
-                    ) : (
-                         <div className="flex items-center justify-center h-full"><EmptyState icon={FiTrendingDown} title="Không có dữ liệu" /></div>
-                    )}
-                </ChartWrapper>
-            </div>
+                </div>
+            )}
 
             {/* Table */}
             <ProcessTable tableData={table} />
