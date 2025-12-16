@@ -1193,10 +1193,10 @@ default:
                 // Gọi API manager report
                 $snapshotData = $this->getManagerReportData($tempRequest);
             } elseif ($reportType === 'company') {
-                // Báo cáo công ty
+                // Báo cáo công ty - Luôn là null department_id
                 $tempRequest = new Request([
                     'cycle_id' => $cycleId,
-                    'department_id' => $departmentId,
+                    'department_id' => null, // Bỏ qua phòng ban cho báo cáo công ty
                     'status' => $request->input('status'),
                     'owner_id' => $request->input('owner_id'),
                 ]);
@@ -1224,7 +1224,7 @@ default:
                     'snapshot_data' => $snapshotData,
                     'user_id' => $user->user_id,
                     'cycle_id' => $cycleId,
-                    'department_id' => $departmentId ?: null,
+                    'department_id' => $reportType === 'company' ? null : ($departmentId ?: null), // Luôn null cho company
                     'notes' => $notes ?: null,
                 ]);
             } catch (\Illuminate\Database\QueryException $e) {

@@ -241,126 +241,40 @@ export default function SnapshotHistoryModal({
                                         }
 
                                         return (
-                                            <table className="w-full text-left bg-white border border-gray-200 rounded-lg">
-                                                <thead className="bg-gray-50">
-                                                    <tr>
-                                                        <th
-                                                            onClick={() => {
-                                                                if (snapshotSortBy === 'name') setSnapshotSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
-                                                                else {
-                                                                    setSnapshotSortBy('name');
-                                                                    setSnapshotSortDir('asc');
-                                                                }
-                                                            }}
-                                                            className={`
-                                                                px-4 py-3 text-left cursor-pointer
-                                                                ${snapshotSortBy === 'name' ? 'bg-gray-100' : ''}
-                                                                w-[50%]    
-                                                                hover:bg-gray-100      
-                                                            `}
-                                                        >
-                                                            Tên Báo cáo
-                                                            <span className="ml-2 text-xs text-gray-500">
-                                                                {snapshotSortBy === 'name' ? (snapshotSortDir === 'asc' ? '▲' : '▼') : ''}
-                                                            </span>
-                                                        </th>
-
-                                                        <th className="px-4 py-3 w-[15%] text-center">
-                                                            Người thực hiện
-                                                        </th>
-
-                                                        <th className="px-4 py-3 w-[20%] text-center">
-                                                            Tiến độ (%)
-                                                        </th>
-
-                                                        <th
-                                                            onClick={() => {
-                                                                if (snapshotSortBy === 'date') setSnapshotSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
-                                                                else {
-                                                                    setSnapshotSortBy('date');
-                                                                    setSnapshotSortDir('asc');
-                                                                }
-                                                            }}
-                                                            className={`
-                                                                px-4 py-3 cursor-pointer text-center
-                                                                ${snapshotSortBy === 'date' ? 'bg-gray-100' : ''}
-                                                                w-[15%]
-                                                                hover:bg-gray-100
-                                                            `}
-                                                        >
-                                                            Ngày chốt
-                                                            <span className="ml-2 text-xs text-center text-gray-500">
-                                                                {snapshotSortBy === 'date' ? (snapshotSortDir === 'asc' ? '▲' : '▼') : ''}
-                                                            </span>
-                                                        </th>
-
-
+                                        <table className="w-full text-left bg-white text-sm">
+                                                <thead className="bg-slate-50">
+                                                    <tr className="text-slate-600 font-semibold text-xs uppercase">
+                                                        <th className="px-4 py-3 w-[25%]">Tên Báo cáo</th>
+                                                        <th className="px-4 py-3 w-[15%]">Chu kỳ</th>
+                                                        <th className="px-4 py-3 w-[15%]">Phòng ban/Cấp độ</th>
+                                                        <th className="px-4 py-3 w-[15%]">Người tạo</th>
+                                                        <th className="px-4 py-3 w-[20%]">Ghi chú</th>
+                                                        <th className="px-4 py-3 w-[10%] text-right">Ngày tạo</th>
                                                     </tr>
                                                 </thead>
-                                                <tbody>
-                                                    {sorted.map((snap) => {
-                                                        const snapLevel = snap.data_snapshot?.level || 'departments';
-                                                        const levelText = snapLevel === 'company' ? 'Công ty' : 'Phòng ban';
-                                                        const rowKey = `snapshot-${snap.id}-${snapshotSortBy || 'nosort'}-${snapshotSortDir}-${snap.snapshotted_at || snap.created_at || ''}`;
-                                                        return (
-                                                            <tr
-                                                                key={rowKey}
-                                                                className="border-t border-gray-100 hover:bg-slate-50 cursor-pointer"
-                                                                onClick={() => onSelectSnapshot?.(snap)}
-                                                            >
-                                                                <td className="px-6 py-4 pl-8">
-                                                                    <div className="flex items-center gap-4">
-                                                                        <h3 className="font-medium text-gray-900 text-base leading-6 truncate hover:text-blue-600 transition-colors">
-                                                                            {snap.title}
-                                                                        </h3>
-
-                                                                        <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-blue-700">
-                                                                            {levelText}
-                                                                        </span>
-                                                                    </div>
-                                                                </td>
-                                                                <td className="px-4 py-3 align-middle">
-                                                                    {snap.creator ? (
-                                                                        <div
-                                                                            className="flex items-center gap-2 justify-center"
-                                                                            onMouseEnter={(e) =>
-                                                                                setCreatorTooltip({
-                                                                                    info: snap.creator,
-                                                                                    position: e.currentTarget.getBoundingClientRect(),
-                                                                                })
-                                                                            }
-                                                                            onMouseLeave={() => setCreatorTooltip(null)}
-                                                                        >
-                                                                            {snap.creator.avatar ? (
-                                                                                <img
-                                                                                    src={snap.creator.avatar}
-                                                                                    alt={snap.creator.full_name}
-                                                                                    className="h-8 w-8 rounded-full object-cover ring-1 ring-slate-200"
-                                                                                />
-                                                                            ) : (
-                                                                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">
-                                                                                    {snap.creator.full_name?.[0] || '?'}
-                                                                                </div>
-                                                                            )}
-                                                                            <span className="text-sm text-slate-900 max-w-[100px] truncate">
-                                                                                {snap.creator.full_name || 'N/A'}
-                                                                            </span>
-                                                                        </div>
-                                                                    ) : (
-                                                                        <span className="text-slate-400 text-xs">N/A</span>
-                                                                    )}
-                                                                </td>
-                                                                <td className="px-4 py-4 align-middle">
-                                                                    <div className="flex justify-center items-center">
-                                                                        <div className="w-32 mx-auto">
-                                                                            <ProgressBar progress={snap.data_snapshot?.overall?.averageProgress || 0} />
-                                                                        </div>
-                                                                    </div>
-                                                                </td>
-                                                                <td className="px-4 py-3 align-middle text-gray-700 text-center">{new Date(snap.snapshotted_at).toLocaleDateString('vi-VN')}</td>
-                                                            </tr>
-                                                        );
-                                                    })}
+                                                <tbody className="divide-y divide-slate-100">
+                                                    {filteredSnapshots.map((snap) => (
+                                                        <tr
+                                                            key={snap.report_id}
+                                                            className="hover:bg-slate-50 cursor-pointer"
+                                                            onClick={() => onSelectSnapshot?.(snap)}
+                                                        >
+                                                            <td className="px-4 py-3 font-medium text-slate-800">{snap.report_name}</td>
+                                                            <td className="px-4 py-3 text-slate-600">{snap.cycle?.cycle_name || 'N/A'}</td>
+                                                            <td className="px-4 py-3">
+                                                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                                                    snap.department 
+                                                                    ? 'bg-indigo-100 text-indigo-800' 
+                                                                    : 'bg-emerald-100 text-emerald-800'
+                                                                }`}>
+                                                                    {snap.department?.department_name || 'Công ty'}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-slate-600">{snap.creator?.full_name || 'N/A'}</td>
+                                                            <td className="px-4 py-3 text-slate-500 truncate max-w-xs">{snap.notes || '-'}</td>
+                                                            <td className="px-4 py-3 text-slate-500 text-right">{snap.created_at_formatted}</td>
+                                                        </tr>
+                                                    ))}
                                                 </tbody>
                                             </table>
                                         );
