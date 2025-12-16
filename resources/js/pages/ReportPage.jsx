@@ -348,12 +348,23 @@ export default function ReportPage() {
 
         // 2. Status Distribution (Doughnut)
         const statusCounts = { completed: 0, on_track: 0, at_risk: 0, behind: 0 };
-        (reportData.team_okrs || []).forEach(okr => {
-            const s = (okr.status || 'on_track').toLowerCase();
+        
+        const countStatus = (status) => {
+            const s = (status || 'on_track').toLowerCase();
             if (s === 'completed') statusCounts.completed++;
             else if (s === 'on_track') statusCounts.on_track++;
             else if (s === 'at_risk' || s === 'warning') statusCounts.at_risk++;
             else statusCounts.behind++;
+        };
+
+        (reportData.team_okrs || []).forEach(parent => {
+            // Count Parent
+            countStatus(parent.status);
+            
+            // Count Children
+            if (parent.children && parent.children.length > 0) {
+                parent.children.forEach(child => countStatus(child.status));
+            }
         });
         
         const statusDoughnutData = {
@@ -879,10 +890,9 @@ export default function ReportPage() {
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider font-semibold">
-                                            <th className="px-6 py-4">Tên Mục tiêu</th>
+                                            <th className="px-6 py-4 pl-6">Tên Mục tiêu</th>
                                             <th className="px-6 py-4">Người sở hữu</th>
                                             <th className="px-6 py-4">Tình trạng</th>
-                                            <th className="px-6 py-4">Liên kết tới</th>
                                             <th className="px-6 py-4">Check-in gần nhất</th>
                                             <th className="px-6 py-4 text-center">Quá hạn (Ngày)</th>
                                             <th className="px-6 py-4 text-center">Tỷ lệ Check-in</th>
@@ -890,75 +900,106 @@ export default function ReportPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {(reportData?.team_okrs || []).map((okr, index) => {
-                                            const owner = getOwner(okr.user_id);
-                                            const isOverdue = okr.days_overdue > 7 && okr.status !== 'completed';
-                                            
-                                            return (
-                                                <tr key={index} className="hover:bg-slate-50 transition-colors text-sm">
+                                        {(reportData?.team_okrs || []).map((parent, index) => (
+                                            <React.Fragment key={parent.objective_id}>
+                                                {/* Parent Row */}
+                                                <tr className="hover:bg-slate-50 transition-colors text-sm bg-white">
                                                     <td className="px-6 py-4">
-                                                        <a href="#" className="font-medium text-slate-900 hover:text-blue-600 hover:underline line-clamp-2" title={okr.obj_title}>
-                                                            {okr.obj_title}
-                                                        </a>
-                                                        <span className="text-xs text-slate-400 block mt-1 uppercase">{okr.level}</span>
+                                                        <div className="flex items-start gap-2">
+                                                            {(parent.level || '').toLowerCase() === 'unit' && <span className="mt-1 w-2 h-2 rounded-full bg-indigo-500 flex-shrink-0"></span>}
+                                                            <div>
+                                                                <a href="#" className="font-bold text-slate-900 hover:text-blue-600 hover:underline line-clamp-2" title={parent.obj_title}>
+                                                                    {parent.obj_title}
+                                                                </a>
+                                                                <span className="text-[10px] text-slate-400 block uppercase font-semibold tracking-wide mt-0.5">{parent.level}</span>
+                                                            </div>
+                                                        </div>
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <div className="flex items-center gap-2">
                                                             <img 
-                                                                src={owner.avatar || `https://ui-avatars.com/api/?name=${owner.name || 'U'}&background=random`} 
-                                                                alt={owner.name} 
+                                                                src={getOwner(parent.user_id).avatar || `https://ui-avatars.com/api/?name=${getOwner(parent.user_id).name || 'U'}&background=random`} 
+                                                                alt={getOwner(parent.user_id).name} 
                                                                 className="w-6 h-6 rounded-full"
                                                             />
-                                                            <span className="text-slate-700 truncate max-w-[100px]" title={owner.name}>
-                                                                {owner.name}
+                                                            <span className="text-slate-700 truncate max-w-[100px]" title={getOwner(parent.user_id).name}>
+                                                                {getOwner(parent.user_id).name}
                                                             </span>
                                                         </div>
                                                     </td>
-                                                    <td className="px-6 py-4">
-                                                        <StatusBadge status={okr.status} />
-                                                    </td>
-                                                    <td className="px-6 py-4 text-xs">
-                                                        {okr.parent_objective_title ? (
-                                                            <span className="text-blue-600 truncate block max-w-[150px]" title={okr.parent_objective_title}>
-                                                                {okr.parent_objective_title}
-                                                            </span>
-                                                        ) : (
-                                                            (okr.level || '').toLowerCase() === 'unit' ? 
-                                                                <span className="text-slate-400">-</span> : 
-                                                                <span className="text-amber-500 font-medium">Chưa liên kết</span>
-                                                        )}
-                                                    </td>
+                                                    <td className="px-6 py-4"><StatusBadge status={parent.status} /></td>
                                                     <td className="px-6 py-4 text-slate-600">
-                                                        {okr.last_checkin_date ? new Date(okr.last_checkin_date).toLocaleDateString('vi-VN') : 'Chưa check-in'}
+                                                        {parent.last_checkin_date ? new Date(parent.last_checkin_date).toLocaleDateString('vi-VN') : 'Chưa check-in'}
                                                     </td>
-                                                    <td className={`px-6 py-4 text-center font-bold ${isOverdue ? 'text-red-600' : 'text-slate-600'}`}>
-                                                        {okr.days_overdue > 0 ? okr.days_overdue : '-'}
+                                                    <td className={`px-6 py-4 text-center font-bold ${(parent.days_overdue > 7 && parent.status !== 'completed') ? 'text-red-600' : 'text-slate-600'}`}>
+                                                        {parent.days_overdue > 0 ? parent.days_overdue : '-'}
                                                     </td>
                                                     <td className="px-6 py-4 text-center">
                                                         <div className="flex items-center justify-center gap-2">
                                                             <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                                <div 
-                                                                    className={`h-full rounded-full ${okr.personal_checkin_rate >= 80 ? 'bg-green-500' : okr.personal_checkin_rate >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                                                                    style={{ width: `${okr.personal_checkin_rate || 0}%` }}
-                                                                ></div>
+                                                                <div className={`h-full rounded-full ${parent.personal_checkin_rate >= 80 ? 'bg-green-500' : parent.personal_checkin_rate >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${parent.personal_checkin_rate || 0}%` }}></div>
                                                             </div>
-                                                            <span className="text-xs text-slate-600">{okr.personal_checkin_rate || 0}%</span>
+                                                            <span className="text-xs text-slate-600">{parent.personal_checkin_rate || 0}%</span>
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 text-center">
-                                                        <button 
-                                                            className="text-xs px-3 py-1 bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100 transition-colors font-medium"
-                                                            onClick={() => alert(`Nhắc nhở ${owner.name} check-in mục tiêu này!`)}
-                                                        >
-                                                            Nhắc nhở
-                                                        </button>
+                                                        <span className="text-[10px] text-slate-400 font-medium px-2 py-1 bg-slate-100 rounded">Quản lý</span>
                                                     </td>
                                                 </tr>
-                                            );
-                                        })}
+
+                                                {/* Children Rows */}
+                                                {(parent.children || []).map(child => (
+                                                    <tr key={child.objective_id} className="hover:bg-slate-50 transition-colors text-sm bg-slate-50/50">
+                                                        <td className="px-6 py-3 pl-12 relative">
+                                                            {/* Tree Connector Graphic */}
+                                                            <div className="absolute left-6 top-0 bottom-1/2 w-4 border-l-2 border-b-2 border-slate-200 rounded-bl-lg"></div>
+                                                            
+                                                            <div className="flex items-start gap-2 relative z-10">
+                                                                <div>
+                                                                    <a href="#" className="font-medium text-slate-700 hover:text-blue-600 hover:underline line-clamp-2" title={child.obj_title}>
+                                                                        {child.obj_title}
+                                                                    </a>
+                                                                    <span className="text-[10px] text-slate-400 block uppercase mt-0.5">{child.level} (Liên kết)</span>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-3">
+                                                            <div className="flex items-center gap-2">
+                                                                <img 
+                                                                    src={getOwner(child.user_id).avatar || `https://ui-avatars.com/api/?name=${getOwner(child.user_id).name || 'U'}&background=random`} 
+                                                                    alt={getOwner(child.user_id).name} 
+                                                                    className="w-5 h-5 rounded-full"
+                                                                />
+                                                                <span className="text-slate-600 truncate max-w-[100px] text-xs" title={getOwner(child.user_id).name}>
+                                                                    {getOwner(child.user_id).name}
+                                                                </span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-3"><StatusBadge status={child.status} /></td>
+                                                        <td className="px-6 py-3 text-slate-500 text-xs">
+                                                            {child.last_checkin_date ? new Date(child.last_checkin_date).toLocaleDateString('vi-VN') : 'Chưa check-in'}
+                                                        </td>
+                                                        <td className={`px-6 py-3 text-center text-xs font-bold ${(child.days_overdue > 7 && child.status !== 'completed') ? 'text-red-500' : 'text-slate-500'}`}>
+                                                            {child.days_overdue > 0 ? child.days_overdue : '-'}
+                                                        </td>
+                                                        <td className="px-6 py-3 text-center">
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                <div className="w-12 h-1 bg-slate-200 rounded-full overflow-hidden">
+                                                                    <div className={`h-full rounded-full ${child.personal_checkin_rate >= 80 ? 'bg-green-500' : child.personal_checkin_rate >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${child.personal_checkin_rate || 0}%` }}></div>
+                                                                </div>
+                                                                <span className="text-[10px] text-slate-500">{child.personal_checkin_rate || 0}%</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-3 text-center">
+                                                            <button className="text-[10px] px-2 py-0.5 border border-slate-300 text-slate-500 rounded hover:bg-slate-100" onClick={() => alert(`Nhắc nhở ${getOwner(child.user_id).name}`)}>Nhắc</button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </React.Fragment>
+                                        ))}
                                         {(!reportData?.team_okrs || reportData.team_okrs.length === 0) && (
                                             <tr>
-                                                <td colSpan="8" className="px-6 py-12 text-center text-slate-400">
+                                                <td colSpan="7" className="px-6 py-12 text-center text-slate-400">
                                                     Chưa có dữ liệu.
                                                 </td>
                                             </tr>

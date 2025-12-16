@@ -54,7 +54,55 @@ class ReportService
 
         // 3. Tính toán chỉ số toàn Team
         $teamAverage = $objectiveStats->isEmpty() ? 0.0 : round($objectiveStats->avg('progress'), 1);
-        $teamOkrs = $objectiveStats->values();
+        
+        // --- RESTRUCTURE TO HIERARCHY (TREE VIEW) ---
+        $unitObjs = [];
+        $personalObjs = [];
+        
+        foreach ($objectiveStats as $obj) {
+            $obj['children'] = []; // Initialize children array
+            if (strtolower($obj['level'] ?? '') === 'unit') {
+                $unitObjs[$obj['objective_id']] = $obj;
+            } else {
+                $personalObjs[] = $obj;
+            }
+        }
+
+        $unlinkedObjs = [];
+
+        foreach ($personalObjs as $pObj) {
+            $parentId = null;
+            // Find parent from source links in the original $objectives collection
+            // We need to look up the original model to access relations, or check 'parent_objective_title' logic
+            // Better: lets rely on the fact that we loaded sourceLinks in the query.
+            // But $objectiveStats is an array now. 
+            // We need to re-find the relation.
+            
+            // Optimization: We can't easily track back from array to model here without re-looping.
+            // Let's use the 'parent_objective_title' logic or ID if we stored it.
+            // Wait, we didn't store parent_id in stats.
+            
+            // Let's look at the original $objectives collection to map ID -> ParentID
+            $originalModel = $objectives->firstWhere('objective_id', $pObj['objective_id']);
+            if ($originalModel) {
+                $parentLink = $originalModel->sourceLinks->first(function($link) {
+                    return $link->status === 'approved' && $link->target_type === 'objective' && 
+                           $link->targetObjective && strtolower($link->targetObjective->level) === 'unit';
+                });
+                if ($parentLink) {
+                    $parentId = $parentLink->target_objective_id;
+                }
+            }
+
+            if ($parentId && isset($unitObjs[$parentId])) {
+                $unitObjs[$parentId]['children'][] = $pObj;
+            } else {
+                $unlinkedObjs[] = $pObj;
+            }
+        }
+
+        // Flatten units back to array, followed by unlinked personals
+        $teamOkrs = array_merge(array_values($unitObjs), $unlinkedObjs);
 
         // 4. Lấy danh sách thành viên (MOVE UP HERE)
         $members = User::query()
