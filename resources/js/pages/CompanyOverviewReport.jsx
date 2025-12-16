@@ -207,7 +207,7 @@ export default function CompanyOverviewReport() {
     ];
 
     return (
-        <div className="px-6 py-8 min-h-screen bg-gray-50">
+        <div className="mx-auto w-full max-w-6xl mt-8">
             {/* Header */}
             <div className="mb-6">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -261,8 +261,6 @@ export default function CompanyOverviewReport() {
                 </div>
             </div>
 
-            {/* Snapshot Mode Banner is removed as detail view is now inside the modal */}
-
             {/* Tab Navigation */}
             <div className="mb-6 border-b border-gray-200">
                 <div className="flex items-center gap-4 -mb-px">
@@ -278,7 +276,7 @@ export default function CompanyOverviewReport() {
             <ToastNotification toast={toast} onClose={() => setToast(null)} />
 
             {/* Tab Content */}
-            <div className="report-content">
+            <div className="report-content overflow-x-hidden">
                 {loading && ( <div className="text-center py-20"><div className="animate-spin h-8 w-8 text-blue-600 mx-auto" /><p className="mt-2 text-gray-500">Đang tải dữ liệu...</p></div> )}
                 {!loading && error && ( <div className="bg-red-50 border-l-4 border-red-400 p-4 max-w-3xl mx-auto"><div className="flex"><div className="flex-shrink-0"><svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1-9a1 1 0 011-1h2a1 1 0 110 2h-2a1 1 0 01-1-1zm0 4a1 1 0 112 0 1 1 0 01-2 0z" clipRule="evenodd" /></svg></div><div className="ml-3"><p className="text-sm text-red-700 font-semibold">Lỗi tải báo cáo</p><p className="mt-1 text-sm text-red-600">{error}</p></div></div></div> )}
                 {!loading && !error && reportData && (
