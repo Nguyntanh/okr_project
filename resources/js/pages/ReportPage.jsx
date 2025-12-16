@@ -836,7 +836,7 @@ export default function ReportPage() {
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                             {/* Bar Chart: Compliance Ranking */}
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                                <h3 className="text-lg font-bold text-slate-800 mb-6">Xếp hạng Tuân thủ Check-in</h3>
+                                <h3 className="text-lg font-bold text-slate-800 mb-6">Mức độ Cập nhật KR Tuần này</h3>
                                 <div className="h-64">
                                     {complianceCharts.complianceBar && (
                                         <Bar 
@@ -882,6 +882,7 @@ export default function ReportPage() {
                                             <th className="px-6 py-4">Tên Mục tiêu</th>
                                             <th className="px-6 py-4">Người sở hữu</th>
                                             <th className="px-6 py-4">Tình trạng</th>
+                                            <th className="px-6 py-4">Liên kết tới</th>
                                             <th className="px-6 py-4">Check-in gần nhất</th>
                                             <th className="px-6 py-4 text-center">Quá hạn (Ngày)</th>
                                             <th className="px-6 py-4 text-center">Tỷ lệ Check-in</th>
@@ -916,6 +917,17 @@ export default function ReportPage() {
                                                     <td className="px-6 py-4">
                                                         <StatusBadge status={okr.status} />
                                                     </td>
+                                                    <td className="px-6 py-4 text-xs">
+                                                        {okr.parent_objective_title ? (
+                                                            <span className="text-blue-600 truncate block max-w-[150px]" title={okr.parent_objective_title}>
+                                                                {okr.parent_objective_title}
+                                                            </span>
+                                                        ) : (
+                                                            (okr.level || '').toLowerCase() === 'unit' ? 
+                                                                <span className="text-slate-400">-</span> : 
+                                                                <span className="text-amber-500 font-medium">Chưa liên kết</span>
+                                                        )}
+                                                    </td>
                                                     <td className="px-6 py-4 text-slate-600">
                                                         {okr.last_checkin_date ? new Date(okr.last_checkin_date).toLocaleDateString('vi-VN') : 'Chưa check-in'}
                                                     </td>
@@ -946,7 +958,7 @@ export default function ReportPage() {
                                         })}
                                         {(!reportData?.team_okrs || reportData.team_okrs.length === 0) && (
                                             <tr>
-                                                <td colSpan="7" className="px-6 py-12 text-center text-slate-400">
+                                                <td colSpan="8" className="px-6 py-12 text-center text-slate-400">
                                                     Chưa có dữ liệu.
                                                 </td>
                                             </tr>

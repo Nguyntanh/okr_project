@@ -357,6 +357,7 @@ class ReportService
 
     private function calculateMemberStats(User $member, Collection $userKrs, ?CheckIn $lastCheckIn, float $expectedProgress): array
     {
+        // 2. Tính tiến độ trung bình dựa trên KRs
         $totalKrsCount = $userKrs->count();
         $avgProgress = 0.0;
         $completedKrCount = 0;
@@ -377,8 +378,32 @@ class ReportService
             $completedKrCount = $userKrs->filter(fn($kr) => $kr->progress_percent >= 100 || ($kr->target_value > 0 && $kr->current_value >= $kr->target_value))->count();
         }
 
-        $lastCheckInDate = $lastCheckIn ? $lastCheckIn->created_at : null;
+        // 3. Check-in Compliance Score (Current Week)
+        $startOfWeek = now()->startOfWeek(Carbon::MONDAY);
+        
+        // Filter active KRs (unfinished)
+        $activeUserKrs = $userKrs->filter(function($kr) {
+            return ($kr->progress_percent ?? 0) < 100 && $kr->archived_at === null;
+        });
+        
+        $totalActive = $activeUserKrs->count();
+        $checkedInCount = 0;
+        
+        if ($totalActive > 0) {
+            $checkedInCount = $activeUserKrs->filter(function($kr) use ($startOfWeek) {
+                $last = $kr->checkIns->first();
+                return $last && $last->created_at->gte($startOfWeek);
+            })->count();
+            
+            $checkinScore = round(($checkedInCount / $totalActive) * 100, 1);
+        } else {
+            // No active work? Score 100 (Nothing overdue) or 0?
+            // Let's assume 100 means "Fully Compliant with Requirements"
+            $checkinScore = 100;
+        }
 
+        // 4. Other Metadata
+        $lastCheckInDate = $lastCheckIn ? $lastCheckIn->created_at : null;
         $confidenceTrend = 'stable';
         $totalConfidenceDelta = 0;
         $checkInCount = 0;
@@ -404,11 +429,6 @@ class ReportService
             elseif ($daysSince <= 14) $checkinStatus = 'warning';
             else $checkinStatus = 'late';
         }
-        
-        $checkinScore = 0;
-        if ($checkinStatus === 'good') $checkinScore = 100;
-        elseif ($checkinStatus === 'warning') $checkinScore = 50;
-        elseif ($checkinStatus === 'late') $checkinScore = 10;
 
         return [
             'user_id' => $member->user_id,
@@ -425,7 +445,7 @@ class ReportService
             'checkin_status' => $checkinStatus,
             'confidence_trend' => $confidenceTrend,
             'status' => $this->determineTimeBasedStatus($avgProgress, $expectedProgress),
-            'checkin_compliance_score' => $checkinScore,
+            'checkin_compliance_score' => $checkinScore, // New calculated score
         ];
     }
 
