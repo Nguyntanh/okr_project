@@ -2,6 +2,8 @@ import React from 'react';
 import StatCard from './StatCard';
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, LineElement, PointElement, Title, Tooltip, Legend } from 'chart.js';
+import EmptyState from './EmptyState';
+import { FiBarChart2, FiPieChart, FiTrendingDown, FiCheckSquare } from 'react-icons/fi';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, LineElement, PointElement, Title, Tooltip, Legend);
 
@@ -137,10 +139,7 @@ export default function ProcessTab({ data }) {
                 <StatCard label="Tỷ lệ Hoàn thành Thiết lập" value={`${statCards.setup_completion_rate}%`} />
                 <StatCard label="Tần suất Check-in TB/Người" value={`${statCards.avg_checkins_per_user}`} />
             </div>
-
-import EmptyState from './EmptyState';
-import { FiBarChart2, FiPieChart, FiTrendingDown, FiCheckSquare } from 'react-icons/fi';
-//...
+            
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                 <ChartWrapper title="Xếp hạng Tuân thủ Check-in theo Phòng ban">

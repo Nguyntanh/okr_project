@@ -1,9 +1,12 @@
 import React from 'react';
+import Select from 'react-select';
+import { FiBarChart2, FiTrendingDown } from 'react-icons/fi';
+
 import StatCard from './StatCard';
 import ProgressOverTimeChart from './ProgressOverTimeChart';
 import DepartmentPerformanceChart from './DepartmentPerformanceChart';
 import PerformanceTable from './PerformanceTable';
-import Select from 'react-select';
+import EmptyState from './EmptyState';
 
 export default function PerformanceTab({ data, filters, setFilters, allDepartments }) {
     if (!data) {
@@ -118,13 +121,7 @@ export default function PerformanceTab({ data, filters, setFilters, allDepartmen
                     details="Của lãnh đạo"
                 />
             </div>
-
-import { FiBarChart2, FiTrendingDown } from 'react-icons/fi';
-import EmptyState from './EmptyState';
-
-export default function PerformanceTab({ data, filters, setFilters, allDepartments }) {
-// ... (rest of the component)
-// ...
+            
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {charts.progress_over_time?.length > 0 ? (
