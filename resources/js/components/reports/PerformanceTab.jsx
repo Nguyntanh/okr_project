@@ -119,10 +119,36 @@ export default function PerformanceTab({ data, filters, setFilters, allDepartmen
                 />
             </div>
 
+import { FiBarChart2, FiTrendingDown } from 'react-icons/fi';
+import EmptyState from './EmptyState';
+
+export default function PerformanceTab({ data, filters, setFilters, allDepartments }) {
+// ... (rest of the component)
+// ...
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <ProgressOverTimeChart chartData={charts.progress_over_time} />
-                <DepartmentPerformanceChart chartData={charts.performance_by_department} />
+                {charts.progress_over_time?.length > 0 ? (
+                    <ProgressOverTimeChart chartData={charts.progress_over_time} />
+                ) : (
+                    <div className="bg-white p-4 rounded-lg shadow-sm h-96 flex items-center justify-center">
+                        <EmptyState 
+                            icon={FiTrendingDown}
+                            title="Không có dữ liệu xu hướng"
+                            message="Chưa có đủ dữ liệu check-in trong khoảng thời gian này để vẽ biểu đồ."
+                        />
+                    </div>
+                )}
+                {charts.performance_by_department?.length > 0 ? (
+                    <DepartmentPerformanceChart chartData={charts.performance_by_department} />
+                ) : (
+                     <div className="bg-white p-4 rounded-lg shadow-sm h-96 flex items-center justify-center">
+                        <EmptyState 
+                            icon={FiBarChart2}
+                            title="Không có dữ liệu phòng ban"
+                            message="Chưa có mục tiêu nào được gán cho các phòng ban trong chu kỳ này."
+                        />
+                    </div>
+                )}
             </div>
             
             {/* Detailed Table */}

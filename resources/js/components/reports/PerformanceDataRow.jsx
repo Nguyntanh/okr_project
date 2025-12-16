@@ -19,15 +19,19 @@ const HealthStatusBadge = ({ status }) => {
     );
 };
 
-const PerformanceDataRow = ({ objective, level, expandedRows, toggleRow }) => {
+const PerformanceDataRow = ({ objective, level, isZebra, expandedRows, toggleRow }) => {
     const isExpanded = expandedRows.includes(objective.objective_id);
     const hasChildren = objective.children && objective.children.length > 0;
 
     const indentStyle = { paddingLeft: `${level * 24 + 16}px` };
 
+    const rowClass = level > 0 
+        ? 'bg-gray-50' 
+        : (isZebra ? 'bg-white' : 'bg-gray-50');
+
     return (
         <>
-            <tr className={level > 0 ? 'bg-gray-50' : 'bg-white'}>
+            <tr className={rowClass}>
                 {/* Tên Mục tiêu */}
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     <div className="flex items-center" style={indentStyle}>
@@ -69,6 +73,7 @@ const PerformanceDataRow = ({ objective, level, expandedRows, toggleRow }) => {
                     key={child.objective_id}
                     objective={child}
                     level={level + 1}
+                    isZebra={false} // Child rows won't alternate, they'll have a consistent bg
                     expandedRows={expandedRows}
                     toggleRow={toggleRow}
                 />

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import PerformanceDataRow from './PerformanceDataRow';
+import EmptyState from './EmptyState';
+import { FiLayout } from 'react-icons/fi';
 
 const PerformanceTable = ({ tableData }) => {
     const [expandedRows, setExpandedRows] = useState([]);
@@ -13,7 +15,15 @@ const PerformanceTable = ({ tableData }) => {
     };
 
     if (!tableData || tableData.length === 0) {
-        return <div className="text-center p-8 bg-white rounded-lg shadow-sm">Không có dữ liệu chi tiết.</div>;
+        return (
+            <div className="bg-white rounded-lg shadow-sm mt-6">
+                <EmptyState 
+                    icon={FiLayout}
+                    title="Không có dữ liệu chi tiết"
+                    message="Chưa có mục tiêu nào trong chu kỳ này hoặc phù hợp với bộ lọc của bạn."
+                />
+            </div>
+        );
     }
 
     const columns = [
@@ -27,7 +37,8 @@ const PerformanceTable = ({ tableData }) => {
     ];
 
     return (
-        <div className="bg-white rounded-lg shadow-sm overflow-x-auto">
+        <div className="bg-white rounded-lg shadow-sm overflow-x-auto mt-6">
+            <h3 className="font-bold text-lg mb-2 p-4">Bảng Chi tiết Hiệu suất</h3>
             <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                     <tr>
@@ -43,11 +54,12 @@ const PerformanceTable = ({ tableData }) => {
                     </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                    {tableData.map(objective => (
+                    {tableData.map((objective, index) => (
                         <PerformanceDataRow 
                             key={objective.objective_id}
                             objective={objective}
                             level={0}
+                            isZebra={index % 2 === 0}
                             expandedRows={expandedRows}
                             toggleRow={toggleRow}
                         />

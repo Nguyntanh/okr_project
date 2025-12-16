@@ -14,7 +14,15 @@ const ChartWrapper = ({ title, children }) => (
 
 const ProcessTable = ({ tableData }) => {
      if (!tableData || tableData.length === 0) {
-        return <div className="text-center p-8 bg-white rounded-lg shadow-sm">Không có dữ liệu chi tiết.</div>;
+        return (
+            <div className="bg-white rounded-lg shadow-sm mt-6">
+                <EmptyState 
+                    icon={FiCheckSquare}
+                    title="Không có dữ liệu tuân thủ"
+                    message="Chưa có mục tiêu nào trong chu kỳ này để phân tích quy trình check-in."
+                />
+            </div>
+        );
     }
 
     const columns = [
@@ -57,8 +65,8 @@ const ProcessTable = ({ tableData }) => {
                     </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                    {tableData.map(row => (
-                        <tr key={row.objective_id}>
+                    {tableData.map((row, index) => (
+                        <tr key={row.objective_id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                 <a href={`/objectives/${row.objective_id}`} className="hover:underline" target="_blank" rel="noopener noreferrer">{row.objective_name}</a>
                             </td>
@@ -130,16 +138,31 @@ export default function ProcessTab({ data }) {
                 <StatCard label="Tần suất Check-in TB/Người" value={`${statCards.avg_checkins_per_user}`} />
             </div>
 
+import EmptyState from './EmptyState';
+import { FiBarChart2, FiPieChart, FiTrendingDown, FiCheckSquare } from 'react-icons/fi';
+//...
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                 <ChartWrapper title="Xếp hạng Tuân thủ Check-in theo Phòng ban">
-                    <Bar data={complianceByDeptData} options={{ indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }} />
+                    {(charts?.checkin_compliance_by_dept || []).length > 0 ? (
+                        <Bar data={complianceByDeptData} options={{ indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }} />
+                    ) : (
+                        <EmptyState icon={FiBarChart2} title="Không có dữ liệu" />
+                    )}
                 </ChartWrapper>
                 <ChartWrapper title="Phân bổ Trạng thái (Health) OKR">
-                    <Doughnut data={healthDistData} options={{ responsive: true, maintainAspectRatio: false }} />
+                    {(charts?.health_status_distribution?.on_track + charts?.health_status_distribution?.at_risk + charts?.health_status_distribution?.off_track) > 0 ? (
+                        <Doughnut data={healthDistData} options={{ responsive: true, maintainAspectRatio: false }} />
+                    ) : (
+                        <EmptyState icon={FiPieChart} title="Không có dữ liệu" />
+                    )}
                 </ChartWrapper>
                 <ChartWrapper title="Xu hướng Tuân thủ Check-in">
-                    <Line data={trendData} options={{ responsive: true, maintainAspectRatio: false }} />
+                    {Object.keys(charts?.process_compliance_trend || {}).length > 0 ? (
+                        <Line data={trendData} options={{ responsive: true, maintainAspectRatio: false }} />
+                    ) : (
+                         <EmptyState icon={FiTrendingDown} title="Không có dữ liệu" />
+                    )}
                 </ChartWrapper>
             </div>
 

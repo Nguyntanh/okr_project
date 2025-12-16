@@ -53,8 +53,8 @@ const QualityTable = ({ tableData }) => {
                     </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                    {tableData.map(row => (
-                        <tr key={row.objective_id}>
+                    {tableData.map((row, index) => (
+                        <tr key={row.objective_id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                 <a href={`/objectives/${row.objective_id}`} className="hover:underline" target="_blank" rel="noopener noreferrer">{row.objective_name}</a>
                             </td>
@@ -63,7 +63,7 @@ const QualityTable = ({ tableData }) => {
                                 {row.kr_type_distribution?.outcome > 0 && `Kết quả (${row.kr_type_distribution.outcome})`}
                                 {row.kr_type_distribution?.outcome > 0 && row.kr_type_distribution?.activity > 0 && ', '}
                                 {row.kr_type_distribution?.activity > 0 && `Hoạt động (${row.kr_type_distribution.activity})`}
-                                {(row.kr_type_distribution?.outcome === 0 && row.kr_type_distribution?.activity === 0) || !row.kr_type_distribution && 'Không xác định'}
+                                {(!row.kr_type_distribution || (row.kr_type_distribution.outcome === 0 && row.kr_type_distribution.activity === 0)) && 'Không xác định'}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                 {row.is_aspirational ? 'Tham vọng' : 'Cam kết'}
