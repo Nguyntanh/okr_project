@@ -71,18 +71,23 @@ export default function CompanyOverviewReport() {
             return;
         }
         try {
-            await createSnapshot({
-                name,
+            // Match the payload expected by ReportController@createSnapshot
+            const payload = {
+                report_name: name,
+                report_type: 'company', // This report is always of type 'company'
                 cycle_id: filters.cycleId,
-                filters: {
-                    departmentId: filters.departmentId,
-                    objectiveLevel: filters.objectiveLevel,
-                    dateRange: filters.dateRange,
-                }
-            });
+                department_id: filters.departmentId || null,
+                // Pass other filter values if the backend needs them
+                status: 'all', // Assuming a default, adjust if needed
+                owner_id: null, // Assuming a default, adjust if needed
+                notes: `Snapshot for company report with filters: ${JSON.stringify(filters)}`,
+            };
+            
+            await createSnapshot(payload);
+
             showNotification('success', `Đã tạo snapshot "${name}" thành công!`);
             setIsSnapshotModalOpen(false);
-            loadSnapshots(); // Refresh snapshot list
+            loadSnapshots(filters.cycleId); // Refresh snapshot list
         } catch (e) {
             showNotification('error', e.message || 'Không thể tạo snapshot.');
         }

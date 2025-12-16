@@ -9,6 +9,7 @@ use App\Models\CheckIn;
 use App\Models\KeyResult;
 use App\Models\User;
 use App\Models\OkrLink;
+use App\Models\Report; // Added this line
 use App\Services\ReportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;

@@ -43,7 +43,7 @@ export async function fetchDetailedDataForSnapshot(snapshotId, currentTab) {
 }
 
 export async function createSnapshot(snapshotDetails) {
-    const url = '/api/reports/snapshots';
+    const url = '/api/reports/snapshots/create';
     const res = await fetch(url, {
         method: 'POST',
         headers: {

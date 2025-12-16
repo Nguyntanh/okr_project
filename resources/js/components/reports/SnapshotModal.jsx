@@ -1,14 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 export default function SnapshotModal({ 
     isOpen, 
     onClose, 
-    title, 
-    onTitleChange, 
-    onSubmit, 
+    onSave, 
     isSubmitting 
 }) {
+    const [title, setTitle] = useState('');
+
     if (!isOpen) return null;
+
+    const handleSubmit = () => {
+        if (title && title.trim()) {
+            onSave(title.trim());
+        }
+    };
 
     return (
         <>
@@ -44,7 +50,7 @@ export default function SnapshotModal({
                             <input
                                 type="text"
                                 value={title}
-                                onChange={(e) => onTitleChange(e.target.value)}
+                                onChange={(e) => setTitle(e.target.value)}
                                 className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
                                 placeholder="VD: Báo cáo Tuần 42/2025"
                                 autoFocus
@@ -60,7 +66,7 @@ export default function SnapshotModal({
                             Hủy
                         </button>
                         <button
-                            onClick={onSubmit}
+                            onClick={handleSubmit}
                             disabled={isSubmitting || !title.trim()}
                             className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-lg shadow hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
