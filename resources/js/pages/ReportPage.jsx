@@ -499,8 +499,8 @@ export default function ReportPage() {
                             {/* Card 1 */}
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
                                 <div className="flex justify-between items-start">
-                                    <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Tiến độ TB Phòng ban</h3>
-                                    <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
+                                    <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider" title="Tiến độ Trung bình Phòng ban">Tiến độ Trung bình</h3>
+                                    <div className="p-2 bg-blue-50 rounded-lg text-blue-600 flex-shrink-0">
                                         <FiActivity className="w-5 h-5" />
                                     </div>
                                 </div>
@@ -510,8 +510,8 @@ export default function ReportPage() {
                             {/* Card 2 */}
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
                                 <div className="flex justify-between items-start">
-                                    <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Tỷ lệ Rủi ro</h3>
-                                    <div className="p-2 bg-yellow-50 rounded-lg text-yellow-600">
+                                    <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider">Tỷ lệ Rủi ro</h3>
+                                    <div className="p-2 bg-yellow-50 rounded-lg text-yellow-600 flex-shrink-0">
                                         <FiAlertTriangle className="w-5 h-5" />
                                     </div>
                                 </div>
@@ -524,8 +524,8 @@ export default function ReportPage() {
                             {/* Card 3 */}
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
                                 <div className="flex justify-between items-start">
-                                    <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Đóng góp TB/Thành viên</h3>
-                                    <div className="p-2 bg-green-50 rounded-lg text-green-600">
+                                    <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider" title="Đóng góp Trung bình mỗi Thành viên">Đóng góp/Thành viên</h3>
+                                    <div className="p-2 bg-green-50 rounded-lg text-green-600 flex-shrink-0">
                                         <FiUsers className="w-5 h-5" />
                                     </div>
                                 </div>
@@ -535,8 +535,8 @@ export default function ReportPage() {
                             {/* Card 4: Dept -> Company Alignment */}
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
                                 <div className="flex justify-between items-start">
-                                    <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Liên kết P.Ban {'>'} Công ty</h3>
-                                    <div className="p-2 bg-purple-50 rounded-lg text-purple-600">
+                                    <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider" title="Tỷ lệ Liên kết với Công ty">Liên kết Công ty</h3>
+                                    <div className="p-2 bg-purple-50 rounded-lg text-purple-600 flex-shrink-0">
                                         <FiLink className="w-5 h-5" />
                                     </div>
                                 </div>
@@ -705,59 +705,133 @@ export default function ReportPage() {
                     // --- TAB 2: QUY TRÌNH & TUÂN THỦ ---
                     <div className="space-y-8">
                         
-                        {/* COMPLIANCE STAT CARDS */}
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                            {/* Card 1: Check-in Rate */}
-                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
-                                <div className="flex justify-between items-start">
-                                    <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Tỷ lệ Check-in Định kỳ</h3>
-                                    <div className="p-2 bg-green-50 rounded-lg text-green-600">
-                                        <FiCheckCircle className="w-5 h-5" />
-                                    </div>
-                                </div>
-                                <div className="text-3xl font-bold text-slate-900">{reportData?.checkin_compliance_rate || 0}%</div>
-                            </div>
-
-                            {/* Card 2: Missed Check-ins */}
-                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
-                                <div className="flex justify-between items-start">
-                                    <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">OKR Lỡ Check-in</h3>
-                                    <div className="p-2 bg-red-50 rounded-lg text-red-600">
-                                        <FiClock className="w-5 h-5" />
-                                    </div>
-                                </div>
-                                <div className="flex items-end gap-2">
-                                    <span className="text-3xl font-bold text-slate-900">{reportData?.missed_checkins_count || 0}</span>
-                                    <span className="text-sm text-slate-400 mb-1">mục tiêu</span>
-                                </div>
-                            </div>
-
-                            {/* Card 3: Internal Alignment Rate */}
-                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
-                                <div className="flex justify-between items-start">
-                                    <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Liên kết Cá nhân {'>'} P.Ban</h3>
-                                    <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
-                                        <FiLink className="w-5 h-5" />
-                                    </div>
-                                </div>
-                                <div className="text-3xl font-bold text-slate-900">{reportData?.internal_alignment_rate || 0}%</div>
-                            </div>
-
-                            {/* Card 4: Unchecked Members */}
-                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
-                                <div className="flex justify-between items-start">
-                                    <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Thành viên chưa Check-in</h3>
-                                    <div className="p-2 bg-gray-100 rounded-lg text-gray-600">
-                                        <FiUserX className="w-5 h-5" />
-                                    </div>
-                                </div>
-                                <div className="flex items-end gap-2">
-                                    <span className="text-3xl font-bold text-slate-900">{reportData?.members_without_checkin_count || 0}</span>
-                                    <span className="text-sm text-slate-400 mb-1">người</span>
-                                </div>
-                            </div>
-                        </div>
-
+                                                                                                {/* COMPLIANCE STAT CARDS */}
+                        
+                                                                                                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        
+                                                                                                    {/* Card 1: Check-in Rate */}
+                        
+                                                                                                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
+                        
+                                                                                                        <div className="flex justify-between items-start">
+                        
+                                                                                                            <div>
+                        
+                                                                                                                <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider" title="Tỷ lệ Check-in Key Results (Tuần)">Check-in KR (Tuần)</h3>
+                        
+                                                                                                                <p className="text-[10px] text-slate-400 mt-0.5">(% KR đã cập nhật tuần này)</p>
+                        
+                                                                                                            </div>
+                        
+                                                                                                            <div className="p-2 bg-green-50 rounded-lg text-green-600 flex-shrink-0">
+                        
+                                                                                                                <FiCheckCircle className="w-5 h-5" />
+                        
+                                                                                                            </div>
+                        
+                                                                                                        </div>
+                        
+                                                                                                        <div className="text-3xl font-bold text-slate-900">{reportData?.checkin_compliance_rate || 0}%</div>
+                        
+                                                                                                    </div>
+                        
+                                                                        
+                        
+                                                                                                    {/* Card 2: Missed Check-ins */}
+                        
+                                                                                                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
+                        
+                                                                                                        <div className="flex justify-between items-start">
+                        
+                                                                                                            <div>
+                        
+                                                                                                                <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider" title="Số lượng Objective chưa được Check-in">Objective Chờ Cập nhật</h3>
+                        
+                                                                                                                <p className="text-[10px] text-slate-400 mt-0.5">(Chưa cập nhật tuần này)</p>
+                        
+                                                                                                            </div>
+                        
+                                                                                                            <div className="p-2 bg-red-50 rounded-lg text-red-600 flex-shrink-0">
+                        
+                                                                                                                <FiClock className="w-5 h-5" />
+                        
+                                                                                                            </div>
+                        
+                                                                                                        </div>
+                        
+                                                                                                        <div className="flex items-end gap-2">
+                        
+                                                                                                            <span className="text-3xl font-bold text-slate-900">{reportData?.missed_checkins_count || 0}</span>
+                        
+                                                                                                            <span className="text-sm text-slate-400 mb-1">mục tiêu</span>
+                        
+                                                                                                        </div>
+                        
+                                                                                                    </div>
+                        
+                                                                        
+                        
+                                                                                                    {/* Card 3: Alignment Rate */}
+                        
+                                                                                                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
+                        
+                                                                                                        <div className="flex justify-between items-start">
+                        
+                                                                                                            <div>
+                        
+                                                                                                                <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider" title="Tỷ lệ Liên kết Cá nhân với Phòng ban">Liên kết Nội bộ</h3>
+                        
+                                                                                                                <p className="text-[10px] text-slate-400 mt-0.5">(Độ phủ liên kết)</p>
+                        
+                                                                                                            </div>
+                        
+                                                                                                            <div className="p-2 bg-blue-50 rounded-lg text-blue-600 flex-shrink-0">
+                        
+                                                                                                                <FiLink className="w-5 h-5" />
+                        
+                                                                                                            </div>
+                        
+                                                                                                        </div>
+                        
+                                                                                                        <div className="text-3xl font-bold text-slate-900">{reportData?.internal_alignment_rate || 0}%</div>
+                        
+                                                                                                    </div>
+                        
+                                                                        
+                        
+                                                                                                    {/* Card 4: Unchecked Members */}
+                        
+                                                                                                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
+                        
+                                                                                                        <div className="flex justify-between items-start">
+                        
+                                                                                                            <div>
+                        
+                                                                                                                <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider" title="Số lượng Nhân sự chưa Check-in">Nhân sự Chưa Check-in</h3>
+                        
+                                                                                                                <p className="text-[10px] text-slate-400 mt-0.5">(Trong tuần này)</p>
+                        
+                                                                                                            </div>
+                        
+                                                                                                            <div className="p-2 bg-gray-100 rounded-lg text-gray-600 flex-shrink-0">
+                        
+                                                                                                                <FiUserX className="w-5 h-5" />
+                        
+                                                                                                            </div>
+                        
+                                                                                                        </div>
+                        
+                                                                                                        <div className="flex items-end gap-2">
+                        
+                                                                                                            <span className="text-3xl font-bold text-slate-900">{reportData?.members_without_checkin_count || 0}</span>
+                        
+                                                                                                            <span className="text-sm text-slate-400 mb-1">người</span>
+                        
+                                                                                                        </div>
+                        
+                                                                                                    </div>
+                        
+                                                                                                </div>
                         {/* CHARTS ROW */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                             {/* Bar Chart: Compliance Ranking */}

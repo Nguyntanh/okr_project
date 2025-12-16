@@ -283,8 +283,19 @@ class ReportService
 
         $createdAt = Carbon::parse($objective->created_at);
         $weeksElapsed = $createdAt->diffInWeeks(now()) ?: 1;
-        $totalCheckinsCount = $krs->sum(fn($kr) => $kr->checkIns->count());
-        $personalCheckinRate = round(min(100, ($totalCheckinsCount / $weeksElapsed) * 100), 1);
+        
+        // Calculate Unique Weeks with Check-ins
+        // 1. Get all check-in dates for this objective's KRs
+        // Note: Since we only loaded limit(2) checkins, we need to query properly if we want full history accuracy.
+        // However, for performance, querying ALL checkins for EVERY objective is heavy.
+        // Optimization: Use a raw count of "weeks" if possible, or accept the approximation if we stick to eager loading.
+        // BUT, user wants ACCURACY ("spam check-in" problem). So we must query unique weeks.
+        
+        $weeksWithCheckin = CheckIn::whereIn('kr_id', $krs->pluck('kr_id'))
+            ->distinct()
+            ->count(DB::raw("YEARWEEK(created_at, 1)"));
+
+        $personalCheckinRate = round(min(100, ($weeksWithCheckin / $weeksElapsed) * 100), 1);
 
         if ($totalItemsCount === 0) {
             $progress = (float) ($objective->progress_percent ?? 0);
