@@ -13,9 +13,9 @@ export default function SnapshotHistoryModal({
     snapshotPage,
     snapshotPagination,
     onPageChange,
-    onLoadSnapshot,
+    onSelectSnapshot,
     selectedSnapshot,
-    onBackToList,
+    onDeselectSnapshot,
     onExportSnapshot,
     modalCycleFilter,
     onModalCycleFilterChange,
@@ -27,7 +27,6 @@ export default function SnapshotHistoryModal({
     const [snapshotSortBy, setSnapshotSortBy] = useState(null);
     const [snapshotSortDir, setSnapshotSortDir] = useState('asc');
     const [snapshotLevelDropdownOpen, setSnapshotLevelDropdownOpen] = useState(false);
-    const [modalCycleDropdownOpen, setModalCycleDropdownOpen] = useState(false);
     const [creatorTooltip, setCreatorTooltip] = useState(null);
 
     // Lọc snapshot theo cấp độ và chu kỳ
@@ -62,7 +61,7 @@ export default function SnapshotHistoryModal({
 
                 <div className="sticky top-0 z-50 bg-white border-b border-gray-200 p-6 flex items-center justify-between rounded-t-xl shadow-sm">
                     <div className="flex items-center gap-4">
-                        <h2 className="text-xl font-bold text-gray-900">Danh sách Báo cáo</h2>
+                        <h2 className="text-xl font-bold text-gray-900">Lịch sử Báo cáo (Snapshots)</h2>
                     </div>
                     <button
                         onClick={onClose}
@@ -81,7 +80,7 @@ export default function SnapshotHistoryModal({
                                 <div>
                                     <div className="flex items-center justify-between mb-4 gap-3">
                                         <button 
-                                            onClick={onBackToList} 
+                                            onClick={onDeselectSnapshot} 
                                             className="text-blue-600 hover:text-blue-800 flex items-center gap-2 font-medium transition"
                                         >
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -121,7 +120,7 @@ export default function SnapshotHistoryModal({
                             ) : (
                                 <SnapshotDetailView
                                     snapshot={selectedSnapshot}
-                                    onBack={onBackToList}
+                                    onBack={onDeselectSnapshot}
                                     onExport={onExportSnapshot}
                                 />
                             )}
@@ -202,8 +201,6 @@ export default function SnapshotHistoryModal({
                                                     onModalCycleFilterChange(value || '');
                                                     onPageChange?.(1);
                                                 }}
-                                                dropdownOpen={modalCycleDropdownOpen}
-                                                setDropdownOpen={setModalCycleDropdownOpen}
                                             />
                                         </div>
                                     </div>
@@ -314,7 +311,7 @@ export default function SnapshotHistoryModal({
                                                             <tr
                                                                 key={rowKey}
                                                                 className="border-t border-gray-100 hover:bg-slate-50 cursor-pointer"
-                                                                onClick={() => onLoadSnapshot?.(snap.id)}
+                                                                onClick={() => onSelectSnapshot?.(snap)}
                                                             >
                                                                 <td className="px-6 py-4 pl-8">
                                                                     <div className="flex items-center gap-4">
