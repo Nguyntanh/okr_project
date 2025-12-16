@@ -147,7 +147,18 @@ class ReportService
         })->count();
         $alignmentRate = $unitObjsCount > 0 ? round(($linkedUnitObjsCount / $unitObjsCount) * 100, 1) : 0;
 
-        // C. Members without Check-in
+        // E. Internal Alignment Rate (Personal -> Unit)
+        $personalObjs = $objectives->filter(fn($o) => strtolower($o->level ?? '') === 'person');
+        $totalPersonalObjs = $personalObjs->count();
+        $linkedPersonalObjs = $personalObjs->filter(function($obj) {
+            return $obj->sourceLinks->contains(function($link) {
+                return $link->targetObjective && strtolower($link->targetObjective->level ?? '') === 'unit';
+            });
+        })->count();
+        
+        $internalAlignmentRate = $totalPersonalObjs > 0 ? round(($linkedPersonalObjs / $totalPersonalObjs) * 100, 1) : 0;
+
+        // D. Members without Check-in
         $recentCheckinUserIds = CheckIn::where('created_at', '>=', $startOfWeek)
             ->whereIn('user_id', $memberIds)
             ->pluck('user_id')
@@ -227,6 +238,7 @@ class ReportService
             'checkin_compliance_rate' => $deptCheckinRate,
             'missed_checkins_count' => $missedCheckinsCount,
             'alignment_rate' => $alignmentRate,
+            'internal_alignment_rate' => $internalAlignmentRate,
             'members_without_checkin_count' => $membersWithoutCheckinCount,
         ];
     }

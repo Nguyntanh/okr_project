@@ -495,7 +495,7 @@ export default function ReportPage() {
                     <div className="space-y-8">
                         
                         {/* STAT CARDS */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                             {/* Card 1 */}
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
                                 <div className="flex justify-between items-start">
@@ -530,6 +530,17 @@ export default function ReportPage() {
                                     </div>
                                 </div>
                                 <div className="text-3xl font-bold text-slate-900">{stats.avgContribution.toFixed(1)}%</div>
+                            </div>
+
+                            {/* Card 4: Dept -> Company Alignment */}
+                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
+                                <div className="flex justify-between items-start">
+                                    <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Liên kết P.Ban {'>'} Công ty</h3>
+                                    <div className="p-2 bg-purple-50 rounded-lg text-purple-600">
+                                        <FiLink className="w-5 h-5" />
+                                    </div>
+                                </div>
+                                <div className="text-3xl font-bold text-slate-900">{reportData?.alignment_rate || 0}%</div>
                             </div>
                         </div>
 
@@ -721,15 +732,15 @@ export default function ReportPage() {
                                 </div>
                             </div>
 
-                            {/* Card 3: Alignment Rate */}
+                            {/* Card 3: Internal Alignment Rate */}
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
                                 <div className="flex justify-between items-start">
-                                    <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Tỷ lệ Liên kết</h3>
+                                    <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Liên kết Cá nhân {'>'} P.Ban</h3>
                                     <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
                                         <FiLink className="w-5 h-5" />
                                     </div>
                                 </div>
-                                <div className="text-3xl font-bold text-slate-900">{reportData?.alignment_rate || 0}%</div>
+                                <div className="text-3xl font-bold text-slate-900">{reportData?.internal_alignment_rate || 0}%</div>
                             </div>
 
                             {/* Card 4: Unchecked Members */}
