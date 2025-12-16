@@ -244,12 +244,10 @@ export default function SnapshotHistoryModal({
                                         <table className="w-full text-left bg-white text-sm">
                                                 <thead className="bg-slate-50">
                                                     <tr className="text-slate-600 font-semibold text-xs uppercase">
-                                                        <th className="px-4 py-3 w-[25%]">Tên Báo cáo</th>
-                                                        <th className="px-4 py-3 w-[15%]">Chu kỳ</th>
-                                                        <th className="px-4 py-3 w-[15%]">Phòng ban/Cấp độ</th>
-                                                        <th className="px-4 py-3 w-[15%]">Người tạo</th>
-                                                        <th className="px-4 py-3 w-[20%]">Ghi chú</th>
-                                                        <th className="px-4 py-3 w-[10%] text-right">Ngày tạo</th>
+                                                        <th className="px-4 py-3 w-[35%]">Tên Báo cáo</th>
+                                                        <th className="px-4 py-3 w-[25%]">Phòng ban/Cấp độ</th>
+                                                        <th className="px-4 py-3 w-[25%]">Người tạo</th>
+                                                        <th className="px-4 py-3 w-[15%] text-right">Ngày tạo</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-100">
@@ -260,7 +258,6 @@ export default function SnapshotHistoryModal({
                                                             onClick={() => onSelectSnapshot?.(snap)}
                                                         >
                                                             <td className="px-4 py-3 font-medium text-slate-800">{snap.report_name}</td>
-                                                            <td className="px-4 py-3 text-slate-600">{snap.cycle?.cycle_name || 'N/A'}</td>
                                                             <td className="px-4 py-3">
                                                                 <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                                                                     snap.department 
@@ -271,7 +268,6 @@ export default function SnapshotHistoryModal({
                                                                 </span>
                                                             </td>
                                                             <td className="px-4 py-3 text-slate-600">{snap.creator?.full_name || 'N/A'}</td>
-                                                            <td className="px-4 py-3 text-slate-500 truncate max-w-xs">{snap.notes || '-'}</td>
                                                             <td className="px-4 py-3 text-slate-500 text-right">{snap.created_at_formatted}</td>
                                                         </tr>
                                                     ))}
