@@ -39,7 +39,7 @@ const QualityTable = ({ tableData }) => {
     return (
         <div className="bg-white rounded-lg shadow-sm overflow-x-auto mt-6">
             <h3 className="font-bold text-lg mb-2 p-4">Các OKR có Dấu hiệu Cấu trúc kém</h3>
-            <table className="divide-y divide-gray-200">
+            <table className="divide-y divide-gray-200 table-fixed">
                 <thead className="bg-gray-50">
                     <tr>
                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên Mục tiêu (O/KR)</th>

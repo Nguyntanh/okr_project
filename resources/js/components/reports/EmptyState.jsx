@@ -5,7 +5,7 @@ const EmptyState = ({ icon, title, message }) => {
     const IconComponent = icon || FiBarChart2;
 
     return (
-        <div className="flex flex-col items-center justify-center text-center p-8 bg-gray-50 rounded-lg h-full">
+        <div className="flex flex-col items-center justify-center text-center h-full">
             <div className="bg-gray-200 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                 <IconComponent className="h-8 w-8 text-gray-400" />
             </div>

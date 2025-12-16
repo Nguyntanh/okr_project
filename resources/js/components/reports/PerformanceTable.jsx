@@ -39,7 +39,7 @@ const PerformanceTable = ({ tableData }) => {
     return (
         <div className="bg-white rounded-lg shadow-sm overflow-x-auto mt-6">
             <h3 className="font-bold text-lg mb-2 p-4">Bảng Chi tiết Hiệu suất</h3>
-            <table className="divide-y divide-gray-200">
+            <table className="divide-y divide-gray-200 table-fixed">
                 <thead className="bg-gray-50">
                     <tr>
                         {columns.map(col => (
