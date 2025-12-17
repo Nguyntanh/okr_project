@@ -512,4 +512,38 @@ class ReportService
         if ($delta >= -10) return 'at_risk';
         return 'behind';
     }
+
+    /**
+     * Calculate ideal progress based on cycle timeframe.
+     */
+    public function getIdealProgress($startDate, $endDate): float
+    {
+        $start = Carbon::parse($startDate);
+        $end = Carbon::parse($endDate);
+        $now = Carbon::now();
+
+        if ($now->isBefore($start)) return 0.0;
+        if ($now->isAfter($end)) return 100.0;
+
+        $totalDuration = $end->diffInDays($start);
+        if ($totalDuration <= 0) return 100.0;
+
+        $elapsedDuration = $now->diffInDays($start);
+        
+        return round(($elapsedDuration / $totalDuration) * 100, 2);
+    }
+
+    /**
+     * Get health status string based on actual vs ideal progress.
+     */
+    public function getHealthStatus(float $actualProgress, float $idealProgress): string
+    {
+        if ($actualProgress >= $idealProgress - 10) {
+            return 'on_track'; // Green
+        }
+        if ($actualProgress < $idealProgress - 20) {
+            return 'off_track'; // Red
+        }
+        return 'at_risk'; // Yellow
+    }
 }
