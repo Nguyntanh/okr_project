@@ -87,6 +87,66 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, isLoading })
     );
 };
 
+// History Modal Component
+const HistoryModal = ({ isOpen, onClose, reports, onView, onDelete }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 z-[100] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+            <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onClick={onClose}></div>
+                <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                <div className="relative inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
+                    <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                        <div className="flex justify-between items-center mb-4 border-b pb-2">
+                            <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">Lịch sử Báo cáo đã lưu</h3>
+                            <button onClick={onClose} className="text-gray-400 hover:text-gray-500 focus:outline-none">
+                                <span className="text-2xl">&times;</span>
+                            </button>
+                        </div>
+                        
+                        <div className="mt-2 max-h-96 overflow-y-auto">
+                            {reports.length === 0 ? (
+                                <p className="text-center text-gray-500 py-8">Chưa có báo cáo nào được lưu.</p>
+                            ) : (
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Thời gian lưu</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Chu kỳ</th>
+                                            <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {reports.map((report) => (
+                                            <tr key={report.report_id}>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {new Date(report.created_at).toLocaleString('vi-VN')}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                    {report.cycle?.cycle_name || 'N/A'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                    <button onClick={() => onView(report.report_id)} className="text-indigo-600 hover:text-indigo-900 mr-4">Xem lại</button>
+                                                    <button onClick={() => onDelete(report.report_id)} className="text-red-600 hover:text-red-900">Xóa</button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                    </div>
+                    <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                        <button type="button" className="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm" onClick={onClose}>
+                            Đóng
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // Row Component for Expandable Tree View (CLEAN TOGGLE - NO CONNECTORS)
 const ComplianceRow = ({ item, level = 0, getOwner, onRemind }) => {
     const [expanded, setExpanded] = useState(false); // Default Collapsed
@@ -237,6 +297,7 @@ export default function ReportPage() {
     const [reportData, setReportData] = useState(null);
     const [trendData, setTrendData] = useState([]); 
     const [departmentName, setDepartmentName] = useState("");
+    const [departmentId, setDepartmentId] = useState(null);
     const [error, setError] = useState(null);
     const [activeTab, setActiveTab] = useState("performance");
 
@@ -265,6 +326,7 @@ export default function ReportPage() {
             if (json.success) {
                 setReportData(json.data);
                 setDepartmentName(json.department_name);
+                setDepartmentId(json.department_id);
             } else {
                 setError(json.message);
             }
@@ -324,6 +386,7 @@ export default function ReportPage() {
                 body: JSON.stringify({
                     report_type: 'team',
                     cycle_id: selectedCycle,
+                    department_id: departmentId
                 })
             });
             const json = await res.json();
@@ -356,12 +419,16 @@ export default function ReportPage() {
         setLoading(true);
         setShowHistoryModal(false);
         try {
-            const res = await fetch(`/api/reports/snapshots/${reportId}`);
+            const res = await fetch(`/api/reports/snapshots/detail/${reportId}`);
             const json = await res.json();
             if (json.success) {
-                setReportData(json.data.snapshot_data);
+                const snap = json.data.snapshot_data;
+                // Handle nested 'data' structure from API response snapshot
+                setReportData(snap.data || snap);
+                if (snap.department_name) setDepartmentName(snap.department_name);
+
                 setSelectedSnapshot(json.data); 
-                setToast({ message: `Đang xem: ${json.data.report_name}`, type: 'info' });
+                setToast({ message: `Đang xem: ${json.data.report_name}`, type: 'success' });
             }
         } catch (e) {
             setToast({ message: "Lỗi tải báo cáo lưu trữ", type: 'error' });
@@ -621,8 +688,8 @@ export default function ReportPage() {
                         <div className="flex items-center gap-3">
                             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Báo cáo Thống kê Phòng ban</h1>
                             {selectedSnapshot && (
-                                <span className="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full border border-amber-200">
-                                    Đang xem bản lưu: {new Date(selectedSnapshot.created_at).toLocaleString('vi-VN')}
+                                <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full border border-green-200">
+                                    Đang xem: {selectedSnapshot.report_name}
                                 </span>
                             )}
                         </div>
@@ -640,8 +707,9 @@ export default function ReportPage() {
                                         placeholder="Chọn chu kỳ"
                                     />
                                 </div>
-                                <button onClick={fetchSavedReports} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" title="Lịch sử báo cáo">
-                                    <FiList className="w-5 h-5" />
+                                <button onClick={fetchSavedReports} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg shadow-sm transition-colors text-sm font-medium">
+                                    <FiList className="w-4 h-4" />
+                                    <span>Lịch sử</span>
                                 </button>
                                 <button onClick={handleSaveSnapshot} disabled={isSaving} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg shadow-sm transition-colors text-sm font-medium">
                                     {isSaving ? <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-600"></span> : <FiSave className="w-4 h-4" />}
@@ -878,6 +946,7 @@ export default function ReportPage() {
                 )}
                 <ToastNotification toast={toast} onClose={() => setToast({ message: null, type: null })} />
                 <ConfirmModal isOpen={remindModalOpen} onClose={() => setRemindModalOpen(false)} onConfirm={confirmRemind} title="Xác nhận nhắc nhở" message={`Bạn có chắc chắn muốn gửi thông báo nhắc nhở check-in đến ${userToRemind.name} không?`} isLoading={isReminding} />
+                <HistoryModal isOpen={showHistoryModal} onClose={() => setShowHistoryModal(false)} reports={savedReports} onView={loadSnapshot} onDelete={deleteReport} />
             </div>
         </div>
     );

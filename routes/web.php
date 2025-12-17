@@ -336,6 +336,7 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/snapshots', [\App\Http\Controllers\ReportSnapshotController::class, 'index'])
             ->name('api.reports.snapshots.index');
         Route::get('/snapshots/{id}', [\App\Http\Controllers\ReportSnapshotController::class, 'show'])
+            ->where('id', '[0-9]+')
             ->name('api.reports.snapshots.show');
     });
 
@@ -345,8 +346,8 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
             ->name('api.reports.snapshots.create');
         Route::get('/list', [\App\Http\Controllers\ReportController::class, 'getReportsList'])
             ->name('api.reports.snapshots.list');
-        Route::get('/{reportId}', [\App\Http\Controllers\ReportController::class, 'getReportSnapshot'])
-            ->name('api.reports.snapshots.show');
+        Route::get('/detail/{reportId}', [\App\Http\Controllers\ReportController::class, 'getReportSnapshot'])
+            ->name('api.reports.snapshots.detail');
         Route::delete('/{reportId}', [\App\Http\Controllers\ReportController::class, 'deleteReport'])
             ->name('api.reports.snapshots.delete');
     });
