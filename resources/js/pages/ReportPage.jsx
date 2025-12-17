@@ -87,42 +87,40 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, isLoading })
     );
 };
 
-// Row Component for Expandable Tree View
-const ComplianceRow = ({ item, level = 0, getOwner, onRemind, isLastChild = false }) => {
-    const [expanded, setExpanded] = useState(false); 
+// Row Component for Expandable Tree View (CLEAN TOGGLE - NO CONNECTORS)
+const ComplianceRow = ({ item, level = 0, getOwner, onRemind }) => {
+    const [expanded, setExpanded] = useState(false); // Default Collapsed
     const hasChildren = (item.children && item.children.length > 0) || (item.key_results && item.key_results.length > 0);
     const isUnit = (item.level || '').toLowerCase() === 'unit';
     
+    // Indentation logic
     const basePadding = 24;
-    const levelIndent = 28;
+    const levelIndent = 32;
     const paddingLeft = basePadding + (level * levelIndent);
 
     return (
         <>
             <tr className={`hover:bg-slate-50 transition-colors text-sm border-b border-slate-100 ${level > 0 ? 'bg-slate-50/30' : 'bg-white'} relative`}>
                 <td className="py-3 pr-6 text-left relative" style={{ paddingLeft: `${paddingLeft}px` }}>
-                    {level > 0 && (
-                        <>
-                            <div className="absolute top-1/2 w-4 border-b border-slate-300" style={{ left: `${paddingLeft - 20}px` }}></div>
-                            <div className="absolute -top-1/2 bottom-1/2 border-l border-slate-300" style={{ left: `${paddingLeft - 20}px` }}></div>
-                            {!isLastChild && <div className="absolute top-1/2 bottom-0 border-l border-slate-300" style={{ left: `${paddingLeft - 20}px` }}></div>}
-                        </>
-                    )}
-
                     <div className="flex items-start gap-2 relative z-10">
                         {hasChildren ? (
-                            <button onClick={() => setExpanded(!expanded)} className="mt-0.5 text-slate-400 hover:text-slate-600 transition-colors p-0.5 rounded hover:bg-slate-200 z-20 bg-white border border-slate-200">
+                            <button 
+                                onClick={() => setExpanded(!expanded)}
+                                className="mt-0.5 text-slate-500 hover:text-slate-700 transition-colors p-0.5 rounded hover:bg-slate-200 z-20 bg-white border border-slate-300 shadow-sm flex-shrink-0"
+                            >
                                 {expanded ? <FiChevronDown className="w-3 h-3" /> : <FiChevronRight className="w-3 h-3" />}
                             </button>
-                        ) : (<span className="w-5 h-5 flex-shrink-0"></span>)}
+                        ) : (
+                            <span className="w-5 h-5 flex-shrink-0"></span>
+                        )}
                         
-                        <div>
+                        <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                                {isUnit && <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0"></span>}
-                                {!isUnit && level > 0 && <FiHexagon className="w-3 h-3 text-slate-400" />}
+                                {isUnit && <span className="w-2 h-2 rounded-sm bg-indigo-600 flex-shrink-0"></span>}
+                                {!isUnit && level > 0 && <FiHexagon className="w-3.5 h-3.5 text-slate-500" />}
                                 <a href="#" className={`hover:text-blue-600 hover:underline line-clamp-2 ${isUnit ? 'font-bold text-slate-800' : 'font-medium text-slate-700'}`} title={item.obj_title}>{item.obj_title}</a>
                             </div>
-                            <span className="text-[10px] text-slate-400 block font-semibold tracking-wide mt-0.5 ml-3.5 uppercase">{item.level} {level > 0 && !isUnit ? '(Liên kết)' : ''}</span>
+                            <span className="text-[10px] text-slate-400 block font-semibold tracking-wide mt-0.5 ml-0 uppercase">{isUnit ? 'PHÒNG BAN' : (level > 0 ? 'LIÊN KẾT CÁ NHÂN' : 'CÁ NHÂN')}</span>
                         </div>
                     </div>
                 </td>
@@ -136,7 +134,6 @@ const ComplianceRow = ({ item, level = 0, getOwner, onRemind, isLastChild = fals
 
                 <td className="px-6 py-3"><StatusBadge status={item.status} /></td>
 
-                {/* Progress Bar (Fixed Width) */}
                 <td className="px-6 py-3">
                     <div className="flex items-center gap-2">
                         <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden flex-none">
@@ -146,7 +143,6 @@ const ComplianceRow = ({ item, level = 0, getOwner, onRemind, isLastChild = fals
                     </div>
                 </td>
 
-                {/* Check-in Rate Bar (Fixed Width) */}
                 <td className="px-6 py-3 text-center">
                     <div className="flex items-center justify-center gap-2">
                         <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden flex-none">
@@ -162,9 +158,13 @@ const ComplianceRow = ({ item, level = 0, getOwner, onRemind, isLastChild = fals
 
                 <td className="px-6 py-3 text-center">
                     {!isUnit ? (
-                        <button className="text-[10px] px-2 py-1 bg-white border border-indigo-200 text-indigo-600 rounded hover:bg-indigo-50 transition-colors flex items-center gap-1 mx-auto" onClick={() => onRemind(item.user_id, getOwner(item.user_id).name)} title="Gửi thông báo nhắc nhở">
+                        <button 
+                            className="text-[10px] px-2 py-1 bg-white border border-indigo-200 text-indigo-600 rounded hover:bg-indigo-50 transition-colors flex items-center gap-1 mx-auto whitespace-nowrap w-fit" 
+                            onClick={() => onRemind(item.user_id, getOwner(item.user_id).name)}
+                            title="Gửi thông báo nhắc nhở"
+                        >
                             <FiBell className="w-3 h-3" />
-                            <span>Nhắc</span>
+                            <span>Nhắc nhở</span>
                         </button>
                     ) : (
                         <span className="text-[10px] text-slate-300 italic">Quản lý</span>
@@ -176,19 +176,14 @@ const ComplianceRow = ({ item, level = 0, getOwner, onRemind, isLastChild = fals
                 <>
                     {/* Render Key Results */}
                     {(item.key_results || []).map((kr, idx) => {
-                        const isLastItem = idx === (item.key_results.length - 1) && (!item.children || item.children.length === 0);
+                        const krPaddingLeft = paddingLeft + levelIndent;
                         return (
                             <tr key={`kr-${kr.id}`} className="bg-white hover:bg-slate-50 transition-colors text-xs border-b border-slate-100">
-                                <td className="py-2 pr-6 text-left relative" style={{ paddingLeft: `${paddingLeft + levelIndent}px` }}>
-                                    <div className="absolute top-1/2 w-4 border-b border-slate-300" style={{ left: `${paddingLeft + levelIndent - 20}px` }}></div>
-                                    <div className="absolute -top-1/2 bottom-1/2 border-l border-slate-300" style={{ left: `${paddingLeft + levelIndent - 20}px` }}></div>
-                                    {!isLastItem && <div className="absolute top-1/2 bottom-0 border-l border-slate-300" style={{ left: `${paddingLeft + levelIndent - 20}px` }}></div>}
-                                    {!isLastChild && <div className="absolute -top-1/2 bottom-0 border-l border-slate-300" style={{ left: `${paddingLeft - 20}px` }}></div>}
-
+                                <td className="py-2 pr-6 text-left relative" style={{ paddingLeft: `${krPaddingLeft}px` }}>
                                     <div className="flex items-center gap-2 text-slate-600 relative z-10">
-                                        <FiTarget className="w-3 h-3 text-slate-400" />
+                                        <FiTarget className="w-3.5 h-3.5 text-slate-400" />
                                         <span className="truncate max-w-[300px]" title={kr.title}>{kr.title}</span>
-                                        <span className="text-[9px] px-1.5 py-0.5 bg-slate-100 rounded text-slate-500 font-medium">KR</span>
+                                        <span className="text-[9px] px-1.5 py-0.5 bg-slate-100 rounded text-slate-500 font-medium border border-slate-200">KR</span>
                                     </div>
                                 </td>
                                 <td className="px-6 py-2">
@@ -199,7 +194,6 @@ const ComplianceRow = ({ item, level = 0, getOwner, onRemind, isLastChild = fals
                                 </td>
                                 <td className="px-6 py-2"><StatusBadge status={kr.status} /></td>
                                 
-                                {/* KR Progress */}
                                 <td className="px-6 py-2">
                                     <div className="flex items-center gap-2">
                                         <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden flex-none">
@@ -209,7 +203,6 @@ const ComplianceRow = ({ item, level = 0, getOwner, onRemind, isLastChild = fals
                                     </div>
                                 </td>
 
-                                {/* KR Check-in Rate */}
                                 <td className="px-6 py-2 text-center text-slate-300">-</td>
 
                                 <td className="px-6 py-2 text-slate-400">
@@ -223,7 +216,13 @@ const ComplianceRow = ({ item, level = 0, getOwner, onRemind, isLastChild = fals
 
                     {/* Render Child Objectives */}
                     {(item.children || []).map((child, idx) => (
-                        <ComplianceRow key={child.objective_id} item={child} level={level + 1} getOwner={getOwner} onRemind={onRemind} isLastChild={idx === (item.children.length - 1)} />
+                        <ComplianceRow 
+                            key={child.objective_id} 
+                            item={child} 
+                            level={level + 1} 
+                            getOwner={getOwner} 
+                            onRemind={onRemind} 
+                        />
                     ))}
                 </>
             )}
