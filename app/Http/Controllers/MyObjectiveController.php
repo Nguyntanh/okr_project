@@ -590,7 +590,7 @@ class MyObjectiveController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
         }
 
-        $objective = Objective::with([
+        $query = Objective::with([
             'keyResults' => function ($query) {
                 $query->with(['assignedUser.role', 'assignedUser.department', 'checkIns.user'])->orderBy('created_at');
             },
@@ -606,9 +606,13 @@ class MyObjectiveController extends Controller
             'sourceLinks' => function ($query) {
                 $query->with(['targetObjective.user', 'targetObjective.department']);
             }
-        ])
-            ->where('user_id', $user->user_id) 
-            ->find($id);
+        ]);
+
+        if (!$user->isCeo()) {
+            $query->where('user_id', $user->user_id);
+        }
+        
+        $objective = $query->find($id);
 
         if (!$objective) {
             return response()->json(['success' => false, 'message' => 'Không tìm thấy hoặc bạn không có quyền xem.'], 404);
