@@ -663,12 +663,14 @@ export default function ReportPage() {
                 {/* 2. NAVIGATION TABS */}
                 <div className="border-b border-slate-200 mb-8">
                     <nav className="flex space-x-8" aria-label="Tabs">
-                        {['Hiệu suất', 'Tuân thủ Quy trình', 'Chất lượng & Cấu trúc'].map((tab) => {
-                            const key = tab === 'Hiệu suất' ? 'performance' : (tab === 'Tuân thủ Quy trình' ? 'compliance' : 'quality');
-                            const isActive = activeTab === key;
+                        {[
+                            { id: 'performance', label: 'Hiệu suất Phòng ban' },
+                            { id: 'compliance', label: 'Quy trình đội ngũ' }
+                        ].map((tab) => {
+                            const isActive = activeTab === tab.id;
                             return (
-                                <button key={tab} onClick={() => setActiveTab(key)} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${isActive ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}>
-                                    {tab}
+                                <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${isActive ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}>
+                                    {tab.label}
                                 </button>
                             );
                         })}
