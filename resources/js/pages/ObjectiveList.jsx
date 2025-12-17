@@ -399,7 +399,7 @@ export default function ObjectiveList({
                         setDropdownOpen={setDropdownOpen}
                     />
                 </div>
-                        {role !== 'ceo' && role !== 'admin' && (
+                        {role !== 'admin' && (
                             <div className="flex flex-col gap-1">
                                 <span className="text-xs font-semibold text-slate-600 leading-none">
                                     Phạm vi OKR
