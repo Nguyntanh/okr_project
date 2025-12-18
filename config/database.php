@@ -2,6 +2,20 @@
 
 use Illuminate\Support\Str;
 
+if (!function_exists('env')) {
+    /**
+     * Gets the value of an environment variable.
+     *
+     * @param string $key
+     * @param mixed $default
+     * @return mixed
+     */
+    function env($key, $default = null) {
+        $value = getenv($key);
+        return $value === false ? $default : $value;
+    }
+}
+
 return [
 
     /*
@@ -16,7 +30,7 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'sqlite'),
+    'default' => env('DB_CONNECTION', 'mysql'),
 
     /*
     |--------------------------------------------------------------------------
@@ -34,7 +48,7 @@ return [
         'sqlite' => [
             'driver' => 'sqlite',
             'url' => env('DB_URL'),
-            'database' => env('DB_DATABASE', database_path('database.sqlite')),
+            'database' => env('DB_DATABASE', __DIR__ . '/../database/database.sqlite'),
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
             'busy_timeout' => null,
