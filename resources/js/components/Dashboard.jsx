@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import ProgressChart from "./ProgressChart";
+import { FaBullseye, FaKey } from "react-icons/fa";
 
 const getProgressColor = (percent) => {
     if (percent >= 80) return "bg-emerald-500"; 
@@ -73,142 +74,7 @@ function SimpleOkrList({ okrs, emptyText }) {
     );
 }
 
-function MyOkrRow({ okr, overdueKrs }) {
-    const parentLink = okr.source_links?.find(
-        (link) => link.target_objective
-    );
-    const parentObj = parentLink?.target_objective;
-    const rawObjProgress = okr.calculated_progress ?? okr.progress_percent ?? 0;
-    const objProgress = parseFloat(rawObjProgress).toFixed(1);
-    const objProgressValue = parseFloat(objProgress); 
-    const objColorClass = getProgressColor(objProgressValue);
-    const objTextClass = getProgressTextClass(objProgressValue);
-    const overdueKrIds = new Set(overdueKrs.map(k => k.kr_id));
 
-    return (
-        <div className="border-b border-slate-100 py-6 first:pt-0 last:border-0 last:pb-0">
-            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
-                <div className="flex-1">
-                    {parentObj && (
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-2">
-                            <span className="bg-blue-50 text-blue-700 border border-blue-100 px-1.5 py-0.5 rounded font-semibold">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 inline-block mr-1 mb-0.5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
-                                </svg>
-                                Đóng góp cho
-                            </span>
-                            
-                            {parentObj.department && (
-                                <span className="font-bold text-slate-600 uppercase tracking-tight">
-                                    [{parentObj.department.d_name || parentObj.department.department_name}]
-                                </span>
-                            )}
-                            
-                            <span className="font-medium text-slate-800 truncate max-w-[300px] border-b border-dotted border-slate-400 cursor-help" title={parentObj.obj_title}>
-                                {parentObj.obj_title}
-                            </span>
-                        </div>
-                    )}
-                    <h3 className="text-lg font-bold text-slate-900 leading-snug hover:text-blue-700 transition-colors">
-                        <a href={`/my-objectives/details/${okr.objective_id}`}>
-                            {okr.obj_title}
-                        </a>
-                    </h3>
-                </div>
-                
-                <div className="flex items-center gap-3 flex-shrink-0">
-                    <div className={`px-3 py-1 rounded-full text-sm font-bold ${objTextClass}`}>
-                        {objProgress}%
-                    </div>
-                </div>
-            </div>
-
-            <div className="bg-slate-50 rounded-xl p-4 space-y-4">
-                {(() => {
-                    const sortedKrs = [...(okr.key_results || [])].sort((a, b) => {
-                        const aProgress = a.calculated_progress ?? a.progress_percent ?? 0;
-                        const bProgress = b.calculated_progress ?? b.progress_percent ?? 0;
-                        
-                        if (aProgress === 100 && bProgress !== 100) return 1;
-                        if (bProgress === 100 && aProgress !== 100) return -1;
-                        if (aProgress === 0 && bProgress > 0) return 1;
-                        if (bProgress === 0 && aProgress > 0) return -1;
-                        
-                        return 0;
-                    });
-                    
-                    return sortedKrs.length > 0 ? (
-                        sortedKrs.map((kr) => {
-                            const krProgress = Math.round(kr.progress_percent || 0);
-                            const krColor = getProgressColor(krProgress);
-                            const targetVal = kr.target_value ? parseFloat(kr.target_value) : 0;
-                            const currentVal = kr.current_value ? parseFloat(kr.current_value) : 0;
-                            const unit = kr.unit || '';
-                            const isContainer = kr.child_objectives && kr.child_objectives.length > 0;
-
-                            return (
-                                <div 
-                                    key={kr.kr_id || kr.id} 
-                                    className={`grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-4 items-center ${overdueKrIds.has(kr.kr_id) ? 'border-l-4 border-red-400 bg-blue-50/30' : ''}`}
-                                >
-                                    <div className="sm:col-span-7">
-                                        <div className="flex items-center gap-2">
-                                            {overdueKrIds.has(kr.kr_id) && (
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                                </svg>
-                                            )}
-                                            <span className="text-sm font-medium text-slate-700 block truncate hover:text-blue-700 transition-colors" title={kr.kr_title}>
-                                                • <a href={`/my-objectives/key-result-details/${kr.kr_id}`} className="hover:text-blue-700 transition-colors">
-                                                    {kr.kr_title}
-                                                </a>
-                                            </span>
-                                            {isContainer && (
-                                                <div className="group relative flex-shrink-0">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-amber-500 cursor-help" viewBox="0 0 20 20" fill="currentColor">
-                                                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                                                    </svg>
-                                                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-slate-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 text-center">
-                                                        Tiến độ được cập nhật tự động từ {kr.child_objectives.length} mục tiêu liên kết. Không thể check-in thủ công.
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="sm:col-span-5 flex items-center justify-end gap-4">
-                                        <div className="w-32 sm:w-40">
-                                            <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                                                <div 
-                                                    className={`h-full ${krColor} rounded-full transition-all duration-300`} 
-                                                    style={{ width: `${krProgress}%` }}
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="flex-shrink-0">
-                                            {isContainer ? (
-                                                <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                                                    AUTO
-                                                </span>
-                                            ) : (
-                                                <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${krProgress >= 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
-                                                    {krProgress}%
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })
-                    ) : (
-                    <div className="text-center py-2">
-                        <span className="text-xs text-slate-400 italic">Chưa có kết quả then chốt (Key Results) nào được tạo.</span>
-                    </div>
-                );
-                })()}
-            </div>
-        </div>
-    );
-}
 
 export default function Dashboard() {
     const [data, setData] = useState({
@@ -222,6 +88,7 @@ export default function Dashboard() {
     });
     const [loading, setLoading] = useState(true);
     const [isMyObjectivesExpanded, setIsMyObjectivesExpanded] = useState(false);
+    const [expandedObjectives, setExpandedObjectives] = useState({});
     const [isWarningSectionExpanded, setIsWarningSectionExpanded] = useState(false);
 
     useEffect(() => {
@@ -280,6 +147,17 @@ export default function Dashboard() {
             return sum + parseFloat(val);
         }, 0);
         return (total / list.length).toFixed(1);
+    };
+
+    const toggleObjectiveExpand = (objectiveId) => {
+        setExpandedObjectives(prev => ({
+            ...prev,
+            [objectiveId]: !prev[objectiveId]
+        }));
+    };
+
+    const isKrAtRisk = (kr) => {
+        return data.overdueKrs?.some(overdueKr => overdueKr.kr_id === kr.kr_id) ?? false;
     };
 
     const avgPersonal = calculateAvg(data.myOkrs);
@@ -351,69 +229,6 @@ export default function Dashboard() {
                     </div>
                 </div>
             </div>
-            
-            <div className="mb-4 flex items-center justify-between">
-                <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
-                        ⚠️
-                    </span>
-                    Cần chú ý 
-                </h2>
-                <div className="flex gap-2">
-                        <a 
-                        href="/my-objectives" 
-                        className="hidden sm:inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-                    >
-                        Check-in ngay
-                    </a>
-                    <a href="/my-objectives" className="sm:hidden text-sm font-semibold text-blue-600 hover:text-blue-700 flex items-center">
-                        Xem tất cả &rarr;
-                    </a>
-                </div>
-            </div>
-
-            <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                {data.overdueKrs && data.overdueKrs.length > 0 ? (
-                    <div className="space-y-4">
-                        {data.overdueKrs.map((kr) => (
-                            <div 
-                                key={kr.kr_id}
-                                className="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-4 items-center"
-                            >
-                                <div className="sm:col-span-7">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-medium text-slate-700 block truncate hover:text-blue-700 transition-colors" title={kr.kr_title}>
-                                            • <a href={`/my-objectives/key-result-details/${kr.kr_id}`} className="hover:text-blue-700 transition-colors">
-                                                {kr.kr_title}
-                                            </a>
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="sm:col-span-5 flex items-center justify-end gap-4">
-                                    <div className="w-32 sm:w-40">
-                                        <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                                            <div 
-                                                className="h-full bg-rose-500 rounded-full transition-all duration-300" 
-                                                style={{ width: `${kr.progress_percent}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="flex-shrink-0">
-                                        <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-600">
-                                            {kr.progress_percent}%
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                ) : (
-                    <div className="text-center py-6">
-                        <p className="text-lg font-bold text-emerald-700">Bạn đang on-track!</p>
-                        <p className="text-sm text-slate-500">Không có KR nào overdue hoặc sắp overdue.</p>
-                    </div>
-                )}
-            </section>
 
             {data.user?.role?.role_name?.toLowerCase() !== 'ceo' && (
                 <section>
@@ -424,13 +239,154 @@ export default function Dashboard() {
                             </span>
                             Mục tiêu của tôi
                         </h2>
+                        <div className="flex gap-2">
+                            <a 
+                            href="/my-objectives" 
+                            className="hidden sm:inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                        >
+                            Check-in ngay
+                        </a>
+                        <a href="/my-objectives" className="sm:hidden text-sm font-semibold text-blue-600 hover:text-blue-700 flex items-center">
+                            Xem tất cả &rarr;
+                        </a>
+                    </div>
                     </div>
                     
                     {(data.myOkrs || []).length > 0 ? (
-                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 divide-y divide-slate-100 p-6">
-                            {(data.myOkrs || []).map((okr) => (
-                                <MyOkrRow key={okr.objective_id} okr={okr} overdueKrs={data.overdueKrs || []} />
-                            ))}
+                        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+                            <table className="min-w-full table-fixed border-separate border-spacing-y-2">
+                                <thead className="bg-slate-50 text-left font-semibold text-slate-700">
+                                    <tr>
+                                        <th className="px-3 py-2 text-left">
+                                            Tiêu đề
+                                        </th>
+                                        <th className="px-3 py-2 text-center" style={{width: '200px'}}>
+                                            Tiến độ (%)
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-300">
+                                    {(data.myOkrs || []).map((okr) => (
+                                        <React.Fragment key={okr.objective_id}>
+                                            {/* Objective row */}
+                                            <tr className="bg-white transition duration-150 rounded-lg shadow-sm hover:shadow-md ring-1 ring-slate-100">
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center justify-between w-full">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                                                                {(okr.key_results || []).length > 0 && (
+                                                                    <button
+                                                                        onClick={() => toggleObjectiveExpand(okr.objective_id)}
+                                                                        className="p-2 rounded-lg hover:bg-slate-100 transition-all group"
+                                                                    >
+                                                                        <svg
+                                                                            className={`w-4 h-4 text-slate-500 group-hover:text-slate-700 transition-transform ${
+                                                                                expandedObjectives[okr.objective_id]
+                                                                                    ? "rotate-90"
+                                                                                    : ""
+                                                                            }`}
+                                                                            fill="none"
+                                                                            stroke="currentColor"
+                                                                            viewBox="0 0 24 24"
+                                                                        >
+                                                                            <path
+                                                                                strokeLinecap="round"
+                                                                                strokeLinejoin="round"
+                                                                                strokeWidth={2}
+                                                                                d="M9 5l7 7-7 7"
+                                                                            />
+                                                                        </svg>
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                            <FaBullseye className="h-5 w-5 text-indigo-600 flex-shrink-0" title="Objective"/>
+                                                            <span className="text-base font-semibold text-slate-800">
+                                                                <a href={`/my-objectives/details/${okr.objective_id}`} className="hover:text-blue-700 transition-colors truncate">
+                                                                    {okr.obj_title}
+                                                                </a>
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {/* KR rows */}
+                                            {expandedObjectives[okr.objective_id] && (okr.key_results || []).map((kr) => (
+                                                <tr key={kr.kr_id} className="bg-white transition duration-150 rounded-lg shadow-sm hover:shadow-md ring-1 ring-slate-100">
+                                                    <td className="px-4 py-3 pl-12">
+                                                        <div className="flex items-center gap-2">
+                                                            <FaKey className="h-4 w-4 text-slate-500 flex-shrink-0 ml-8" title="Key Result"/>
+                                                            <span className="text-sm font-medium text-slate-700">
+                                                                <a href={`/my-objectives/key-result-details/${kr.kr_id}`} className="hover:text-blue-700 transition-colors truncate">
+                                                                    {kr.kr_title}
+                                                                </a>
+                                                            </span>
+                                                            {isKrAtRisk(kr) && (
+                                                                <span className="inline-flex items-center rounded-full bg-red-100 px-1.5 py-0 text-[10px] font-medium text-red-700 border border-red-200">
+                                                                    Rủi ro
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 py-3 text-center">
+                                                        <div className="flex w-full items-center justify-center">
+                                                            {/* Progress bar + chấm tròn (giữ nguyên logic cũ) */}
+                                                            <div className="relative w-full max-w-[150px]">
+                                                                <div className="relative h-2 w-full bg-blue-100 rounded-full overflow-visible">
+                                                                    <div
+                                                                        className={`h-full rounded-full absolute left-0 transition-all duration-300 ${
+                                                                            (kr.calculated_progress ?? kr.progress_percent ?? 0) >= 80
+                                                                                ? "bg-emerald-500"
+                                                                                : (kr.calculated_progress ?? kr.progress_percent ?? 0) >= 50
+                                                                                ? "bg-amber-400"
+                                                                                : "bg-rose-500"
+                                                                        }`}
+                                                                        style={{ width: `${Math.max(0, Math.min(100, kr.calculated_progress ?? kr.progress_percent ?? 0))}%` }}
+                                                                    ></div>
+
+                                                                    {(() => {
+                                                                        const percent = Math.max(
+                                                                            0,
+                                                                            Math.min(100, kr.calculated_progress ?? kr.progress_percent ?? 0)
+                                                                        );
+
+                                                                        return (
+                                                                            <>
+                                                                                <div
+                                                                                    className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 bg-white ${
+                                                                                        percent >= 80
+                                                                                            ? "border-emerald-500"
+                                                                                            : percent >= 50
+                                                                                            ? "border-amber-400"
+                                                                                            : "border-rose-500"
+                                                                                    }`}
+                                                                                    style={{ left: `calc(${percent}% - 6px)` }}
+                                                                                />
+
+                                                                                <div
+                                                                                    className={`absolute -top-5 left-1/2 -translate-x-1/2 text-[11px] font-semibold whitespace-nowrap ${
+                                                                                        percent >= 80
+                                                                                            ? "text-emerald-600"
+                                                                                            : percent >= 50
+                                                                                            ? "text-amber-600"
+                                                                                            : "text-rose-600"
+                                                                                    }`}
+                                                                                    style={{ left: `calc(${percent}% - 6px)` }}
+                                                                                >
+                                                                                    {percent.toFixed(2)}%
+                                                                                </div>
+                                                                            </>
+                                                                        );
+                                                                    })()}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))} 
+                                        </React.Fragment>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     ) : (
                         <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-10 text-center">
