@@ -357,14 +357,14 @@ export default function Dashboard() {
                     <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
                         ⚠️
                     </span>
-                    Cần chú ý ngay
+                    Cần chú ý 
                 </h2>
                 <div className="flex gap-2">
                         <a 
                         href="/my-objectives" 
                         className="hidden sm:inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
                     >
-                        Check-in
+                        Check-in ngay
                     </a>
                     <a href="/my-objectives" className="sm:hidden text-sm font-semibold text-blue-600 hover:text-blue-700 flex items-center">
                         Xem tất cả &rarr;
@@ -448,7 +448,7 @@ export default function Dashboard() {
                     <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
                         📊
                     </span>
-                    Tóm tắt nhanh tuần này
+                    Tóm tắt nhanh tuần 
                 </h2>
 
                 <div>
