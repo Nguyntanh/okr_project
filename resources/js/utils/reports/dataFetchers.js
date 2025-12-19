@@ -8,10 +8,9 @@ const handleResponse = async (res) => {
     return json.data;
 };
 
-export async function fetchDetailedData(filters, currentTab) {
+export async function fetchDetailedData(filters) {
     const params = new URLSearchParams();
     params.set('cycle_id', filters.cycleId);
-    params.set('tab', currentTab);
     if (filters.departmentId) params.set('department_id', filters.departmentId);
     if (filters.objectiveLevel && filters.objectiveLevel !== 'all') params.set('level', filters.objectiveLevel);
     if (filters.dateRange.start) params.set('start_date', filters.dateRange.start);

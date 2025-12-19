@@ -576,6 +576,8 @@ export default function ArchivedOkrsPage() {
                                                         {kr.assigned_user
                                                             ?.name || ""}
                                                     </td>
+                                                    <td className="px-3 py-3 text-center">
+                                                    </td>
                                                     {/* Cột Tiến độ */}
                                                     <td className="px-3 py-3 text-center">
                                                         <div className="flex flex-col items-center">

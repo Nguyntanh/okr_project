@@ -274,66 +274,66 @@ class ReportController extends Controller
      * Main endpoint for the new Company Statistical Report.
      * Dispatches to different methods based on the requested tab.
      */
-    public function companyOkrReport(Request $request)
-    {
-        $tab = $request->input('tab', 'performance'); // Default to 'performance'
-
-        $cycle = $this->resolveCycle($request->integer('cycle_id'));
-        if (!$cycle) {
-            return response()->json(['success' => false, 'message' => 'Không tìm thấy chu kỳ phù hợp.'], 404);
-        }
-
-        // --- Filters ---
-        $departmentId = $request->integer('department_id');
-        $level = $request->input('level');
-
-        $data = [];
-        $meta = [
-            'cycleId' => $cycle->cycle_id,
-            'cycleName' => $cycle->cycle_name,
-            'computedAt' => now()->toISOString(),
-            'filters' => [
-                'department_id' => $departmentId,
-                'level' => $level,
-            ]
-        ];
-
-        try {
-            switch ($tab) {
-                case 'performance':
-                    $data = $this->_getPerformanceReportData($request, $cycle, $departmentId, $level);
-                    break;
-                case 'process':
-                    $data = $this->_getProcessReportData($request, $cycle, $departmentId, $level);
-                    break;
-                case 'quality':
-                    $data = $this->_getQualityReportData($request, $cycle, $departmentId, $level);
-                    break;
-                default:
-                    return response()->json(['success' => false, 'message' => 'Invalid tab specified.'], 400);
+        public function companyOkrReport(Request $request)
+        {
+            // $tab = $request->input('tab', 'performance'); // No longer needed as we fetch all tabs
+    
+            $cycle = $this->resolveCycle($request->integer('cycle_id'));
+            if (!$cycle) {
+                return response()->json(['success' => false, 'message' => 'Không tìm thấy chu kỳ phù hợp.'], 404);
             }
-
-            return response()->json([
-                'success' => true,
-                'data' => $data,
-                'meta' => $meta,
-            ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
-
-        } catch (\Exception $e) {
-            \Log::error('Company OKR Report Failed', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-            return response()->json([
-                'success' => false,
-                'message' => 'An unexpected error occurred while generating the report.',
-                'error' => config('app.debug') ? $e->getMessage() : 'Internal Server Error',
-            ], 500);
+    
+            // --- Filters ---
+            $departmentId = $request->integer('department_id');
+            $level = $request->input('level');
+    
+            $data = [];
+            $meta = [
+                'cycleId' => $cycle->cycle_id,
+                'cycleName' => $cycle->cycle_name,
+                'computedAt' => now()->toISOString(),
+                'filters' => [
+                    'department_id' => $departmentId,
+                    'level' => $level,
+                ]
+            ];
+    
+            try {
+                // Fetch data for all three tabs
+                $performanceData = $this->_getPerformanceReportData($request, $cycle, $departmentId, $level);
+                $processData = $this->_getProcessReportData($request, $cycle, $departmentId, $level);
+                $qualityData = $this->_getQualityReportData($request, $cycle, $departmentId, $level);
+    
+                // Combine all tab data into a single structure
+                $combinedData = [
+                    'performance' => $performanceData,
+                    'process' => $processData,
+                    'quality' => $qualityData,
+                ];
+    
+                // REMOVING TEMPORARY DEBUGGING
+                // \Illuminate\Support\Facades\Log::info('--- Final Report Data to be Sent ---', ['data' => $data]);
+                
+                return response()->json([
+                    'success' => true,
+                    'data' => $combinedData,
+                    'meta' => $meta,
+                ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    
+            } catch (\Exception $e) {
+                \Log::error('Company OKR Report Failed', [
+                    'message' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'An unexpected error occurred while generating the report.',
+                    'error' => config('app.debug') ? $e->getMessage() : 'Internal Server Error',
+                ], 500);
+            }
         }
-    }
-
     /**
      * Gathers data for the "Quality & Structure" tab.
      */
@@ -594,22 +594,26 @@ class ReportController extends Controller
         
         $filteredObjectives = $filteredObjectivesQuery->get();
 
-        // 1. Get all company-level objectives for the given cycle (always needed for context)
+        // Get all company-level objectives for the given cycle (always needed for context)
         $companyObjectives = $baseObjectivesQuery->clone()->where('level', 'company')->get();
+        $allObjectivesInCycle = $baseObjectivesQuery->clone()->get();
 
-        if ($companyObjectives->isEmpty()) {
-            return [
+        // If no data at all, return empty
+        if ($allObjectivesInCycle->isEmpty()) {
+             return [
                 'statCards' => ['avg_company_progress' => 0, 'completed_company_rate' => 0, 'avg_confidence_score' => 0],
                 'charts' => ['progress_over_time' => [], 'performance_by_department' => []],
                 'table' => [],
             ];
         }
 
-        $companyObjectiveIds = $companyObjectives->pluck('objective_id');
-
         // 2. Calculate Stat Cards
-        // These cards should reflect the company-level unless filtered down
-        $statCardObjectives = ($departmentId || $level) ? $filteredObjectives : $companyObjectives;
+        // If filters are applied, use filtered objectives.
+        // If not, use company objectives if they exist, otherwise fallback to all objectives in cycle.
+        $statCardObjectives = ($departmentId || $level) 
+            ? $filteredObjectives 
+            : ($companyObjectives->isNotEmpty() ? $companyObjectives : $allObjectivesInCycle);
+
         $avgProgress = (float) $statCardObjectives->avg('progress_percent');
         $completedCount = $statCardObjectives->where('progress_percent', '>=', 70)->count();
         $totalObjectives = $statCardObjectives->count();
@@ -634,10 +638,11 @@ class ReportController extends Controller
 
         // 3. Chart Data
         $dateRange = ['start' => $request->input('start_date'), 'end' => $request->input('end_date')];
-        // The trend chart should probably show company trend, and maybe a second line for the filtered dept
-        $progressOverTime = $this->_getCompanyProgressTrend($cycle, $companyObjectiveIds, $dateRange);
         
-        $allObjectivesInCycle = $baseObjectivesQuery->clone()->get();
+        // Use company objectives for trend if they exist, otherwise use all objectives.
+        $objectiveIdsForTrend = $companyObjectives->isNotEmpty() ? $companyObjectives->pluck('objective_id') : $allObjectivesInCycle->pluck('objective_id');
+        $progressOverTime = $this->_getCompanyProgressTrend($cycle, $objectiveIdsForTrend, $dateRange);
+        
         $departmentPerformanceQuery = $allObjectivesInCycle
             ->where('department_id', '!=', null);
 
@@ -659,68 +664,66 @@ class ReportController extends Controller
             ->sortByDesc('average_progress')
             ->values();
 
-        // 4. Table Data
-        $links = OkrLink::whereIn('target_objective_id', $companyObjectiveIds)->get();
-        
-        $alignedObjectiveIdsQuery = $links->pluck('source_objective_id');
-        
-        $alignedObjectivesQuery = $allObjectivesInCycle->whereIn('objective_id', $alignedObjectiveIdsQuery);
+        // 4. Table Data - This is strictly hierarchical and depends on company objectives.
+        // It will be empty if no company objectives are found, which is the desired behavior now.
+        $tableData = [];
+        if ($companyObjectives->isNotEmpty()) {
+            $companyObjectiveIds = $companyObjectives->pluck('objective_id');
+            $links = OkrLink::whereIn('target_objective_id', $companyObjectiveIds)->get();
+            $alignedObjectiveIdsQuery = $links->pluck('source_objective_id');
+            $alignedObjectivesQuery = $allObjectivesInCycle->whereIn('objective_id', $alignedObjectiveIdsQuery);
 
-        // If filtering, this is where we apply it to the children
-        if ($departmentId) {
-            $alignedObjectivesQuery = $alignedObjectivesQuery->where('department_id', $departmentId);
-        }
-        if ($level) {
-            $alignedObjectivesQuery = $alignedObjectivesQuery->where('level', $level);
-        }
-
-        $alignedObjectivesByParent = $alignedObjectivesQuery->keyBy('objective_id');
-        
-        $childrenByParentId = $links->groupBy('target_objective_id');
-
-        $allTableObjectiveIds = $companyObjectiveIds->merge($alignedObjectivesQuery->pluck('objective_id'));
-        $allConfidenceScores = collect();
-        
-        if ($allTableObjectiveIds->isNotEmpty()) {
-            $latestCheckinIdsForTable = DB::table('check_ins as ci')
-                ->select(DB::raw('MAX(ci.check_in_id) as max_id'))
-                ->join('key_results as kr', 'ci.kr_id', '=', 'kr.kr_id')
-                ->whereIn('kr.objective_id', $allTableObjectiveIds)
-                ->whereNotNull('ci.confidence_score')
-                ->groupBy('kr.objective_id');
-
-            if ($latestCheckinIdsForTable->count() > 0) {
-                 $allConfidenceScores = DB::table('check_ins as ci')
-                    ->join('key_results as kr', 'ci.kr_id', '=', 'kr.kr_id')
-                    ->whereIn('ci.check_in_id', $latestCheckinIdsForTable)
-                    ->select('kr.objective_id', 'ci.confidence_score')
-                    ->get()
-                    ->keyBy('objective_id');
+            if ($departmentId) {
+                $alignedObjectivesQuery = $alignedObjectivesQuery->where('department_id', $departmentId);
             }
-        }
-        
-        $tableData = $companyObjectives->map(function ($companyO) use ($childrenByParentId, $alignedObjectivesByParent, $allConfidenceScores, $cycle, $departmentId, $level) {
-            $childLinks = $childrenByParentId->get($companyO->objective_id, collect());
+            if ($level) {
+                $alignedObjectivesQuery = $alignedObjectivesQuery->where('level', $level);
+            }
+
+            $alignedObjectivesByParent = $alignedObjectivesQuery->keyBy('objective_id');
+            $childrenByParentId = $links->groupBy('target_objective_id');
             
-            $children = $childLinks->map(function($link) use ($alignedObjectivesByParent, $allConfidenceScores, $cycle, $companyO) {
-                $childObjective = $alignedObjectivesByParent->get($link->source_objective_id);
-                if ($childObjective) {
-                     return $this->_formatObjectiveForTable($childObjective, $allConfidenceScores, $cycle, $companyO);
-                }
-                return null;
-            })->filter()->values();
+            $allTableObjectiveIds = $companyObjectiveIds->merge($alignedObjectivesQuery->pluck('objective_id'));
+            $allConfidenceScores = collect();
+            
+            if ($allTableObjectiveIds->isNotEmpty()) {
+                $latestCheckinIdsForTable = DB::table('check_ins as ci')
+                    ->select(DB::raw('MAX(ci.check_in_id) as max_id'))
+                    ->join('key_results as kr', 'ci.kr_id', '=', 'kr.kr_id')
+                    ->whereIn('kr.objective_id', $allTableObjectiveIds)
+                    ->whereNotNull('ci.confidence_score')
+                    ->groupBy('kr.objective_id');
 
-            // If filtering by department or level, a company objective might not have any visible children.
-            // We can decide to hide it if it has no matching children.
-            if (($departmentId || $level) && $children->isEmpty()) {
-                return null;
+                if ($latestCheckinIdsForTable->count() > 0) {
+                    $allConfidenceScores = DB::table('check_ins as ci')
+                        ->join('key_results as kr', 'ci.kr_id', '=', 'kr.kr_id')
+                        ->whereIn('ci.check_in_id', $latestCheckinIdsForTable)
+                        ->select('kr.objective_id', 'ci.confidence_score')
+                        ->get()
+                        ->keyBy('objective_id');
+                }
             }
 
-            return array_merge(
-                $this->_formatObjectiveForTable($companyO, $allConfidenceScores, $cycle),
-                ['children' => $children]
-            );
-        })->filter()->values();
+            $tableData = $companyObjectives->map(function ($companyO) use ($childrenByParentId, $alignedObjectivesByParent, $allConfidenceScores, $cycle, $departmentId, $level) {
+                $childLinks = $childrenByParentId->get($companyO->objective_id, collect());
+                $children = $childLinks->map(function($link) use ($alignedObjectivesByParent, $allConfidenceScores, $cycle, $companyO) {
+                    $childObjective = $alignedObjectivesByParent->get($link->source_objective_id);
+                    if ($childObjective) {
+                        return $this->_formatObjectiveForTable($childObjective, $allConfidenceScores, $cycle, $companyO);
+                    }
+                    return null;
+                })->filter()->values();
+
+                if (($departmentId || $level) && $children->isEmpty()) {
+                    return null;
+                }
+
+                return array_merge(
+                    $this->_formatObjectiveForTable($companyO, $allConfidenceScores, $cycle),
+                    ['children' => $children]
+                );
+            })->filter()->values();
+        }
 
         return [
             'statCards' => [
@@ -1157,28 +1160,46 @@ default:
                 $tempRequest->setUserResolver(fn() => $user);
                 $response = $this->getMyTeamReport($tempRequest);
                 $snapshotData = $response->getData(true);
-            } elseif ($reportType === 'manager') {
-                // Báo cáo phòng ban (Manager)
-                $tempRequest = new Request([
-                    'cycle_id' => $cycleId,
-                    'member_id' => $request->input('member_id'),
-                    'status' => $request->input('status'),
-                    'objective_id' => $request->input('objective_id'),
-                ]);
-                $tempRequest->setUserResolver(fn() => $user);
-                // Gọi API manager report
-                $snapshotData = $this->getManagerReportData($tempRequest);
             } elseif ($reportType === 'company') {
-                // Báo cáo công ty - Luôn là null department_id
-                $tempRequest = new Request([
-                    'cycle_id' => $cycleId,
-                    'department_id' => null, // Bỏ qua phòng ban cho báo cáo công ty
-                    'status' => $request->input('status'),
-                    'owner_id' => $request->input('owner_id'),
-                ]);
-                $tempRequest->setUserResolver(fn() => $user);
-                $response = $this->companyOkrReport($tempRequest);
-                $snapshotData = $response->getData(true);
+                $cycle = $this->resolveCycle($cycleId);
+                if (!$cycle) {
+                    return response()->json(['success' => false, 'message' => 'Không thể xác định chu kỳ cho snapshot.'], 422);
+                }
+
+                // Lấy tất cả filter params từ request gốc
+                $departmentId = $request->integer('department_id');
+                $level = $request->input('level');
+
+                // Tạo một request giả để truyền cho các hàm private
+                $internalRequest = new Request($request->all());
+                $internalRequest->setUserResolver(fn() => $user);
+
+                // Lấy dữ liệu từ cả 3 tab
+                $performanceData = $this->_getPerformanceReportData($internalRequest, $cycle, $departmentId, $level);
+                $processData = $this->_getProcessReportData($internalRequest, $cycle, $departmentId, $level);
+                $qualityData = $this->_getQualityReportData($internalRequest, $cycle, $departmentId, $level);
+
+                // Gộp dữ liệu của cả 3 tab vào một cấu trúc duy nhất
+                $combinedData = [
+                    'performance' => $performanceData,
+                    'process' => $processData,
+                    'quality' => $qualityData,
+                ];
+                
+                // Tạo cấu trúc snapshot_data cuối cùng
+                $snapshotData = [
+                    'success' => true,
+                    'data' => $combinedData,
+                    'meta' => [
+                        'cycleId' => $cycle->cycle_id,
+                        'cycleName' => $cycle->cycle_name,
+                        'computedAt' => now()->toISOString(),
+                        'filters' => [
+                            'department_id' => $departmentId,
+                            'level' => $level,
+                        ]
+                    ]
+                ];
             }
 
             if (!$snapshotData || !isset($snapshotData['success']) || !$snapshotData['success']) {
