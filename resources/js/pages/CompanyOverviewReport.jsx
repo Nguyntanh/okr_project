@@ -116,8 +116,23 @@ export default function CompanyOverviewReport() {
             });
             if (!res.ok) throw new Error('Không thể tải dữ liệu snapshot.');
             const result = await res.json();
+            
+            // Check for temporary debugging log
+            const snapshotDataField = result.data?.snapshot_data;
+            if (snapshotDataField) {
+                console.log("--- FINAL DEBUG ---");
+                console.log("Type of snapshot_data:", typeof snapshotDataField);
+                if (typeof snapshotDataField === 'string') {
+                    console.log("IT IS A STRING! First 200 chars:", snapshotDataField.substring(0, 200) + '...');
+                }
+                if (typeof snapshotDataField === 'object' && snapshotDataField !== null) {
+                    console.log("It IS an object. Keys of snapshot_data.data:", Object.keys(snapshotDataField.data));
+                }
+                console.log("-------------------");
+            }
+
             if (result.success) {
-                setViewingSnapshot(result.data); // Set the full snapshot object
+                setViewingSnapshot(result.data); // This is the ONLY correct place to set it on success
             } else {
                 throw new Error(result.message || 'Lỗi không xác định khi tải snapshot.');
             }
