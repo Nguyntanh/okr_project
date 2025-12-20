@@ -145,7 +145,7 @@ export default function ProcessTab({ data }) {
             }]
         };
         const healthDistOptions = {
-            responsive: true, maintainAspectRatio: false, cutout: '60%',
+            responsive: true, maintainAspectRatio: false, cutout: '0%', // Changed cutout to '0%' for solid pie
             plugins: { legend: legendOptions, tooltip: { ...tooltipOptions, callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed || 0} mục tiêu` }} }
         };
         
