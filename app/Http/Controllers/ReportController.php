@@ -828,25 +828,28 @@ class ReportController extends Controller
         $tab = $request->input('tab', 'performance');
         $cycle = $this->resolveCycle($request->integer('cycle_id'));
         if (!$cycle) {
-            // Handle error case where cycle is not found, maybe return an error response or an empty CSV.
-            // For now, we'll proceed and let it result in an empty CSV.
+            // Handle error case where cycle is not found
         }
         
         // --- Filters ---
         $departmentId = $request->integer('department_id');
         $level = $request->input('level');
+        $dateRange = [
+            'start' => $request->input('start_date'),
+            'end' => $request->input('end_date'),
+        ];
 
         $data = [];
         if ($cycle) {
             switch ($tab) {
                 case 'performance':
-                    $data = $this->_getPerformanceReportData($request, $cycle, $departmentId, $level);
+                    $data = $this->_getPerformanceReportData($cycle, $departmentId, $level, $dateRange);
                     break;
                 case 'process':
-                    $data = $this->_getProcessReportData($request, $cycle, $departmentId, $level);
+                    $data = $this->_getProcessReportData($cycle, $departmentId, $level, $dateRange);
                     break;
                 case 'quality':
-                    $data = $this->_getQualityReportData($request, $cycle, $departmentId, $level);
+                    $data = $this->_getQualityReportData($cycle, $departmentId, $level, $dateRange);
                     break;
             }
         }
@@ -897,7 +900,7 @@ class ReportController extends Controller
                 }
                 break;
             
-default:
+            default:
                 $rows[] = ['Invalid tab specified for export.'];
                 break;
         }
