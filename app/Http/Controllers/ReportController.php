@@ -9,7 +9,7 @@ use App\Models\CheckIn;
 use App\Models\KeyResult;
 use App\Models\User;
 use App\Models\OkrLink;
-use App\Models\Report; // Added this line
+use App\Models\ReportSnapshot;
 use App\Services\ReportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -1150,6 +1150,11 @@ default:
             ], 422);
         }
 
+        $cycle = $this->resolveCycle($cycleId);
+        if (!$cycle) {
+            return response()->json(['success' => false, 'message' => 'Không thể xác định chu kỳ cho snapshot.'], 422);
+        }
+
         // Lấy dữ liệu báo cáo hiện tại dựa trên loại
         $snapshotData = null;
         
@@ -1161,11 +1166,6 @@ default:
                 $response = $this->getMyTeamReport($tempRequest);
                 $snapshotData = $response->getData(true);
             } elseif ($reportType === 'company') {
-                $cycle = $this->resolveCycle($cycleId);
-                if (!$cycle) {
-                    return response()->json(['success' => false, 'message' => 'Không thể xác định chu kỳ cho snapshot.'], 422);
-                }
-
                 // Lấy tất cả filter params từ request gốc
                 $departmentId = $request->integer('department_id');
                 $level = $request->input('level');
@@ -1213,19 +1213,28 @@ default:
                 ], 422);
             }
 
+            // Thêm metadata vào snapshot_data
+            $snapshotData['meta']['report_type'] = $reportType;
+            $snapshotData['meta']['notes'] = $notes;
+             if ($reportType === 'company') {
+                $snapshotData['meta']['department_id'] = null;
+            } else {
+                $snapshotData['meta']['department_id'] = $departmentId ?: $user->department_id;
+            }
+
+
             // Tạo báo cáo snapshot
             try {
-                $report = Report::create([
-                    'report_type' => $reportType,
-                    'report_name' => $reportName ?: $this->generateDefaultReportName($reportType, $cycleId),
-                    'snapshot_data' => $snapshotData,
-                    'user_id' => $user->user_id,
+                $report = ReportSnapshot::create([
+                    'title' => $reportName ?: $this->generateDefaultReportName($reportType, $cycleId),
+                    'data_snapshot' => $snapshotData,
+                    'created_by' => $user->user_id,
                     'cycle_id' => $cycleId,
-                    'department_id' => $reportType === 'company' ? null : ($departmentId ?: null), // Luôn null cho company
-                    'notes' => $notes ?: null,
+                    'cycle_name' => $cycle->cycle_name,
+                    'snapshotted_at' => now(),
                 ]);
             } catch (\Illuminate\Database\QueryException $e) {
-                \Log::error('Database error creating report: ' . $e->getMessage(), [
+                \Log::error('Database error creating report snapshot: ' . $e->getMessage(), [
                     'sql' => $e->getSql(),
                     'bindings' => $e->getBindings(),
                 ]);
@@ -1239,10 +1248,10 @@ default:
                 'success' => true,
                 'message' => 'Đã tạo snapshot báo cáo thành công.',
                 'data' => [
-                    'report_id' => $report->report_id,
-                    'report_name' => $report->report_name,
-                    'report_type' => $report->report_type,
-                    'created_at' => $report->created_at->toISOString(),
+                    'report_id' => $report->id, // Use the default 'id' primary key
+                    'report_name' => $report->title,
+                    'report_type' => $reportType,
+                    'created_at' => $report->snapshotted_at->toISOString(),
                     'creator' => [
                         'user_id' => $user->user_id,
                         'full_name' => $user->full_name,
@@ -1327,39 +1336,38 @@ default:
         $cycleId = $request->input('cycle_id') ? (int)$request->input('cycle_id') : null;
         $limit = $request->input('limit') ? (int)$request->input('limit') : 50;
 
-        $query = Report::query()
-            ->with(['creator', 'cycle', 'department'])
-            ->orderByDesc('created_at');
+        $query = ReportSnapshot::query()
+            ->with(['creator', 'cycle'])
+            ->orderByDesc('snapshotted_at');
 
-        // Lọc theo loại báo cáo
+        // Lọc theo loại báo cáo, giờ được lưu trong cột JSON
         if ($reportType && in_array($reportType, ['team', 'manager', 'company'], true)) {
-            $query->where('report_type', $reportType);
+            $query->where('data_snapshot->meta->report_type', $reportType);
         }
 
         // Lọc theo chu kỳ
         if ($cycleId) {
             $query->where('cycle_id', $cycleId);
         }
-
-        // Nếu không phải admin/CEO, chỉ xem báo cáo của mình hoặc phòng ban mình
-        // if (!$user->is_admin && strtolower($user->role->role_name ?? '') !== 'ceo') {
-        //     $query->where(function ($q) use ($user) {
-        //         $q->where('user_id', $user->user_id)
-        //           ->orWhere('department_id', $user->department_id);
-        //     });
-        // }
+        
+        // Note: Access control logic might need adjustment depending on the final requirements.
+        // For now, we allow broader access as the previous logic was commented out.
 
         $reports = $query->limit($limit)->get();
 
         return response()->json([
             'success' => true,
             'data' => $reports->map(function ($report) {
+                // Eagerly load department if department_id exists in meta
+                $departmentId = $report->data_snapshot['meta']['department_id'] ?? null;
+                $department = $departmentId ? Department::find($departmentId) : null;
+
                 return [
-                    'report_id' => $report->report_id,
-                    'report_type' => $report->report_type,
-                    'report_name' => $report->report_name,
-                    'created_at' => $report->created_at->toISOString(),
-                    'created_at_formatted' => $report->created_at->format('d/m/Y H:i'),
+                    'report_id' => $report->id,
+                    'report_type' => $report->data_snapshot['meta']['report_type'] ?? null,
+                    'report_name' => $report->title,
+                    'created_at' => $report->snapshotted_at->toISOString(),
+                    'created_at_formatted' => $report->snapshotted_at->format('d/m/Y H:i'),
                     'creator' => [
                         'user_id' => $report->creator->user_id ?? null,
                         'full_name' => $report->creator->full_name ?? 'N/A',
@@ -1371,11 +1379,11 @@ default:
                         'start_date' => $report->cycle->start_date,
                         'end_date' => $report->cycle->end_date,
                     ] : null,
-                    'department' => $report->department ? [
-                        'department_id' => $report->department->department_id,
-                        'department_name' => $report->department->d_name,
+                    'department' => $department ? [
+                        'department_id' => $department->department_id,
+                        'department_name' => $department->d_name,
                     ] : null,
-                    'notes' => $report->notes,
+                    'notes' => $report->data_snapshot['meta']['notes'] ?? null,
                 ];
             }),
         ]);
@@ -1390,7 +1398,7 @@ default:
         
         \Log::info("Fetching report snapshot: ID = $reportId, User = {$user->user_id}");
 
-        $report = Report::with(['creator', 'cycle', 'department'])->find($reportId);
+        $report = ReportSnapshot::with(['creator', 'cycle'])->find($reportId);
         
         if (!$report) {
             \Log::warning("Report snapshot not found: ID = $reportId");
@@ -1400,25 +1408,20 @@ default:
             ], 404);
         }
 
-        // Kiểm tra quyền xem
-        // if (!$user->is_admin && strtolower($user->role->role_name ?? '') !== 'ceo') {
-        //     if ($report->user_id !== $user->user_id && $report->department_id !== $user->department_id) {
-        //         return response()->json([
-        //             'success' => false,
-        //             'message' => 'Bạn không có quyền xem báo cáo này.',
-        //         ], 403);
-        //     }
-        // }
+        // Note: Access control logic might need adjustment.
+        // The original logic was commented out, maintaining that for now.
+        $departmentId = $report->data_snapshot['meta']['department_id'] ?? null;
+        $department = $departmentId ? Department::find($departmentId) : null;
 
         return response()->json([
             'success' => true,
             'data' => [
-                'report_id' => $report->report_id,
-                'report_type' => $report->report_type,
-                'report_name' => $report->report_name,
-                'snapshot_data' => $report->snapshot_data,
-                'created_at' => $report->created_at->toISOString(),
-                'created_at_formatted' => $report->created_at->format('d/m/Y H:i'),
+                'report_id' => $report->id,
+                'report_type' => $report->data_snapshot['meta']['report_type'] ?? null,
+                'report_name' => $report->title,
+                'snapshot_data' => $report->data_snapshot,
+                'created_at' => $report->snapshotted_at->toISOString(),
+                'created_at_formatted' => $report->snapshotted_at->format('d/m/Y H:i'),
                 'creator' => [
                     'user_id' => $report->creator->user_id ?? null,
                     'full_name' => $report->creator->full_name ?? 'N/A',
@@ -1428,11 +1431,11 @@ default:
                     'cycle_id' => $report->cycle->cycle_id,
                     'cycle_name' => $report->cycle->cycle_name,
                 ] : null,
-                'department' => $report->department ? [
-                    'department_id' => $report->department->department_id,
-                    'department_name' => $report->department->d_name,
+                'department' => $department ? [
+                    'department_id' => $department->department_id,
+                    'department_name' => $department->d_name,
                 ] : null,
-                'notes' => $report->notes,
+                'notes' => $report->data_snapshot['meta']['notes'] ?? null,
             ],
         ]);
     }
@@ -1444,7 +1447,7 @@ default:
     {
         $user = $request->user();
         
-        $report = Report::with(['creator', 'cycle', 'department'])->find($reportId);
+        $report = ReportSnapshot::find($reportId);
         
         if (!$report) {
             return response()->json([
@@ -1454,7 +1457,7 @@ default:
         }
 
         // Chỉ người tạo, admin hoặc CEO mới được xóa
-        if ($report->user_id !== $user->user_id && !$user->is_admin && strtolower($user->role->role_name ?? '') !== 'ceo') {
+        if ($report->created_by !== $user->user_id && !$user->is_admin && strtolower($user->role->role_name ?? '') !== 'ceo') {
             return response()->json([
                 'success' => false,
                 'message' => 'Bạn không có quyền xóa báo cáo này.',
