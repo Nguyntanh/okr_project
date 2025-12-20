@@ -188,7 +188,8 @@ export default function CompanyOverviewReport() {
 
     const renderContent = () => {
         if (viewingSnapshot) {
-            const snapshotContent = viewingSnapshot.snapshot_data?.data;
+            // Robustly access snapshot data, handling both nested and direct data structures.
+            const snapshotContent = viewingSnapshot.snapshot_data?.data || viewingSnapshot.snapshot_data;
             if (!snapshotContent) return <div className="text-center p-8">Snapshot không có dữ liệu chi tiết.</div>;
             return (
                 <>

@@ -276,8 +276,6 @@ class ReportController extends Controller
      */
         public function companyOkrReport(Request $request)
         {
-            // $tab = $request->input('tab', 'performance'); // No longer needed as we fetch all tabs
-    
             $cycle = $this->resolveCycle($request->integer('cycle_id'));
             if (!$cycle) {
                 return response()->json(['success' => false, 'message' => 'Không tìm thấy chu kỳ phù hợp.'], 404);
@@ -286,8 +284,11 @@ class ReportController extends Controller
             // --- Filters ---
             $departmentId = $request->integer('department_id');
             $level = $request->input('level');
+            $dateRange = [
+                'start' => $request->input('start_date'),
+                'end' => $request->input('end_date'),
+            ];
     
-            $data = [];
             $meta = [
                 'cycleId' => $cycle->cycle_id,
                 'cycleName' => $cycle->cycle_name,
@@ -295,14 +296,15 @@ class ReportController extends Controller
                 'filters' => [
                     'department_id' => $departmentId,
                     'level' => $level,
+                    'date_range' => $dateRange,
                 ]
             ];
     
             try {
-                // Fetch data for all three tabs
-                $performanceData = $this->_getPerformanceReportData($request, $cycle, $departmentId, $level);
-                $processData = $this->_getProcessReportData($request, $cycle, $departmentId, $level);
-                $qualityData = $this->_getQualityReportData($request, $cycle, $departmentId, $level);
+                // Fetch data for all three tabs, passing filters explicitly
+                $performanceData = $this->_getPerformanceReportData($cycle, $departmentId, $level, $dateRange);
+                $processData = $this->_getProcessReportData($cycle, $departmentId, $level, $dateRange);
+                $qualityData = $this->_getQualityReportData($cycle, $departmentId, $level, $dateRange);
     
                 // Combine all tab data into a single structure
                 $combinedData = [
@@ -310,9 +312,6 @@ class ReportController extends Controller
                     'process' => $processData,
                     'quality' => $qualityData,
                 ];
-    
-                // REMOVING TEMPORARY DEBUGGING
-                // \Illuminate\Support\Facades\Log::info('--- Final Report Data to be Sent ---', ['data' => $data]);
                 
                 return response()->json([
                     'success' => true,
@@ -337,7 +336,7 @@ class ReportController extends Controller
     /**
      * Gathers data for the "Quality & Structure" tab.
      */
-    private function _getQualityReportData(Request $request, Cycle $cycle, ?int $departmentId, ?string $level)
+    private function _getQualityReportData(Cycle $cycle, ?int $departmentId, ?string $level, ?array $dateRange = null)
     {
         try {
             $allObjectivesInCycleQuery = Objective::where('cycle_id', $cycle->cycle_id)
@@ -401,10 +400,10 @@ class ReportController extends Controller
                     'avg_krs_per_objective' => round($avgKrsPerObjective, 2),
                 ],
                 'charts' => [
-                    'strategic_tag_distribution' => $strategicTagDistribution,
-                    'kr_type_distribution' => $krTypeDistribution,
+                    'strategic_tag_distribution' => $strategicTagDistribution->toArray(),
+                    'kr_type_distribution' => $krTypeDistribution->toArray(),
                 ],
-                'table' => $qualityTableData,
+                'table' => $qualityTableData->toArray(),
             ];
         } catch (\Exception $e) {
             \Log::error('!!! FAILED in _getQualityReportData: ' . $e->getMessage());
@@ -432,7 +431,7 @@ class ReportController extends Controller
     /**
      * Gathers data for the "Process Compliance" tab.
      */
-    private function _getProcessReportData(Request $request, Cycle $cycle, ?int $departmentId, ?string $level)
+    private function _getProcessReportData(Cycle $cycle, ?int $departmentId, ?string $level, ?array $dateRange)
     {
         try {
             $allObjectivesInCycleQuery = Objective::where('cycle_id', $cycle->cycle_id)
@@ -465,7 +464,6 @@ class ReportController extends Controller
             $avgCheckinsPerUser = $uniqueUsersWithKrsCount > 0 ? $totalCheckinsCount / $uniqueUsersWithKrsCount : 0;
 
             // --- CHARTS ---
-            // 1. Chart: Check-in Compliance by Department
             $departmentsQuery = Department::query();
             if ($departmentId) {
                 $departmentsQuery->where('department_id', $departmentId);
@@ -487,7 +485,6 @@ class ReportController extends Controller
                 ];
             })->filter()->sortByDesc('compliance_rate')->values();
 
-            // 2. Chart: Overall Health Status Distribution
             $allObjectives = $allObjectivesInCycleQuery->clone()->get();
             $idealProgress = $this->reportService->getIdealProgress($cycle->start_date, $cycle->end_date);
             $healthStatusCounts = ['on_track' => 0, 'at_risk' => 0, 'off_track' => 0];
@@ -496,13 +493,12 @@ class ReportController extends Controller
                 $healthStatusCounts[$status]++;
             }
 
-            // 3. Chart: Process Compliance (Check-in) Trend
             $firstCheckinsQuery = CheckIn::select('kr_id', DB::raw('MIN(created_at) as first_checkin_date'))
                 ->whereIn('kr_id', $allKrsInCycleQuery->clone()->pluck('kr_id'))
                 ->groupBy('kr_id');
             
-            if ($request->input('start_date') && $request->input('end_date')) {
-                $firstCheckinsQuery->whereBetween('created_at', [Carbon::parse($request->input('start_date'))->startOfDay(), Carbon::parse($request->input('end_date'))->endOfDay()]);
+            if (!empty($dateRange['start']) && !empty($dateRange['end'])) {
+                $firstCheckinsQuery->whereBetween('created_at', [Carbon::parse($dateRange['start'])->startOfDay(), Carbon::parse($dateRange['end'])->endOfDay()]);
             }
             $firstCheckins = $firstCheckinsQuery->get();
 
@@ -563,11 +559,11 @@ class ReportController extends Controller
                     'avg_checkins_per_user' => round($avgCheckinsPerUser, 1),
                 ],
                 'charts' => [
-                    'checkin_compliance_by_dept' => $checkinComplianceByDept,
+                    'checkin_compliance_by_dept' => $checkinComplianceByDept->toArray(),
                     'health_status_distribution' => $healthStatusCounts,
-                    'process_compliance_trend' => $processComplianceTrend,
+                    'process_compliance_trend' => $processComplianceTrend->toArray(),
                 ],
-                'table' => $processTableData,
+                'table' => $processTableData->toArray(),
             ];
         } catch (\Exception $e) {
             \Log::error('!!! FAILED in _getProcessReportData: ' . $e->getMessage());
@@ -579,7 +575,7 @@ class ReportController extends Controller
     /**
      * Gathers data for the "Performance" tab.
      */
-    private function _getPerformanceReportData(Request $request, Cycle $cycle, ?int $departmentId, ?string $level)
+    private function _getPerformanceReportData(Cycle $cycle, ?int $departmentId, ?string $level, ?array $dateRange)
     {
         // Base query for all objectives in the cycle, already filtered by cycle
         $baseObjectivesQuery = Objective::query()
@@ -608,8 +604,6 @@ class ReportController extends Controller
         }
 
         // 2. Calculate Stat Cards
-        // If filters are applied, use filtered objectives.
-        // If not, use company objectives if they exist, otherwise fallback to all objectives in cycle.
         $statCardObjectives = ($departmentId || $level) 
             ? $filteredObjectives 
             : ($companyObjectives->isNotEmpty() ? $companyObjectives : $allObjectivesInCycle);
@@ -637,16 +631,12 @@ class ReportController extends Controller
         }
 
         // 3. Chart Data
-        $dateRange = ['start' => $request->input('start_date'), 'end' => $request->input('end_date')];
-        
-        // Use company objectives for trend if they exist, otherwise use all objectives.
         $objectiveIdsForTrend = $companyObjectives->isNotEmpty() ? $companyObjectives->pluck('objective_id') : $allObjectivesInCycle->pluck('objective_id');
         $progressOverTime = $this->_getCompanyProgressTrend($cycle, $objectiveIdsForTrend, $dateRange);
         
         $departmentPerformanceQuery = $allObjectivesInCycle
             ->where('department_id', '!=', null);
 
-        // If filtering by department, only show that one
         if ($departmentId) {
             $departmentPerformanceQuery = $departmentPerformanceQuery->where('department_id', $departmentId);
         }
@@ -664,8 +654,7 @@ class ReportController extends Controller
             ->sortByDesc('average_progress')
             ->values();
 
-        // 4. Table Data - This is strictly hierarchical and depends on company objectives.
-        // It will be empty if no company objectives are found, which is the desired behavior now.
+        // 4. Table Data
         $tableData = [];
         if ($companyObjectives->isNotEmpty()) {
             $companyObjectiveIds = $companyObjectives->pluck('objective_id');
@@ -720,7 +709,7 @@ class ReportController extends Controller
 
                 return array_merge(
                     $this->_formatObjectiveForTable($companyO, $allConfidenceScores, $cycle),
-                    ['children' => $children]
+                    ['children' => $children->toArray()]
                 );
             })->filter()->values();
         }
@@ -733,9 +722,9 @@ class ReportController extends Controller
             ],
             'charts' => [
                 'progress_over_time' => $progressOverTime,
-                'performance_by_department' => $departmentPerformance,
+                'performance_by_department' => $departmentPerformance->toArray(),
             ],
-            'table' => $tableData,
+            'table' => $tableData->toArray(),
         ];
     }
 
@@ -1169,15 +1158,15 @@ default:
                 // Lấy tất cả filter params từ request gốc
                 $departmentId = $request->integer('department_id');
                 $level = $request->input('level');
+                $dateRange = [
+                    'start' => $request->input('start_date'),
+                    'end' => $request->input('end_date'),
+                ];
 
-                // Tạo một request giả để truyền cho các hàm private
-                $internalRequest = new Request($request->all());
-                $internalRequest->setUserResolver(fn() => $user);
-
-                // Lấy dữ liệu từ cả 3 tab
-                $performanceData = $this->_getPerformanceReportData($internalRequest, $cycle, $departmentId, $level);
-                $processData = $this->_getProcessReportData($internalRequest, $cycle, $departmentId, $level);
-                $qualityData = $this->_getQualityReportData($internalRequest, $cycle, $departmentId, $level);
+                // Lấy dữ liệu từ cả 3 tab, truyền filter một cách tường minh
+                $performanceData = $this->_getPerformanceReportData($cycle, $departmentId, $level, $dateRange);
+                $processData = $this->_getProcessReportData($cycle, $departmentId, $level, $dateRange);
+                $qualityData = $this->_getQualityReportData($cycle, $departmentId, $level, $dateRange);
 
                 // Gộp dữ liệu của cả 3 tab vào một cấu trúc duy nhất
                 $combinedData = [
@@ -1197,6 +1186,7 @@ default:
                         'filters' => [
                             'department_id' => $departmentId,
                             'level' => $level,
+                            'date_range' => $dateRange,
                         ]
                     ]
                 ];
