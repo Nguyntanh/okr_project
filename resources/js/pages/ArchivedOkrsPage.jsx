@@ -209,55 +209,7 @@ export default function ArchivedOkrsPage() {
         );
     };
 
-    const handleUnarchiveKR = async (krId) => {
-        openConfirm(
-            "Phục hồi Key Result",
-            "KR này sẽ được chuyển lại vào danh sách OKR đang hoạt động.",
-            async () => {
-                setProcessing({ type: "unarchivingKR", id: krId });
-                const obj = items.find((o) =>
-                    o.key_results?.some((kr) => kr.kr_id === krId)
-                );
-                if (!obj) {
-                    setToast({
-                        type: "error",
-                        message: "Không tìm thấy Objective chứa KR này.",
-                    });
-                    closeConfirm();
-                    return;
-                }
-                try {
-                    const token = document
-                        .querySelector('meta[name="csrf-token"]')
-                        ?.getAttribute("content");
-                    const res = await fetch(
-                        `/my-key-results/${obj.objective_id}/${krId}/unarchive`,
-                        {
-                            method: "POST",
-                            headers: {
-                                "X-CSRF-TOKEN": token,
-                                Accept: "application/json",
-                            },
-                        }
-                    );
-                    const json = await res.json();
-                    if (!res.ok || json.success === false)
-                        throw new Error(json.message || "Lỗi không xác định");
-                    setToast({
-                        type: "success",
-                        message: json.message || "Phục hồi thành công!",
-                    });
-                    await fetchData();
-                } catch (err) {
-                    setToast({ type: "error", message: err.message });
-                } finally {
-                    setProcessing({ type: "", id: null });
-                    closeConfirm();
-                }
-            },
-            "Phục hồi"
-        );
-    };
+
 
     const handleDeleteKR = async (krId) => {
         openConfirm(
@@ -388,10 +340,7 @@ export default function ArchivedOkrsPage() {
                                             <div className="flex items-center justify-between w-full">
                                                 <div className="flex items-center gap-2">
                                                     <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
-                                                        {obj.key_results?.some(
-                                                            (kr) =>
-                                                                kr.archived_at
-                                                        ) && (
+                                                        {obj.key_results?.length > 0 && (
                                                             <button
                                                                 onClick={() =>
                                                                     setOpenObj(
@@ -559,13 +508,15 @@ export default function ArchivedOkrsPage() {
                                     </tr>
 
                                     {openObj[obj.objective_id] &&
-                                        obj.key_results
-                                            ?.filter((kr) => kr.archived_at)
-                                            .map((kr) => (
-                                                <tr
-                                                    key={`archived-kr-${kr.kr_id}`}
-                                                    className="bg-white hover:bg-slate-50/70 transition-colors duration-150"
-                                                >
+                                        obj.key_results?.map((kr) => (
+                                            <tr
+                                                key={`archived-kr-${kr.kr_id}`}
+                                                className={`transition-colors duration-150 ${
+                                                    kr.archived_at
+                                                        ? "bg-slate-100/50"
+                                                        : "bg-white"
+                                                } hover:bg-slate-50/70`}
+                                            >
                                                     {/* Cột Tiêu đề KR */}
                                                     <td className="px-8 py-3">
                                                         <div className="flex items-center gap-2">
@@ -657,42 +608,7 @@ export default function ArchivedOkrsPage() {
                                                         <div className="flex flex-col items-center justify-center gap-1">
 
                                                             <div className="flex items-center gap-1 mt-1">
-                                                                <button
-                                                                    onClick={() =>
-                                                                        handleUnarchiveKR(
-                                                                            kr.kr_id
-                                                                        )
-                                                                    }
-                                                                    disabled={isProcessing(
-                                                                        "unarchivingKR",
-                                                                        kr.kr_id
-                                                                    )}
-                                                                    className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40"
-                                                                    title="Phục hồi Key Result"
-                                                                >
-                                                                    {isProcessing(
-                                                                        "unarchivingKR",
-                                                                        kr.kr_id
-                                                                    ) ? (
-                                                                        "..."
-                                                                    ) : (
-                                                                        <svg
-                                                                            className="h-4 w-4"
-                                                                            fill="none"
-                                                                            viewBox="0 0 24 24"
-                                                                            stroke="currentColor"
-                                                                        >
-                                                                            <path
-                                                                                strokeLinecap="round"
-                                                                                strokeLinejoin="round"
-                                                                                strokeWidth={
-                                                                                    2
-                                                                                }
-                                                                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                                                                            />
-                                                                        </svg>
-                                                                    )}
-                                                                </button>
+
                                                                 <button
                                                                     onClick={() =>
                                                                         handleDeleteKR(
