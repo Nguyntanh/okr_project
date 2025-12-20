@@ -3,6 +3,7 @@ import StatCard from './StatCard';
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, LineElement, PointElement, Title, Tooltip, Legend, Filler } from 'chart.js';
 import EmptyState from './EmptyState';
+import { tooltipOptions, legendOptions } from './chartConfig';
 import { FiBarChart2, FiPieChart, FiTrendingDown, FiCheckSquare, FiLink, FiLayers, FiRepeat, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, LineElement, PointElement, Title, Tooltip, Legend, Filler);
@@ -96,16 +97,6 @@ const ProcessTable = ({ tableData }) => {
     );
 };
 
-const tooltipOptions = {
-    backgroundColor: '#fff',
-    titleColor: '#333',
-    bodyColor: '#666',
-    borderColor: '#ddd',
-    borderWidth: 1,
-    padding: 10,
-    usePointStyle: true,
-};
-
 export default function ProcessTab({ data }) {
     const [activeIndex, setActiveIndex] = useState(0);
 
@@ -155,7 +146,7 @@ export default function ProcessTab({ data }) {
         };
         const healthDistOptions = {
             responsive: true, maintainAspectRatio: false, cutout: '60%',
-            plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, padding: 15 } }, tooltip: { ...tooltipOptions, callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed || 0} mục tiêu` }} }
+            plugins: { legend: legendOptions, tooltip: { ...tooltipOptions, callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed || 0} mục tiêu` }} }
         };
         
         // --- Chart 3: Compliance Trend (Line) ---
@@ -197,14 +188,7 @@ export default function ProcessTab({ data }) {
         const trendOptions = {
             responsive: true, maintainAspectRatio: false,
             plugins: {
-                legend: {
-                    position: 'top',
-                    labels: {
-                        usePointStyle: true,
-                        boxWidth: 8,
-                        padding: 15
-                    }
-                },
+                legend: legendOptions, // Use shared legend options, which defaults to bottom
                 tooltip: {
                     ...tooltipOptions,
                     callbacks: {
