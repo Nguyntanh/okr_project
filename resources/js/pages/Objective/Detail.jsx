@@ -185,6 +185,30 @@ const OverviewSection = ({ objective }) => {
                             </dd>
                         </div>
                     )}
+
+                    {/* Hàng mới: Tham vọng | Tags */}
+                    <div className="sm:col-span-1">
+                        <dt className="text-sm font-medium text-gray-500 flex items-center">
+                            <CheckCircleIcon className="h-5 w-5 text-gray-400 mr-2" />
+                            Mục tiêu tham vọng
+                        </dt>
+                        <dd className="mt-1 text-sm text-gray-900 ml-7">{objective.is_aspirational ? 'Có' : 'Không'}</dd>
+                    </div>
+                    {objective.tags && objective.tags.length > 0 && (
+                        <div className="sm:col-span-1">
+                            <dt className="text-sm font-medium text-gray-500 flex items-center">
+                                <TagIcon className="h-5 w-5 text-gray-400 mr-2" />
+                                Tags
+                            </dt>
+                            <dd className="mt-1 text-sm text-gray-900 ml-7">
+                                {objective.tags.map((tag, idx) => (
+                                    <span key={idx} className="inline-block bg-gray-100 text-gray-800 text-xs font-medium mr-2 px-2.5 py-0.5 rounded-full">
+                                        {tag}
+                                    </span>
+                                ))}
+                            </dd>
+                        </div>
+                    )}
                 </dl>
             </div>
         </div>
@@ -234,20 +258,29 @@ const KeyResultsSection = ({ keyResults, objective }) => {
                                     )}
                                 </div>
                                 {kr.unit && (
-                                    <div className="text-xs text-gray-500 mb-1">
-                                        Đơn vị: <span className="font-medium">{getUnitLabel(kr.unit)}</span>
-                                        {kr.target_value !== undefined && (
-                                            <span className="ml-2">
-                                                | Mục tiêu: <span className="font-medium">{formatValue(kr.target_value, kr.unit)}</span>
-                                            </span>
-                                        )}
-                                        {kr.current_value !== undefined && (
-                                            <span className="ml-2">
-                                                | Hiện tại: <span className="font-medium">{formatValue(kr.current_value, kr.unit)}</span>
-                                            </span>
-                                        )}
-                                    </div>
-                                )}
+                                                                    <div className="text-xs text-gray-500 mb-1">
+                                                                        Đơn vị: <span className="font-medium">{getUnitLabel(kr.unit)}</span>
+                                                                        {kr.type && (
+                                                                            <span className="ml-2">
+                                                                                | Loại: <span className="font-medium">{kr.type}</span>
+                                                                            </span>
+                                                                        )}
+                                                                        {kr.weight && (
+                                                                            <span className="ml-2">
+                                                                                | Trọng số: <span className="font-medium">{kr.weight}</span>
+                                                                            </span>
+                                                                        )}
+                                                                        {kr.target_value !== undefined && (
+                                                                            <span className="ml-2">
+                                                                                | Mục tiêu: <span className="font-medium">{formatValue(kr.target_value, kr.unit)}</span>
+                                                                            </span>
+                                                                        )}
+                                                                        {kr.current_value !== undefined && (
+                                                                            <span className="ml-2">
+                                                                                | Hiện tại: <span className="font-medium">{formatValue(kr.current_value, kr.unit)}</span>
+                                                                            </span>
+                                                                        )}
+                                                                    </div>                                )}
                             </div>
                             <span className="text-base font-bold text-gray-800 ml-2">{kr.progress_percent}%</span>
                         </div>
