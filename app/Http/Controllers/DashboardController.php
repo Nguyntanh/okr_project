@@ -177,55 +177,98 @@ class DashboardController extends Controller
         
         $companyGlobalAvg = $count > 0 ? round($totalProgress / $count, 1) : 0;
 
-        $riskKrs = [];
-        $overdueKrs = [];
+        $needsAttention = [];
         foreach ($myOkrs as $okr) {
             $cycle = $okr->cycle;
             $start = $cycle ? Carbon::parse($cycle->start_date) : $now->startOfYear();
             $end = $cycle ? Carbon::parse($cycle->end_date) : $now->endOfYear();
 
-            if ($end->lte($now)) continue; 
+            if ($end->lte($now)) continue;
 
             $totalDays = $start->diffInDays($end);
             $elapsedDays = $start->diffInDays($now);
             $timeRatio = $totalDays > 0 ? $elapsedDays / $totalDays : 0;
-            $daysLeft = $now->diffInDays($end, false); 
+            $daysLeft = $now->diffInDays($end, false);
 
             foreach ($okr->keyResults as $kr) {
                 $krProgress = $kr->calculated_progress ?? $kr->progress_percent ?? 0;
-
-                // Skip risk evaluation for KRs that have never been checked-in
                 $lastCheckIn = CheckIn::where('kr_id', $kr->kr_id)->latest()->first();
+
+                // 1. Quá hạn check-in (chưa có check-in nào và quá hạn)
                 if (!$lastCheckIn) {
+                    // Tính số ngày overdue = hôm nay - (ngày tạo KR + 7)
+                    $expectedCheckInDate = Carbon::parse($kr->created_at)->addDays(7);
+                    if ($now->gt($expectedCheckInDate)) {
+                        $overdueDays = $now->diffInDays($expectedCheckInDate);
+                        $needsAttention[] = [
+                            'type' => 'overdue_checkin',
+                            'priority' => 1, // Ưu tiên cao nhất
+                            'kr_id' => $kr->kr_id,
+                            'kr_title' => $kr->kr_title,
+                            'objective_id' => $okr->objective_id,
+                            'obj_title' => $okr->obj_title,
+                            'progress_percent' => $krProgress,
+                            'overdue_days' => round($overdueDays),
+                            'reason' => "Chưa check-in lần đầu • Quá hạn " . round($overdueDays) . " ngày"
+                        ];
+                    }
+                    continue; // Không tính rủi ro nếu chưa check-in
+                }
+
+                // 2. Quá hạn check-in (đã có check-in nhưng quá hạn)
+                $lastCheckInDate = Carbon::parse($lastCheckIn->created_at);
+                $expectedNextCheckIn = $lastCheckInDate->addDays(7);
+                if ($now->gt($expectedNextCheckIn)) {
+                    // Tính số ngày overdue = hôm nay - (ngày check-in cuối cùng + 7)
+                    $overdueDays = $now->diffInDays($expectedNextCheckIn);
+                    $needsAttention[] = [
+                        'type' => 'overdue_checkin',
+                        'priority' => 1, // Ưu tiên cao nhất
+                        'kr_id' => $kr->kr_id,
+                        'kr_title' => $kr->kr_title,
+                        'objective_id' => $okr->objective_id,
+                        'obj_title' => $okr->obj_title,
+                        'progress_percent' => $krProgress,
+                        'overdue_days' => round($overdueDays),
+                        'reason' => "Chưa check-in • Quá hạn " . round($overdueDays) . " ngày",
+                    ];
                     continue;
                 }
+                $timeProgressPercent = $timeRatio * 100;
+                $deviation = $timeProgressPercent - $krProgress;
 
-                $isRisk = false;
-
-                if ($krProgress < 50) {
-                    $isRisk = true;
+                $riskLevel = null;
+                if ($deviation > 25) {
+                    $riskLevel = 'Chậm tiến độ'; 
+                } elseif ($deviation > 10) {
+                    $riskLevel = 'Có nguy cơ'; 
                 }
 
-                if ($isRisk) {
-                    $riskKrs[] = [
+                if ($riskLevel) {
+                    $needsAttention[] = [
+                        'type' => 'progress_risk',
+                        'priority' => 2, 
+                        'risk_level' => $riskLevel,
                         'kr_id' => $kr->kr_id,
                         'kr_title' => $kr->kr_title,
-                        'progress_percent' => $krProgress,
                         'objective_id' => $okr->objective_id,
-                        'deadline' => $end->toDateString(),
-                    ];
-
-                    // Include in overdue list regardless of creation age once the KR has at least one check-in
-                    $overdueKrs[] = [
-                        'kr_id' => $kr->kr_id,
-                        'kr_title' => $kr->kr_title,
+                        'obj_title' => $okr->obj_title,
                         'progress_percent' => $krProgress,
-                        'objective_id' => $okr->objective_id,
+                        'time_progress_percent' => round($timeProgressPercent, 1),
+                        'deviation' => round($deviation, 1),
                         'deadline' => $end->toDateString(),
+                        'reason' => "Tiến độ " . number_format($krProgress, 2) . "% vs thời gian trôi qua " . number_format($timeProgressPercent, 2) . "% ({$riskLevel})",
                     ];
                 }
             }
         }
+
+        // Sắp xếp theo priority (1 = cao nhất)
+        usort($needsAttention, function($a, $b) {
+            return $a['priority'] <=> $b['priority'];
+        });
+
+        $totalRisks = count($needsAttention);
 
         $weekStart = Carbon::now()->startOfWeek();
         $weekEnd = Carbon::now()->endOfWeek();
@@ -242,7 +285,6 @@ class DashboardController extends Controller
         $needCheckIn = 0;
         $totalConfidence = 0;
         $confidenceCount = 0;
-        $totalRisks = 0;
 
         foreach ($myOkrs as $okr) {
             $cycle = $okr->cycle;
@@ -276,17 +318,6 @@ class DashboardController extends Controller
                 $confidence = $lastCheckIn ? $lastCheckIn->progress_percent : 100;
                 $totalConfidence += $confidence;
                 $confidenceCount++;
-
-                // Only evaluate risk for KRs that have at least one check-in
-                $isRisk = false;
-                if ($lastCheckIn) {
-                    if ($krProgress < 50) {
-                        $isRisk = true;
-                    }
-                }
-                if ($isRisk) {
-                    $totalRisks++;
-                }
             }
         }
 
@@ -306,8 +337,7 @@ class DashboardController extends Controller
             'deptOkrs' => $deptOkrs,
             'companyOkrs' => $companyOkrs,
             'companyGlobalAvg' => $companyGlobalAvg,
-            'riskKrs' => $riskKrs,
-            'overdueKrs' => $overdueKrs,
+            'needsAttention' => $needsAttention,
             'weeklySummary' => $weeklySummary,
         ]);
     }
@@ -433,7 +463,7 @@ class DashboardController extends Controller
         $departmentData = [];
         $totalObjectives = $objectives->count();
         $totalKrs = $objectives->sum(function($obj) {
-            return $obj->keyResults->count();
+            return $obj->keyResults->whereNull('archived_at')->count();
         });
 
         // Thu thập tất cả check-ins của user

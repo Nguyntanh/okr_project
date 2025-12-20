@@ -3,7 +3,7 @@ import { CycleDropdown } from "../components/Dropdown";
 import ToastNotification from "../components/ToastNotification";
 import ConfirmationModal from "../components/ConfirmationModal";
 import { FaBullseye, FaKey } from "react-icons/fa";
-import { formatPercent, getStatusText } from "./okr/utils/formatters";
+import { formatPercent, getStatusText, getAssigneeInfo, getOwnerInfo } from "./okr/utils/formatters";
 
 const formatDate = (dateString) => {
     if (!dateString) return "N/A";
@@ -36,6 +36,7 @@ export default function ArchivedOkrsPage() {
         cancelText: "Hủy",
     });
     const [processing, setProcessing] = useState({ type: "", id: null });
+    const [assigneeTooltip, setAssigneeTooltip] = useState(null);
     const openConfirm = (title, message, onConfirm, confirmText = "OK") => {
         setConfirmModal({
             show: true,
@@ -208,55 +209,7 @@ export default function ArchivedOkrsPage() {
         );
     };
 
-    const handleUnarchiveKR = async (krId) => {
-        openConfirm(
-            "Phục hồi Key Result",
-            "KR này sẽ được chuyển lại vào danh sách OKR đang hoạt động.",
-            async () => {
-                setProcessing({ type: "unarchivingKR", id: krId });
-                const obj = items.find((o) =>
-                    o.key_results?.some((kr) => kr.kr_id === krId)
-                );
-                if (!obj) {
-                    setToast({
-                        type: "error",
-                        message: "Không tìm thấy Objective chứa KR này.",
-                    });
-                    closeConfirm();
-                    return;
-                }
-                try {
-                    const token = document
-                        .querySelector('meta[name="csrf-token"]')
-                        ?.getAttribute("content");
-                    const res = await fetch(
-                        `/my-key-results/${obj.objective_id}/${krId}/unarchive`,
-                        {
-                            method: "POST",
-                            headers: {
-                                "X-CSRF-TOKEN": token,
-                                Accept: "application/json",
-                            },
-                        }
-                    );
-                    const json = await res.json();
-                    if (!res.ok || json.success === false)
-                        throw new Error(json.message || "Lỗi không xác định");
-                    setToast({
-                        type: "success",
-                        message: json.message || "Phục hồi thành công!",
-                    });
-                    await fetchData();
-                } catch (err) {
-                    setToast({ type: "error", message: err.message });
-                } finally {
-                    setProcessing({ type: "", id: null });
-                    closeConfirm();
-                }
-            },
-            "Phục hồi"
-        );
-    };
+
 
     const handleDeleteKR = async (krId) => {
         openConfirm(
@@ -332,12 +285,8 @@ export default function ArchivedOkrsPage() {
                                 className="px-3 py-2 text-center"
                                 style={{ width: "180px" }}
                             >
-                                Người thực hiện
+                                Người sở hữu
                             </th>
-                            <th
-                                className="px-3 py-2 text-center"
-                                style={{ width: "150px" }}
-                            ></th>
                             <th
                                 className="px-3 py-2 text-center"
                                 style={{ width: "150px" }}
@@ -356,7 +305,7 @@ export default function ArchivedOkrsPage() {
                         {loading && (
                             <tr>
                                 <td
-                                    colSpan="4"
+                                    colSpan="5"
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
                                     Đang tải danh sách lưu trữ...
@@ -367,7 +316,7 @@ export default function ArchivedOkrsPage() {
                         {!loading && (!items || items.length === 0) && (
                             <tr>
                                 <td
-                                    colSpan="4"
+                                    colSpan="5"
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
                                     Không có OKR nào trong kho lưu trữ.
@@ -387,15 +336,11 @@ export default function ArchivedOkrsPage() {
                                                 : "bg-white"
                                         } hover:bg-slate-50/70`}
                                     >
-                                        {/* Cột "Tiêu đề" (kéo dài 3 cột) */}
-                                        <td colSpan={4} className="px-3 py-3">
+                                        <td className="px-3 py-3">
                                             <div className="flex items-center justify-between w-full">
                                                 <div className="flex items-center gap-2">
                                                     <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
-                                                        {obj.key_results?.some(
-                                                            (kr) =>
-                                                                kr.archived_at
-                                                        ) && (
+                                                        {obj.key_results?.length > 0 && (
                                                             <button
                                                                 onClick={() =>
                                                                     setOpenObj(
@@ -456,20 +401,36 @@ export default function ArchivedOkrsPage() {
                                                         >
                                                             {obj.obj_title}
                                                         </span>
-                                                        {obj.archived_at && (
-                                                            <span className="text-slate-500 text-xs italic">
-                                                                Lưu trữ ngày:{" "}
-                                                                {formatDate(
-                                                                    obj.archived_at
-                                                                )}
-                                                            </span>
-                                                        )}
+
                                                     </div>
                                                 </div>
                                             </div>
                                         </td>
+                                        <td className="px-3 py-3">
+                                            {(() => {
+                                                const owner = getOwnerInfo(obj.user);
+                                                return (
+                                                    <div className="flex items-center justify-start gap-2">
+                                                        <img
+                                                            src={owner.avatar}
+                                                            alt={owner.name}
+                                                            className="h-8 w-8 rounded-full"
+                                                        />
+                                                        <div className="text-sm text-left">
+                                                            <div className="font-semibold text-slate-800">
+                                                                {owner.name}
+                                                            </div>
+                                                            <div className="text-slate-500">
+                                                                {owner.department}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
+                                        </td>
+                                        <td className="px-3 py-3 text-center"></td>
                                         <td className="px-3 py-3 text-center">
-                                            <div className="flex items-center justify-center gap-1">
+                                            <div className="flex items-center justify-center">
                                                 {obj.archived_at && (
                                                     <>
                                                         <button
@@ -482,7 +443,7 @@ export default function ArchivedOkrsPage() {
                                                                 "unarchiving",
                                                                 obj.objective_id
                                                             )}
-                                                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40"
+                                                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40 w-8 h-8 flex items-center justify-center"
                                                             title="Phục hồi Objective"
                                                         >
                                                             {isProcessing(
@@ -500,9 +461,7 @@ export default function ArchivedOkrsPage() {
                                                                     <path
                                                                         strokeLinecap="round"
                                                                         strokeLinejoin="round"
-                                                                        strokeWidth={
-                                                                            2
-                                                                        }
+                                                                        strokeWidth={2}
                                                                         d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                                                                     />
                                                                 </svg>
@@ -518,7 +477,7 @@ export default function ArchivedOkrsPage() {
                                                                 "deleting",
                                                                 obj.objective_id
                                                             )}
-                                                            className="p-1 text-rose-600 hover:bg-rose-50 rounded disabled:opacity-40"
+                                                            className="ml-1 p-1 text-rose-600 hover:bg-rose-50 rounded disabled:opacity-40 w-8 h-8 flex items-center justify-center"
                                                             title="Xóa vĩnh viễn"
                                                         >
                                                             {isProcessing(
@@ -536,9 +495,7 @@ export default function ArchivedOkrsPage() {
                                                                     <path
                                                                         strokeLinecap="round"
                                                                         strokeLinejoin="round"
-                                                                        strokeWidth={
-                                                                            2
-                                                                        }
+                                                                        strokeWidth={2}
                                                                         d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                                                                     />
                                                                 </svg>
@@ -551,13 +508,15 @@ export default function ArchivedOkrsPage() {
                                     </tr>
 
                                     {openObj[obj.objective_id] &&
-                                        obj.key_results
-                                            ?.filter((kr) => kr.archived_at)
-                                            .map((kr) => (
-                                                <tr
-                                                    key={`archived-kr-${kr.kr_id}`}
-                                                    className="bg-white hover:bg-slate-50/70 transition-colors duration-150"
-                                                >
+                                        obj.key_results?.map((kr) => (
+                                            <tr
+                                                key={`archived-kr-${kr.kr_id}`}
+                                                className={`transition-colors duration-150 ${
+                                                    kr.archived_at
+                                                        ? "bg-slate-100/50"
+                                                        : "bg-white"
+                                                } hover:bg-slate-50/70`}
+                                            >
                                                     {/* Cột Tiêu đề KR */}
                                                     <td className="px-8 py-3">
                                                         <div className="flex items-center gap-2">
@@ -571,32 +530,73 @@ export default function ArchivedOkrsPage() {
                                                             </span>
                                                         </div>
                                                     </td>
-                                                    {/* Cột Người thực hiện */}
-                                                    <td className="px-3 py-3 text-center text-sm text-slate-500">
-                                                        {kr.assigned_user
-                                                            ?.name || ""}
+                                                    {/* Cột Người sở hữu */}
+                                                    <td className="px-3 py-3">
+                                                        {(() => {
+                                                            const assignee =
+                                                                getAssigneeInfo(
+                                                                    kr
+                                                                );
+                                                            return (
+                                                                <div className="flex items-center justify-start gap-2">
+                                                                    <img
+                                                                        src={
+                                                                            assignee.avatar
+                                                                        }
+                                                                        alt={
+                                                                            assignee.name
+                                                                        }
+                                                                        className="h-8 w-8 rounded-full"
+                                                                    />
+                                                                    <div className="text-sm text-left">
+                                                                        <div className="font-semibold text-slate-800">
+                                                                            {
+                                                                                assignee.name
+                                                                            }
+                                                                        </div>
+                                                                        <div className="text-slate-500">
+                                                                            {
+                                                                                assignee.department
+                                                                            }
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })()}
                                                     </td>
-                                                    <td className="px-3 py-3 text-center">
-                                                    </td>
+
                                                     {/* Cột Tiến độ */}
                                                     <td className="px-3 py-3 text-center">
                                                         <div className="flex flex-col items-center">
-                                                            <div className="w-full bg-gray-300 rounded-full h-4 relative overflow-hidden">
-                                                                <div
-                                                                    className="h-full rounded-full absolute left-0 bg-slate-500"
-                                                                    style={{
-                                                                        width: `${kr.progress_percent}%`,
-                                                                    }}
-                                                                ></div>
-                                                                {kr.progress_percent >
-                                                                    0 && (
-                                                                    <span className="absolute left-1 text-white text-xs font-semibold z-10">
-                                                                        {formatPercent(
-                                                                            kr.progress_percent
-                                                                        )}
-                                                                    </span>
-                                                                )}
-                                                            </div>
+                                                            {(() => {
+                                                                const percent = Math.max(
+                                                                    0,
+                                                                    Math.min(100, kr.calculated_progress ?? kr.progress_percent ?? 0)
+                                                                );
+
+                                                                return (
+                                                                    <div className="relative w-full max-w-[120px]">
+                                                                        <div className="relative h-2 w-full bg-slate-100 rounded-full overflow-visible">
+                                                                            <div
+                                                                                className="h-full rounded-full absolute left-0 bg-slate-500"
+                                                                                style={{ width: `${percent}%` }}
+                                                                            ></div>
+
+                                                                            <div
+                                                                                className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 bg-white border-slate-500"
+                                                                                style={{ left: `calc(${percent}% - 6px)` }}
+                                                                            />
+
+                                                                            <div
+                                                                                className="absolute -top-5 left-1/2 -translate-x-1/2 text-[11px] font-semibold whitespace-nowrap text-slate-600"
+                                                                                style={{ left: `calc(${percent}% - 6px)` }}
+                                                                            >
+                                                                                {percent.toFixed(2)}%
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })()}
                                                             <span className="inline-flex items-center rounded-md px-0 py-0 text-[9px] font-semibold text-slate-500 mt-1">
                                                                 {getStatusText(
                                                                     kr.status
@@ -604,90 +604,45 @@ export default function ArchivedOkrsPage() {
                                                             </span>
                                                         </div>
                                                     </td>
-                                                    <td className="px-3 py-3 text-center">
-                                                        <div className="flex flex-col items-center justify-center gap-1">
-                                                            <span className="text-slate-500 text-xs italic">
-                                                                Lưu trữ:{" "}
-                                                                {formatDate(
-                                                                    kr.archived_at
-                                                                )}
-                                                            </span>
-                                                            <div className="flex items-center gap-1 mt-1">
-                                                                <button
-                                                                    onClick={() =>
-                                                                        handleUnarchiveKR(
-                                                                            kr.kr_id
-                                                                        )
-                                                                    }
-                                                                    disabled={isProcessing(
-                                                                        "unarchivingKR",
-                                                                        kr.kr_id
-                                                                    )}
-                                                                    className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40"
-                                                                    title="Phục hồi Key Result"
-                                                                >
-                                                                    {isProcessing(
-                                                                        "unarchivingKR",
-                                                                        kr.kr_id
-                                                                    ) ? (
-                                                                        "..."
-                                                                    ) : (
-                                                                        <svg
-                                                                            className="h-4 w-4"
-                                                                            fill="none"
-                                                                            viewBox="0 0 24 24"
-                                                                            stroke="currentColor"
-                                                                        >
-                                                                            <path
-                                                                                strokeLinecap="round"
-                                                                                strokeLinejoin="round"
-                                                                                strokeWidth={
-                                                                                    2
-                                                                                }
-                                                                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                                                                            />
-                                                                        </svg>
-                                                                    )}
-                                                                </button>
-                                                                <button
-                                                                    onClick={() =>
-                                                                        handleDeleteKR(
-                                                                            kr.kr_id
-                                                                        )
-                                                                    }
-                                                                    disabled={isProcessing(
-                                                                        "deletingKR",
-                                                                        kr.kr_id
-                                                                    )}
-                                                                    className="p-1 text-rose-600 hover:bg-rose-50 rounded disabled:opacity-40"
-                                                                    title="Xóa vĩnh viễn"
-                                                                >
-                                                                    {isProcessing(
-                                                                        "deletingKR",
-                                                                        kr.kr_id
-                                                                    ) ? (
-                                                                        "..."
-                                                                    ) : (
-                                                                        <svg
-                                                                            className="h-4 w-4"
-                                                                            fill="none"
-                                                                            viewBox="0 0 24 24"
-                                                                            stroke="currentColor"
-                                                                        >
-                                                                            <path
-                                                                                strokeLinecap="round"
-                                                                                strokeLinejoin="round"
-                                                                                strokeWidth={
-                                                                                    2
-                                                                                }
-                                                                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                                                            />
-                                                                        </svg>
-                                                                    )}
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    </td>
+                                                                                                        <td className="px-3 py-3 text-center">
+                                                                                                            <div className="flex items-center justify-center mt-1">
+                                                                                                                <div className="w-8 h-8"></div> {/* Placeholder for Unarchive */}
+                                                                                                                <button
+                                                                                                                    onClick={() =>
+                                                                                                                        handleDeleteKR(
+                                                                                                                            kr.kr_id
+                                                                                                                        )
+                                                                                                                    }
+                                                                                                                    disabled={isProcessing(
+                                                                                                                        "deletingKR",
+                                                                                                                        kr.kr_id
+                                                                                                                    )}
+                                                                                                                    className="ml-1 p-1 text-rose-600 hover:bg-rose-50 rounded disabled:opacity-40 w-8 h-8 flex items-center justify-center"
+                                                                                                                    title="Xóa vĩnh viễn"
+                                                                                                                >
+                                                                                                                    {isProcessing(
+                                                                                                                        "deletingKR",
+                                                                                                                        kr.kr_id
+                                                                                                                    ) ? (
+                                                                                                                        "..."
+                                                                                                                    ) : (
+                                                                                                                        <svg
+                                                                                                                            className="h-4 w-4"
+                                                                                                                            fill="none"
+                                                                                                                            viewBox="0 0 24 24"
+                                                                                                                            stroke="currentColor"
+                                                                                                                        >
+                                                                                                                            <path
+                                                                                                                                strokeLinecap="round"
+                                                                                                                                strokeLinejoin="round"
+                                                                                                                                strokeWidth={2}
+                                                                                                                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                                                                                                            />
+                                                                                                                        </svg>
+                                                                                                                    )}
+                                                                                                                </button>
+                                                                                                            </div>
+                                                                                                        </td>
                                                 </tr>
                                             ))}
                                 </React.Fragment>

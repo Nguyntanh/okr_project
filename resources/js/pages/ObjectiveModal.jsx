@@ -53,6 +53,8 @@ export default function ObjectiveModal({
                 cycle_id: "",
                 department_id: "",
                 key_results: [],
+                is_aspirational: false,
+                tags: "",
             });
         }
     }, [creatingObjective]);

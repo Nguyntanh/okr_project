@@ -32,10 +32,17 @@ class MyObjectiveController extends Controller
             return response()->json(['success' => false, 'message' => 'OKR đã được lưu trữ.'], 422);
         }
 
-        $objective->archived_at = now();
-        $objective->save();
+        DB::transaction(function () use ($objective) {
+            $objective->archived_at = now();
+            $objective->save();
 
-        return response()->json(['success' => true, 'message' => 'OKR đã được lưu trữ.']);
+            // Lưu trữ tất cả KR liên quan chưa được lưu trữ
+            $objective->keyResults()
+                ->whereNull('archived_at')
+                ->update(['archived_at' => now()]);
+        });
+
+        return response()->json(['success' => true, 'message' => 'OKR và các KR liên quan đã được lưu trữ.']);
     }
 
     public function unarchive(Request $request, $id): JsonResponse
@@ -47,10 +54,15 @@ class MyObjectiveController extends Controller
             return response()->json(['success' => false, 'message' => 'Không có quyền.'], 403);
         }
 
-        $objective->archived_at = null;
-        $objective->save();
+        DB::transaction(function () use ($objective) {
+            $objective->archived_at = null;
+            $objective->save();
 
-        return response()->json(['success' => true, 'message' => 'Đã bỏ lưu trữ OKR.']);
+            // Phục hồi tất cả KR liên quan
+            $objective->keyResults()->update(['archived_at' => null]);
+        });
+
+        return response()->json(['success' => true, 'message' => 'Đã bỏ lưu trữ OKR và tất cả KR liên quan.']);
     }
 
     /**
@@ -97,7 +109,7 @@ class MyObjectiveController extends Controller
         }
         
         $userId = $user->user_id;
-        $query = Objective::with(['keyResults.assignedUser.department', 'keyResults.assignedUser.role', 'keyResults.user', 'department', 'cycle', 'assignments.user.department', 'assignments.user.role', 'assignments.role', 'user.department', 'user.role'])
+        $query = Objective::with(['keyResults.user', 'department', 'cycle', 'assignments.user.department', 'assignments.user.role', 'assignments.role', 'user.department', 'user.role'])
             ->where(function ($q) use ($userId) {
                 $q->where('user_id', $userId)
                 ->orWhereHas('keyResults', function ($subQuery) use ($userId) {
@@ -118,12 +130,7 @@ class MyObjectiveController extends Controller
         }
 
         if ($request->has('archived') && $request->archived == '1') {
-            $query->where(function($subQuery) {
-                $subQuery->whereNotNull('archived_at')
-                    ->orWhereHas('keyResults', function ($q) {
-                        $q->whereNotNull('archived_at');
-                    });
-            });
+            $query->whereNotNull('archived_at');
         } else {
             $query->whereNull('archived_at');
         }
