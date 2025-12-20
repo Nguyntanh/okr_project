@@ -361,7 +361,7 @@ class ReportController extends Controller
 
             // --- CHARTS ---
             $strategicTagDistribution = $allObjectivesInCycle
-                ->flatMap(fn($obj) => json_decode($obj->tags, true) ?? [])
+                ->flatMap(fn($obj) => $obj->tags ?? [])
                 ->filter()
                 ->groupBy(fn($tag) => $tag)
                 ->map->count();
@@ -386,7 +386,7 @@ class ReportController extends Controller
                     ],
                     'is_aspirational' => (bool) $objective->is_aspirational,
                     'kr_count' => $krCount,
-                    'strategic_tags' => json_decode($objective->tags, true) ?? [],
+                    'strategic_tags' => $objective->tags ?? [],
                     'progress' => $this->clampProgress((float) $objective->progress_percent),
                     'health_status' => $this->reportService->getHealthStatus((float) $objective->progress_percent, $idealProgress),
                     'structural_issues' => $this->_getObjectiveStructuralIssues($krCount),
