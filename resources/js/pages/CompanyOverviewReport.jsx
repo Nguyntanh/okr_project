@@ -4,7 +4,7 @@ import { CycleDropdown } from '../components/Dropdown';
 import PerformanceTab from '../components/reports/PerformanceTab';
 import ProcessTab from '../components/reports/ProcessTab';
 import QualityTab from '../components/reports/QualityTab';
-import FilterDropdown from '../components/reports/FilterDropdown';
+
 import SnapshotModal from '../components/reports/SnapshotModal';
 import SnapshotHistoryModal from '../components/reports/SnapshotHistoryModal';
 import { fetchDetailedData, createSnapshot } from '../utils/reports/dataFetchers';
@@ -15,16 +15,13 @@ import { Dropdown } from '../components/Dropdown';
 
 export default function CompanyOverviewReport() {
     const [cycles, setCycles] = useState([]);
-    const [departments, setDepartments] = useState([]);
+
     const [isSnapshotModalOpen, setIsSnapshotModalOpen] = useState(false);
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
     const [currentTab, setCurrentTab] = useState('performance');
     const [toast, setToast] = useState(null);
     const [filters, setFilters] = useState({
         cycleId: '',
-        departmentId: '',
-        objectiveLevel: 'all',
-        dateRange: { start: null, end: null },
     });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -79,11 +76,7 @@ export default function CompanyOverviewReport() {
                 report_name: name,
                 report_type: 'company',
                 cycle_id: filters.cycleId,
-                department_id: filters.departmentId || null,
-                level: filters.objectiveLevel,
-                start_date: filters.dateRange.start,
-                end_date: filters.dateRange.end,
-                notes: `Snapshot for company report with filters: ${JSON.stringify(filters)}`,
+                notes: `Snapshot for company report. Cycle ID: ${filters.cycleId}`, // Simplified notes
             });
             showNotification('success', `Đã tạo snapshot "${name}" thành công!`);
             setIsSnapshotModalOpen(false);
@@ -132,32 +125,27 @@ export default function CompanyOverviewReport() {
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        const initialFilters = {
-            cycleId: params.get('cycle_id') || '',
-            departmentId: params.get('department_id') || '',
-            objectiveLevel: params.get('level') || 'all',
-            dateRange: { start: null, end: null },
-        };
-        setFilters(initialFilters);
+        const initialCycleId = params.get('cycle_id') || '';
+        setFilters(f => ({ ...f, cycleId: initialCycleId })); // Update cycleId in filters
 
         (async () => {
             try {
                 const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
                 const headers = { Accept: 'application/json', 'X-CSRF-TOKEN': token };
-                const [rCycles, rDepts, rProfile] = await Promise.all([
+                const [rCycles, rProfile] = await Promise.all([ // Removed rDepts
                     fetch('/cycles', { headers }),
-                    fetch('/departments', { headers }),
+                    // Removed fetch('/departments', { headers }),
                     fetch('/api/profile', { headers })
                 ]);
                 const dCycles = await rCycles.json();
-                const dDepts = await rDepts.json();
+                // Removed dDepts
                 const dProfile = await rProfile.json();
 
                 setIsAdminOrCeo(['admin', 'ceo'].includes(dProfile.user?.role?.role_name?.toLowerCase()));
                 setCycles(dCycles.data || []);
-                setDepartments(dDepts.data || []);
+                // Removed setDepartments(dDepts.data || []);
 
-                if (dCycles.data?.length && !initialFilters.cycleId) {
+                if (dCycles.data?.length && !initialCycleId) { // Use initialCycleId here
                     const current = dCycles.data.find(c => c.status === 'active') || dCycles.data[0];
                     setFilters(f => ({ ...f, cycleId: current.cycle_id }));
                 }
@@ -170,7 +158,7 @@ export default function CompanyOverviewReport() {
         
         setLoading(true);
         setError('');
-        fetchDetailedData(filters)
+        fetchDetailedData({ cycleId: filters.cycleId })
             .then(data => setReportData(data))
             .catch(e => {
                 setError(e.message || 'Có lỗi xảy ra khi tải dữ liệu báo cáo.');
@@ -182,14 +170,12 @@ export default function CompanyOverviewReport() {
     useEffect(() => {
         if (viewingSnapshot) return;
         const url = new URL(window.location.href);
-        Object.keys(filters).forEach(key => {
-            const value = filters[key];
-            if (key === 'dateRange' || !value || value === 'all') {
-                url.searchParams.delete(key === 'objectiveLevel' ? 'level' : key);
-            } else {
-                url.searchParams.set(key === 'objectiveLevel' ? 'level' : key, value);
-            }
-        });
+        // Only update cycleId in URL
+        if (filters.cycleId) {
+            url.searchParams.set('cycleId', filters.cycleId);
+        } else {
+            url.searchParams.delete('cycleId');
+        }
         window.history.replaceState({}, '', url.toString());
         loadSnapshots(filters.cycleId);
     }, [filters, viewingSnapshot]);
@@ -256,18 +242,7 @@ export default function CompanyOverviewReport() {
                             />
                         </div>
                         <div className="flex items-center gap-2 mt-4">
-                            <Dropdown
-                                position="right"
-                                trigger={
-                                    <button disabled={!!viewingSnapshot} className={`relative flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium border rounded-lg transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed ${hasActiveFilters ? 'border-blue-300 bg-blue-50 text-blue-700' : 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50'}`}>
-                                        <FiFilter />
-                                        Bộ lọc
-                                        {hasActiveFilters && <span className="absolute -top-1 -right-1 flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span></span>}
-                                    </button>
-                                }
-                            >
-                                <FilterDropdown filters={filters} setFilters={setFilters} allDepartments={departments} />
-                            </Dropdown>
+
                             {isAdminOrCeo && (
                                 <>
                                     <button onClick={() => setIsSnapshotModalOpen(true)} disabled={!!viewingSnapshot} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
