@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { Select } from "../components/ui";
 import ToastNotification from "../components/ToastNotification";
 import SnapshotHistoryModal from '../components/reports/SnapshotHistoryModal';
+import { CycleDropdown } from '../components/Dropdown';
 import { exportTeamReportToExcel } from "../utils/reports/exportHelpers";
 import { FiDownload, FiAlertTriangle, FiEye, FiTrendingUp, FiUsers, FiActivity, FiCheckCircle, FiClock, FiLink, FiUserX, FiSave, FiList, FiTrash2, FiChevronDown, FiChevronRight, FiTarget, FiBell, FiHexagon } from "react-icons/fi";
 import {
@@ -240,6 +241,7 @@ export default function ReportPage() {
     const [departmentName, setDepartmentName] = useState("");
     const [departmentId, setDepartmentId] = useState(null);
     const [error, setError] = useState(null);
+    const [currentUser, setCurrentUser] = useState(null);
     const [activeTab, setActiveTab] = useState("performance");
 
     // Snapshot States
@@ -309,8 +311,31 @@ export default function ReportPage() {
     }, []);
 
     useEffect(() => {
+        const fetchUserProfile = async () => {
+            try {
+                const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                const headers = { Accept: 'application/json', 'X-CSRF-TOKEN': token };
+                const res = await fetch('/api/profile', { headers });
+                const json = await res.json();
+                if (json.success) {
+                    setCurrentUser(json.user);
+                }
+            } catch (e) {
+                console.error("Error fetching user profile:", e);
+            }
+        };
+        fetchUserProfile();
+    }, []); // Run once on component mount
+
+    useEffect(() => {
         if (selectedCycle) loadReportData(selectedCycle);
     }, [selectedCycle]);
+
+    useEffect(() => {
+        if (showHistoryModal && selectedCycle) {
+            fetchSavedReports(selectedCycle);
+        }
+    }, [showHistoryModal, selectedCycle]);
 
     // --- ACTIONS ---
     const handleSaveSnapshot = async () => {
@@ -343,9 +368,13 @@ export default function ReportPage() {
         }
     };
 
-    const fetchSavedReports = async () => {
+    const fetchSavedReports = async (currentCycleId) => {
         try {
-            const res = await fetch(`/api/reports/snapshots/list?report_type=team&cycle_id=${selectedCycle}`);
+            let url = `/api/reports/snapshots/list?report_type=team&cycle_id=${currentCycleId}`;
+            if (currentUser && currentUser.department_id) {
+                url += `&department_id=${currentUser.department_id}`;
+            }
+            const res = await fetch(url);
             const json = await res.json();
             if (json.success) {
                 setSavedReports(json.data);
@@ -624,22 +653,24 @@ export default function ReportPage() {
                     <div className="flex items-center gap-3">
                         {!selectedSnapshot ? (
                             <>
-                                <div className="w-48">
-                                    <Select
-                                        value={selectedCycle}
-                                        onChange={setSelectedCycle}
-                                        options={cycles.map(c => ({ value: String(c.cycle_id), label: c.cycle_name }))}
-                                        placeholder="Chọn chu kỳ"
+                                <div className="w-48 mr-3">
+                                    <CycleDropdown
+                                        cyclesList={cycles}
+                                        cycleFilter={selectedCycle}
+                                        handleCycleChange={setSelectedCycle}
+                                        disabled={!!selectedSnapshot}
                                     />
                                 </div>
-                                <button onClick={handleSaveSnapshot} disabled={isSaving} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg shadow-sm transition-colors text-sm font-medium">
-                                    {isSaving ? <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-600"></span> : <FiSave className="w-4 h-4" />}
-                                    <span>Tạo Snapshot</span>
-                                </button>
-                                <button onClick={fetchSavedReports} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg shadow-sm transition-colors text-sm font-medium">
-                                    <FiList className="w-4 h-4" />
-                                    <span>Lịch sử</span>
-                                </button>
+                                <div className="flex items-center gap-2"> {/* New wrapper div */}
+                                    <button onClick={handleSaveSnapshot} disabled={isSaving} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg shadow-sm transition-colors text-sm font-medium">
+                                        {isSaving ? <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-600"></span> : <FiSave className="w-4 h-4" />}
+                                        <span>Tạo Snapshot</span>
+                                    </button>
+                                    <button onClick={() => fetchSavedReports(selectedCycle)} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg shadow-sm transition-colors text-sm font-medium">
+                                        <FiList className="w-4 h-4" />
+                                        <span>Lịch sử</span>
+                                    </button>
+                                </div>
                             </>
                         ) : (
                             <button onClick={() => { setSelectedSnapshot(null); loadReportData(selectedCycle); }} className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg shadow-sm transition-colors text-sm font-medium">
