@@ -705,13 +705,13 @@ export default function ReportPage() {
                                         placeholder="Chọn chu kỳ"
                                     />
                                 </div>
+                                <button onClick={handleSaveSnapshot} disabled={isSaving} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg shadow-sm transition-colors text-sm font-medium">
+                                    {isSaving ? <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-600"></span> : <FiSave className="w-4 h-4" />}
+                                    <span>Tạo Snapshot</span>
+                                </button>
                                 <button onClick={fetchSavedReports} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg shadow-sm transition-colors text-sm font-medium">
                                     <FiList className="w-4 h-4" />
                                     <span>Lịch sử</span>
-                                </button>
-                                <button onClick={handleSaveSnapshot} disabled={isSaving} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg shadow-sm transition-colors text-sm font-medium">
-                                    {isSaving ? <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-600"></span> : <FiSave className="w-4 h-4" />}
-                                    <span>Lưu</span>
                                 </button>
                             </>
                         ) : (
