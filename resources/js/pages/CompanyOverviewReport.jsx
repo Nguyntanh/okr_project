@@ -4,7 +4,7 @@ import { CycleDropdown } from '../components/Dropdown';
 import PerformanceTab from '../components/reports/PerformanceTab';
 import ProcessTab from '../components/reports/ProcessTab';
 import QualityTab from '../components/reports/QualityTab';
-import FilterDropdown from '../components/reports/FilterDropdown';
+
 import SnapshotModal from '../components/reports/SnapshotModal';
 import SnapshotHistoryModal from '../components/reports/SnapshotHistoryModal';
 import { fetchDetailedData, createSnapshot } from '../utils/reports/dataFetchers';
@@ -15,16 +15,13 @@ import { Dropdown } from '../components/Dropdown';
 
 export default function CompanyOverviewReport() {
     const [cycles, setCycles] = useState([]);
-    const [departments, setDepartments] = useState([]);
+
     const [isSnapshotModalOpen, setIsSnapshotModalOpen] = useState(false);
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
     const [currentTab, setCurrentTab] = useState('performance');
     const [toast, setToast] = useState(null);
     const [filters, setFilters] = useState({
         cycleId: '',
-        departmentId: '',
-        objectiveLevel: 'all',
-        dateRange: { start: null, end: null },
     });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -41,11 +38,7 @@ export default function CompanyOverviewReport() {
     const showNotification = (type, message) => setToast({ type, message });
 
     const handleExportExcel = async () => {
-        if (viewingSnapshot) {
-            showNotification('info', 'Chức năng xuất file không áp dụng cho snapshot.');
-            return;
-        }
-        if (!filters.cycleId) {
+        if (!filters.cycleId && !viewingSnapshot) { // If not viewing snapshot, cycleId is required
             showNotification('error', 'Vui lòng chọn chu kỳ để xuất báo cáo.');
             return;
         }
@@ -54,11 +47,25 @@ export default function CompanyOverviewReport() {
         showNotification('info', 'Đang chuẩn bị dữ liệu và tạo file Excel...');
 
         try {
-            // Fetch fresh, complete data for the export
-            const dataToExport = await fetchDetailedData(filters);
-            const cycle = cycles.find(c => c.cycle_id == filters.cycleId);
+            let dataForExport = null;
+            let exportCycleName = 'report';
+
+            if (viewingSnapshot) {
+                // Use data from the snapshot
+                dataForExport = viewingSnapshot.snapshot_data?.data || viewingSnapshot.snapshot_data;
+                exportCycleName = viewingSnapshot.cycle?.cycle_name || viewingSnapshot.report_name || 'snapshot_report';
+            } else {
+                // Fetch fresh, complete data for the export (for live reports)
+                dataForExport = await fetchDetailedData({ cycleId: filters.cycleId }); // Using updated call
+                const cycle = cycles.find(c => c.cycle_id == filters.cycleId);
+                exportCycleName = cycle?.cycle_name || 'report';
+            }
             
-            const result = await exportCompanyReportToExcel(dataToExport, cycle?.cycle_name || 'report');
+            if (!dataForExport) {
+                throw new Error('Không có dữ liệu để xuất file.');
+            }
+
+            const result = await exportCompanyReportToExcel(dataForExport, exportCycleName);
 
             if (result.success) {
                 showNotification('success', 'Đã tạo và tải xuống file Excel thành công!');
@@ -79,11 +86,7 @@ export default function CompanyOverviewReport() {
                 report_name: name,
                 report_type: 'company',
                 cycle_id: filters.cycleId,
-                department_id: filters.departmentId || null,
-                level: filters.objectiveLevel,
-                start_date: filters.dateRange.start,
-                end_date: filters.dateRange.end,
-                notes: `Snapshot for company report with filters: ${JSON.stringify(filters)}`,
+                notes: `Snapshot for company report. Cycle ID: ${filters.cycleId}`, // Simplified notes
             });
             showNotification('success', `Đã tạo snapshot "${name}" thành công!`);
             setIsSnapshotModalOpen(false);
@@ -132,32 +135,27 @@ export default function CompanyOverviewReport() {
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        const initialFilters = {
-            cycleId: params.get('cycle_id') || '',
-            departmentId: params.get('department_id') || '',
-            objectiveLevel: params.get('level') || 'all',
-            dateRange: { start: null, end: null },
-        };
-        setFilters(initialFilters);
+        const initialCycleId = params.get('cycle_id') || '';
+        setFilters(f => ({ ...f, cycleId: initialCycleId })); // Update cycleId in filters
 
         (async () => {
             try {
                 const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
                 const headers = { Accept: 'application/json', 'X-CSRF-TOKEN': token };
-                const [rCycles, rDepts, rProfile] = await Promise.all([
+                const [rCycles, rProfile] = await Promise.all([ // Removed rDepts
                     fetch('/cycles', { headers }),
-                    fetch('/departments', { headers }),
+                    // Removed fetch('/departments', { headers }),
                     fetch('/api/profile', { headers })
                 ]);
                 const dCycles = await rCycles.json();
-                const dDepts = await rDepts.json();
+                // Removed dDepts
                 const dProfile = await rProfile.json();
 
                 setIsAdminOrCeo(['admin', 'ceo'].includes(dProfile.user?.role?.role_name?.toLowerCase()));
                 setCycles(dCycles.data || []);
-                setDepartments(dDepts.data || []);
+                // Removed setDepartments(dDepts.data || []);
 
-                if (dCycles.data?.length && !initialFilters.cycleId) {
+                if (dCycles.data?.length && !initialCycleId) { // Use initialCycleId here
                     const current = dCycles.data.find(c => c.status === 'active') || dCycles.data[0];
                     setFilters(f => ({ ...f, cycleId: current.cycle_id }));
                 }
@@ -170,7 +168,7 @@ export default function CompanyOverviewReport() {
         
         setLoading(true);
         setError('');
-        fetchDetailedData(filters)
+        fetchDetailedData({ cycleId: filters.cycleId })
             .then(data => setReportData(data))
             .catch(e => {
                 setError(e.message || 'Có lỗi xảy ra khi tải dữ liệu báo cáo.');
@@ -182,14 +180,12 @@ export default function CompanyOverviewReport() {
     useEffect(() => {
         if (viewingSnapshot) return;
         const url = new URL(window.location.href);
-        Object.keys(filters).forEach(key => {
-            const value = filters[key];
-            if (key === 'dateRange' || !value || value === 'all') {
-                url.searchParams.delete(key === 'objectiveLevel' ? 'level' : key);
-            } else {
-                url.searchParams.set(key === 'objectiveLevel' ? 'level' : key, value);
-            }
-        });
+        // Only update cycleId in URL
+        if (filters.cycleId) {
+            url.searchParams.set('cycleId', filters.cycleId);
+        } else {
+            url.searchParams.delete('cycleId');
+        }
         window.history.replaceState({}, '', url.toString());
         loadSnapshots(filters.cycleId);
     }, [filters, viewingSnapshot]);
@@ -229,64 +225,52 @@ export default function CompanyOverviewReport() {
 
     return (
         <div className="mx-auto w-full max-w-6xl mt-8">
-            {viewingSnapshot && (
-                <div className="mb-6 bg-blue-50 border-l-4 border-blue-500 text-blue-800 p-4 rounded-r-lg shadow-md flex items-center justify-between">
-                    <div>
-                        <p className="font-bold">Chế độ xem Snapshot</p>
-                        <p className="text-sm">Bạn đang xem báo cáo "{viewingSnapshot.report_name}" được lưu vào lúc {new Date(viewingSnapshot.created_at).toLocaleString('vi-VN')}.</p>
-                    </div>
-                    <button onClick={handleExitSnapshotView} className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-100">
-                        <FiXCircle />
-                        Thoát
-                    </button>
-                </div>
-            )}
-
-            <div className="mb-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                    <h1 className="text-2xl font-extrabold text-slate-900 mb-4 sm:mb-0">Báo cáo Thống kê Cấp Công ty</h1>
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <div className="flex flex-col">
-                            <span className="text-xs font-semibold text-slate-600">Chu kỳ OKR</span>
-                            <CycleDropdown
-                                cyclesList={cycles}
-                                cycleFilter={filters.cycleId}
-                                handleCycleChange={(value) => setFilters(f => ({ ...f, cycleId: value || '', departmentId: '', objectiveLevel: 'all', dateRange: { start: null, end: null } }))}
-                                disabled={!!viewingSnapshot}
-                            />
-                        </div>
-                        <div className="flex items-center gap-2 mt-4">
-                            <Dropdown
-                                position="right"
-                                trigger={
-                                    <button disabled={!!viewingSnapshot} className={`relative flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium border rounded-lg transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed ${hasActiveFilters ? 'border-blue-300 bg-blue-50 text-blue-700' : 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50'}`}>
-                                        <FiFilter />
-                                        Bộ lọc
-                                        {hasActiveFilters && <span className="absolute -top-1 -right-1 flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span></span>}
-                                    </button>
-                                }
-                            >
-                                <FilterDropdown filters={filters} setFilters={setFilters} allDepartments={departments} />
-                            </Dropdown>
-                            {isAdminOrCeo && (
-                                <>
-                                    <button onClick={() => setIsSnapshotModalOpen(true)} disabled={!!viewingSnapshot} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-                                        <FiArchive />
-                                        Tạo Snapshot
-                                    </button>
-                                    <button onClick={() => { loadSnapshots(filters.cycleId); setIsHistoryModalOpen(true); }} disabled={!!viewingSnapshot} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-                                        <FiClock />
-                                        Lịch sử
-                                    </button>
-                                </>
-                            )}
-                            <button onClick={handleExportExcel} disabled={isExportingExcel || !!viewingSnapshot} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium text-white bg-green-600 border border-transparent rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                        <div className="mb-6">
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="flex items-center flex-wrap gap-x-4 gap-y-2 mb-4 sm:mb-0">
+                                        <h1 className="text-2xl font-extrabold text-slate-900">Báo cáo Thống kê Cấp Công ty</h1>
+                                        {viewingSnapshot && (
+                                                                        <>
+                                                                            <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full border border-green-200">
+                                                                                Đang xem: {viewingSnapshot.report_name}
+                                                                            </span>
+                                                                        </>                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                                                {!viewingSnapshot && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-xs font-semibold text-slate-600">Chu kỳ OKR</span>
+                                                                        <CycleDropdown
+                                                                            cyclesList={cycles}
+                                                                            cycleFilter={filters.cycleId}
+                                                                            handleCycleChange={(value) => setFilters(f => ({ ...f, cycleId: value || '' }))}
+                                                                            disabled={!!viewingSnapshot}
+                                                                        />
+                                                                    </div>
+                                                                )}                                        <div className="flex items-center gap-2 mt-4">
+                                                                        {isAdminOrCeo && !viewingSnapshot && (
+                                                                            <>
+                                                                                <button onClick={() => setIsSnapshotModalOpen(true)} disabled={!!viewingSnapshot} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                                                                                    <FiArchive />
+                                                                                    Tạo Snapshot
+                                                                                </button>
+                                                                                <button onClick={() => { loadSnapshots(filters.cycleId); setIsHistoryModalOpen(true); }} disabled={!!viewingSnapshot} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                                                                                    <FiClock />
+                                                                                    Lịch sử
+                                                                                </button>
+                                                                            </>
+                                                                        )}                            {viewingSnapshot && (
+                                <button onClick={handleExitSnapshotView} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium bg-slate-800 hover:bg-slate-900 text-white rounded-lg shadow-sm transition-colors">
+                                    Quay lại Hiện tại
+                                </button>                        )}
+                            <button onClick={handleExportExcel} disabled={isExportingExcel} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
                                 {isExportingExcel ? <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" /> : <FiFileText />}
                                 {isExportingExcel ? 'Đang xuất...' : 'Xuất Excel'}
                             </button>
-                        </div>
-                    </div>
-                </div>
+                                        </div>
+                                    </div>
+                                </div>
+                    
             </div>
 
             <div className="mb-6 border-b border-gray-200">

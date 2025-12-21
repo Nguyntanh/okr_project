@@ -11,10 +11,6 @@ const handleResponse = async (res) => {
 export async function fetchDetailedData(filters) {
     const params = new URLSearchParams();
     params.set('cycle_id', filters.cycleId);
-    if (filters.departmentId) params.set('department_id', filters.departmentId);
-    if (filters.objectiveLevel && filters.objectiveLevel !== 'all') params.set('level', filters.objectiveLevel);
-    if (filters.dateRange.start) params.set('start_date', filters.dateRange.start);
-    if (filters.dateRange.end) params.set('end_date', filters.dateRange.end);
     
     const url = `/api/reports/okr-company?${params.toString()}`;
     const res = await fetch(url, { 
