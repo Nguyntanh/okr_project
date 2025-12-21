@@ -1353,6 +1353,7 @@ class ReportController extends Controller
         $user = $request->user();
         $reportType = $request->input('report_type');
         $cycleId = $request->input('cycle_id') ? (int)$request->input('cycle_id') : null;
+        $departmentId = $request->input('department_id') ? (int)$request->input('department_id') : null; // Get department_id from request
         $limit = $request->input('limit') ? (int)$request->input('limit') : 50;
 
         $query = ReportSnapshot::query()
@@ -1369,6 +1370,10 @@ class ReportController extends Controller
             $query->where('cycle_id', $cycleId);
         }
         
+        // Thêm lọc theo department_id nếu report_type là 'team' và department_id được cung cấp
+        if ($reportType === 'team' && $departmentId) {
+            $query->where('data_snapshot->meta->department_id', $departmentId);
+        }
         // Note: Access control logic might need adjustment depending on the final requirements.
         // For now, we allow broader access as the previous logic was commented out.
 

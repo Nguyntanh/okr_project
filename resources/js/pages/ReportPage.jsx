@@ -240,6 +240,7 @@ export default function ReportPage() {
     const [departmentName, setDepartmentName] = useState("");
     const [departmentId, setDepartmentId] = useState(null);
     const [error, setError] = useState(null);
+    const [currentUser, setCurrentUser] = useState(null);
     const [activeTab, setActiveTab] = useState("performance");
 
     // Snapshot States
@@ -309,6 +310,23 @@ export default function ReportPage() {
     }, []);
 
     useEffect(() => {
+        const fetchUserProfile = async () => {
+            try {
+                const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                const headers = { Accept: 'application/json', 'X-CSRF-TOKEN': token };
+                const res = await fetch('/api/profile', { headers });
+                const json = await res.json();
+                if (json.success) {
+                    setCurrentUser(json.user);
+                }
+            } catch (e) {
+                console.error("Error fetching user profile:", e);
+            }
+        };
+        fetchUserProfile();
+    }, []); // Run once on component mount
+
+    useEffect(() => {
         if (selectedCycle) loadReportData(selectedCycle);
     }, [selectedCycle]);
 
@@ -345,7 +363,11 @@ export default function ReportPage() {
 
     const fetchSavedReports = async () => {
         try {
-            const res = await fetch(`/api/reports/snapshots/list?report_type=team&cycle_id=${selectedCycle}`);
+            let url = `/api/reports/snapshots/list?report_type=team&cycle_id=${selectedCycle}`;
+            if (currentUser && currentUser.department_id) {
+                url += `&department_id=${currentUser.department_id}`;
+            }
+            const res = await fetch(url);
             const json = await res.json();
             if (json.success) {
                 setSavedReports(json.data);
