@@ -331,6 +331,12 @@ export default function ReportPage() {
         if (selectedCycle) loadReportData(selectedCycle);
     }, [selectedCycle]);
 
+    useEffect(() => {
+        if (showHistoryModal && selectedCycle) {
+            fetchSavedReports(selectedCycle);
+        }
+    }, [showHistoryModal, selectedCycle]);
+
     // --- ACTIONS ---
     const handleSaveSnapshot = async () => {
         if (!selectedCycle) return;
@@ -362,9 +368,9 @@ export default function ReportPage() {
         }
     };
 
-    const fetchSavedReports = async () => {
+    const fetchSavedReports = async (currentCycleId) => {
         try {
-            let url = `/api/reports/snapshots/list?report_type=team&cycle_id=${selectedCycle}`;
+            let url = `/api/reports/snapshots/list?report_type=team&cycle_id=${currentCycleId}`;
             if (currentUser && currentUser.department_id) {
                 url += `&department_id=${currentUser.department_id}`;
             }
@@ -660,7 +666,7 @@ export default function ReportPage() {
                                         {isSaving ? <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-600"></span> : <FiSave className="w-4 h-4" />}
                                         <span>Tạo Snapshot</span>
                                     </button>
-                                    <button onClick={fetchSavedReports} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg shadow-sm transition-colors text-sm font-medium">
+                                    <button onClick={() => fetchSavedReports(selectedCycle)} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg shadow-sm transition-colors text-sm font-medium">
                                         <FiList className="w-4 h-4" />
                                         <span>Lịch sử</span>
                                     </button>
