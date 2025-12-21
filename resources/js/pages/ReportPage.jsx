@@ -647,7 +647,7 @@ export default function ReportPage() {
                     <div className="flex items-center gap-3">
                         {!selectedSnapshot ? (
                             <>
-                                <div className="w-48">
+                                <div className="w-48 mr-3">
                                     <CycleDropdown
                                         cyclesList={cycles}
                                         cycleFilter={selectedCycle}
