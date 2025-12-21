@@ -10,7 +10,7 @@ import SnapshotHistoryModal from '../components/reports/SnapshotHistoryModal';
 import { fetchDetailedData, createSnapshot } from '../utils/reports/dataFetchers';
 import { loadSnapshots as loadSnapshotsUtil } from '../utils/reports/snapshotHelpers';
 import { exportCompanyReportToExcel } from '../utils/reports/excelExport';
-import { FiDownload, FiArchive, FiClock, FiFilter, FiTrendingUp, FiCheckCircle, FiShield, FiXCircle, FiFileText } from "react-icons/fi";
+import { FiDownload, FiFilter, FiTrendingUp, FiCheckCircle, FiShield, FiXCircle, FiFileText, FiSave, FiList } from "react-icons/fi";
 import { Dropdown } from '../components/Dropdown';
 
 export default function CompanyOverviewReport() {
@@ -251,11 +251,11 @@ export default function CompanyOverviewReport() {
                                                                         {isAdminOrCeo && !viewingSnapshot && (
                                                                             <>
                                                                                 <button onClick={() => setIsSnapshotModalOpen(true)} disabled={!!viewingSnapshot} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-                                                                                    <FiArchive />
+                                                                                    <FiSave />
                                                                                     Tạo Snapshot
                                                                                 </button>
                                                                                 <button onClick={() => { loadSnapshots(filters.cycleId); setIsHistoryModalOpen(true); }} disabled={!!viewingSnapshot} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-                                                                                    <FiClock />
+                                                                                    <FiList />
                                                                                     Lịch sử
                                                                                 </button>
                                                                             </>

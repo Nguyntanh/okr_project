@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { Select } from "../components/ui";
 import ToastNotification from "../components/ToastNotification";
+import SnapshotHistoryModal from '../components/reports/SnapshotHistoryModal';
 import { exportTeamReportToExcel } from "../utils/reports/exportHelpers";
 import { FiDownload, FiAlertTriangle, FiEye, FiTrendingUp, FiUsers, FiActivity, FiCheckCircle, FiClock, FiLink, FiUserX, FiSave, FiList, FiTrash2, FiChevronDown, FiChevronRight, FiTarget, FiBell, FiHexagon } from "react-icons/fi";
 import {
@@ -15,7 +16,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import { Bar, Line, Doughnut } from 'react-chartjs-2';
+import { Bar, Line, Pie } from 'react-chartjs-2';
 
 ChartJS.register(
   CategoryScale,
@@ -87,65 +88,7 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, isLoading })
     );
 };
 
-// History Modal Component
-const HistoryModal = ({ isOpen, onClose, reports, onView, onDelete }) => {
-    if (!isOpen) return null;
-    return (
-        <div className="fixed inset-0 z-[100] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-            <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onClick={onClose}></div>
-                <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-                <div className="relative inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
-                    <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                        <div className="flex justify-between items-center mb-4 border-b pb-2">
-                            <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">Lịch sử Báo cáo đã lưu</h3>
-                            <button onClick={onClose} className="text-gray-400 hover:text-gray-500 focus:outline-none">
-                                <span className="text-2xl">&times;</span>
-                            </button>
-                        </div>
-                        
-                        <div className="mt-2 max-h-96 overflow-y-auto">
-                            {reports.length === 0 ? (
-                                <p className="text-center text-gray-500 py-8">Chưa có báo cáo nào được lưu.</p>
-                            ) : (
-                                <table className="min-w-full divide-y divide-gray-200">
-                                    <thead className="bg-gray-50">
-                                        <tr>
-                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Thời gian lưu</th>
-                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Chu kỳ</th>
-                                            <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
-                                        {reports.map((report) => (
-                                            <tr key={report.report_id}>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                    {new Date(report.created_at).toLocaleString('vi-VN')}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                    {report.cycle?.cycle_name || 'N/A'}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                    <button onClick={() => onView(report.report_id)} className="text-indigo-600 hover:text-indigo-900 mr-4">Xem lại</button>
-                                                    <button onClick={() => onDelete(report.report_id)} className="text-red-600 hover:text-red-900">Xóa</button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            )}
-                        </div>
-                    </div>
-                    <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                        <button type="button" className="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm" onClick={onClose}>
-                            Đóng
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
+
 
 // Row Component for Expandable Tree View (CLEAN TOGGLE - NO CONNECTORS)
 const ComplianceRow = ({ item, level = 0, getOwner, onRemind }) => {
@@ -435,23 +378,7 @@ export default function ReportPage() {
         }
     };
 
-    const deleteReport = async (reportId) => {
-        if(!confirm("Bạn có chắc chắn muốn xóa báo cáo này?")) return;
-        try {
-            const res = await fetch(`/api/reports/snapshots/${reportId}`, {
-                method: 'DELETE',
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                }
-            });
-            if (res.ok) {
-                setSavedReports(prev => prev.filter(r => r.report_id !== reportId));
-                setToast({ message: "Đã xóa báo cáo", type: 'success' });
-            }
-        } catch (e) {
-            setToast({ message: "Lỗi khi xóa", type: 'error' });
-        }
-    };
+
 
     const handleExportExcel = () => {
         if (!reportData) return;
@@ -705,13 +632,13 @@ export default function ReportPage() {
                                         placeholder="Chọn chu kỳ"
                                     />
                                 </div>
+                                <button onClick={handleSaveSnapshot} disabled={isSaving} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg shadow-sm transition-colors text-sm font-medium">
+                                    {isSaving ? <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-600"></span> : <FiSave className="w-4 h-4" />}
+                                    <span>Tạo Snapshot</span>
+                                </button>
                                 <button onClick={fetchSavedReports} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg shadow-sm transition-colors text-sm font-medium">
                                     <FiList className="w-4 h-4" />
                                     <span>Lịch sử</span>
-                                </button>
-                                <button onClick={handleSaveSnapshot} disabled={isSaving} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg shadow-sm transition-colors text-sm font-medium">
-                                    {isSaving ? <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-600"></span> : <FiSave className="w-4 h-4" />}
-                                    <span>Lưu</span>
                                 </button>
                             </>
                         ) : (
@@ -900,7 +827,7 @@ export default function ReportPage() {
                             </div>
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                                 <h3 className="text-lg font-bold text-slate-800 mb-6">Phân bổ Trạng thái Sức khỏe OKR</h3>
-                                <div className="h-64 flex justify-center"><Doughnut data={complianceCharts.statusDoughnut} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }} /></div>
+                                <div className="h-64 flex justify-center"><Pie data={complianceCharts.statusDoughnut} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }} /></div>
                             </div>
                         </div>
 
@@ -944,7 +871,17 @@ export default function ReportPage() {
                 )}
                 <ToastNotification toast={toast} onClose={() => setToast({ message: null, type: null })} />
                 <ConfirmModal isOpen={remindModalOpen} onClose={() => setRemindModalOpen(false)} onConfirm={confirmRemind} title="Xác nhận nhắc nhở" message={`Bạn có chắc chắn muốn gửi thông báo nhắc nhở check-in đến ${userToRemind.name} không?`} isLoading={isReminding} />
-                <HistoryModal isOpen={showHistoryModal} onClose={() => setShowHistoryModal(false)} reports={savedReports} onView={loadSnapshot} onDelete={deleteReport} />
+                <SnapshotHistoryModal
+                    isOpen={showHistoryModal}
+                    onClose={() => setShowHistoryModal(false)}
+                    snapshots={savedReports}
+                    onViewSnapshot={loadSnapshot}
+                    cyclesList={cycles}
+                    modalCycleFilter={selectedCycle}
+                    onModalCycleFilterChange={(value) => {
+                        setSelectedCycle(value);
+                    }}
+                />
             </div>
         </div>
     );
