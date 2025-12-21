@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { Select } from "../components/ui";
 import ToastNotification from "../components/ToastNotification";
 import SnapshotHistoryModal from '../components/reports/SnapshotHistoryModal';
+import { CycleDropdown } from '../components/Dropdown';
 import { exportTeamReportToExcel } from "../utils/reports/exportHelpers";
 import { FiDownload, FiAlertTriangle, FiEye, FiTrendingUp, FiUsers, FiActivity, FiCheckCircle, FiClock, FiLink, FiUserX, FiSave, FiList, FiTrash2, FiChevronDown, FiChevronRight, FiTarget, FiBell, FiHexagon } from "react-icons/fi";
 import {
@@ -647,21 +648,23 @@ export default function ReportPage() {
                         {!selectedSnapshot ? (
                             <>
                                 <div className="w-48">
-                                    <Select
-                                        value={selectedCycle}
-                                        onChange={setSelectedCycle}
-                                        options={cycles.map(c => ({ value: String(c.cycle_id), label: c.cycle_name }))}
-                                        placeholder="Chọn chu kỳ"
+                                    <CycleDropdown
+                                        cyclesList={cycles}
+                                        cycleFilter={selectedCycle}
+                                        handleCycleChange={setSelectedCycle}
+                                        disabled={!!selectedSnapshot}
                                     />
                                 </div>
-                                <button onClick={handleSaveSnapshot} disabled={isSaving} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg shadow-sm transition-colors text-sm font-medium">
-                                    {isSaving ? <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-600"></span> : <FiSave className="w-4 h-4" />}
-                                    <span>Tạo Snapshot</span>
-                                </button>
-                                <button onClick={fetchSavedReports} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg shadow-sm transition-colors text-sm font-medium">
-                                    <FiList className="w-4 h-4" />
-                                    <span>Lịch sử</span>
-                                </button>
+                                <div className="flex items-center gap-2"> {/* New wrapper div */}
+                                    <button onClick={handleSaveSnapshot} disabled={isSaving} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg shadow-sm transition-colors text-sm font-medium">
+                                        {isSaving ? <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-600"></span> : <FiSave className="w-4 h-4" />}
+                                        <span>Tạo Snapshot</span>
+                                    </button>
+                                    <button onClick={fetchSavedReports} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg shadow-sm transition-colors text-sm font-medium">
+                                        <FiList className="w-4 h-4" />
+                                        <span>Lịch sử</span>
+                                    </button>
+                                </div>
                             </>
                         ) : (
                             <button onClick={() => { setSelectedSnapshot(null); loadReportData(selectedCycle); }} className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg shadow-sm transition-colors text-sm font-medium">
