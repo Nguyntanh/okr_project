@@ -631,7 +631,7 @@ export default function Dashboard() {
                             </div>
                         </div>
                         {['admin', 'ceo'].includes(data.user?.role?.role_name?.toLowerCase()) && (
-                            <a href="/reports/company-overview" className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline transition-colors">
+                            <a href="/my-objectives" className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline transition-colors">
                                 Xem chi tiết
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
