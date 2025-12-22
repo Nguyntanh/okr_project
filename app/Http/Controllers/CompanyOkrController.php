@@ -120,10 +120,6 @@ class CompanyOkrController extends Controller
         ])->findOrFail($id);
 
         $user = Auth::user();
-        if (!$user->isAdmin() && $objective->level !== 'company' 
-            && ($objective->level === 'unit' && $objective->department_id !== $user->department_id)) {
-            return response()->json(['success' => false, 'message' => 'Không có quyền xem'], 403);
-        }
 
         // Manually construct the response to ensure all data is included
         $data = $objective->attributesToArray();
