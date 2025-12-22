@@ -84,9 +84,12 @@ export default function KeyResultRow({
                                     className="h-5 w-5 text-indigo-500 flex-shrink-0"
                                     title="OKR được liên kết"
                                 />
-                                <span className="font-semibold text-slate-900 text-lg">
+                                <a
+                                    href={`/company-okrs/detail/${kr.link?.sourceObjective?.objective_id}`}
+                                    className="font-semibold text-slate-900 text-lg hover:text-blue-600"
+                                >
                                     {kr.kr_title}
-                                </span>
+                                </a>
                             </div>
                         </div>
                     </td>
@@ -215,9 +218,12 @@ export default function KeyResultRow({
                                             className="h-4 w-4 text-amber-600 flex-shrink-0"
                                             title="Key Result"
                                         />
-                                        <span className="font-semibold">
+                                        <a
+                                            href={`/company-okrs/detail/kr/${sourceKr.kr_id}`}
+                                            className="font-semibold hover:text-blue-600"
+                                        >
                                             {sourceKr.kr_title}
-                                        </span>
+                                        </a>
                                     </div>
                                 </td>
                                 <td className="px-3 py-3 text-center">

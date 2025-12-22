@@ -112,18 +112,22 @@ class CompanyOkrController extends Controller
                 $query->with(['assignedUser.role', 'assignedUser.department', 'checkIns.user'])->orderBy('created_at');
             },
             'childObjectives' => function ($query) {
-                $query->with(['sourceObjective.user', 'sourceObjective.department']);
+                $query->with([
+                    'sourceObjective' => function ($q) {
+                        $q->with(['user', 'department', 'keyResults']);
+                    }
+                ]);
             },
             'sourceLinks' => function ($query) {
-                $query->with(['targetObjective.user', 'targetObjective.department']);
+                $query->with([
+                    'targetObjective' => function ($q) {
+                        $q->with(['user', 'department', 'keyResults']);
+                    }
+                ]);
             }
         ])->findOrFail($id);
 
         $user = Auth::user();
-        if (!$user->isAdmin() && $objective->level !== 'company' 
-            && ($objective->level === 'unit' && $objective->department_id !== $user->department_id)) {
-            return response()->json(['success' => false, 'message' => 'Không có quyền xem'], 403);
-        }
 
         // Manually construct the response to ensure all data is included
         $data = $objective->attributesToArray();
