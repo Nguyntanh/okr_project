@@ -112,10 +112,18 @@ class CompanyOkrController extends Controller
                 $query->with(['assignedUser.role', 'assignedUser.department', 'checkIns.user'])->orderBy('created_at');
             },
             'childObjectives' => function ($query) {
-                $query->with(['sourceObjective.user', 'sourceObjective.department']);
+                $query->with([
+                    'sourceObjective' => function ($q) {
+                        $q->with(['user', 'department', 'keyResults']);
+                    }
+                ]);
             },
             'sourceLinks' => function ($query) {
-                $query->with(['targetObjective.user', 'targetObjective.department']);
+                $query->with([
+                    'targetObjective' => function ($q) {
+                        $q->with(['user', 'department', 'keyResults']);
+                    }
+                ]);
             }
         ])->findOrFail($id);
 
