@@ -485,12 +485,20 @@ class ReportController extends Controller
                 ];
             })->filter()->sortByDesc('compliance_rate')->values();
 
-            $allObjectives = $allObjectivesInCycleQuery->clone()->get();
-            $idealProgress = $this->reportService->getIdealProgress($cycle->start_date, $cycle->end_date);
-            $healthStatusCounts = ['on_track' => 0, 'at_risk' => 0, 'off_track' => 0];
+            $allObjectives = $allObjectivesInCycleQuery->clone()->get(['status']);
+            $idealProgress = $this->reportService->getIdealProgress($cycle->start_date, $cycle->end_date); // Re-add this line
+            $healthStatusCounts = [
+                'completed' => 0,
+                'on_track' => 0,
+                'at_risk' => 0,
+                'behind' => 0,
+            ];
+
             foreach ($allObjectives as $objective) {
-                $status = $this->reportService->getHealthStatus((float) $objective->progress_percent, $idealProgress);
-                $healthStatusCounts[$status]++;
+                $status = $objective->status;
+                if (isset($healthStatusCounts[$status])) {
+                    $healthStatusCounts[$status]++;
+                }
             }
 
             // 3. Chart: Process Compliance (Check-in) Trend (New logic for line chart)
