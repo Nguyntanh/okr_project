@@ -64,11 +64,26 @@ export default function ProcessTab({ data }) {
 
         // --- Chart 2: Health Distribution (Doughnut) ---
         const healthDistData = {
-            labels: ['On Track', 'At Risk', 'Off Track'],
+            labels: ['Hoàn thành', 'Đúng hạn', 'Rủi ro', 'Chậm trễ'],
             datasets: [{
-                data: [ charts.health_status_distribution?.on_track || 0, charts.health_status_distribution?.at_risk || 0, charts.health_status_distribution?.off_track || 0 ],
-                backgroundColor: ['rgba(22, 163, 74, 0.7)', 'rgba(245, 158, 11, 0.7)', 'rgba(220, 38, 38, 0.7)'],
-                borderColor: ['rgb(22, 163, 74)', 'rgb(245, 158, 11)', 'rgb(220, 38, 38)'],
+                data: [ 
+                    charts.health_status_distribution?.completed || 0,
+                    charts.health_status_distribution?.on_track || 0, 
+                    charts.health_status_distribution?.at_risk || 0, 
+                    charts.health_status_distribution?.behind || 0 
+                ],
+                backgroundColor: [
+                    'rgba(34, 197, 94, 0.8)',
+                    'rgba(59, 130, 246, 0.8)',
+                    'rgba(234, 179, 8, 0.8)',
+                    'rgba(239, 68, 68, 0.8)',
+                ],
+                borderColor: [ // Using colors from ReportPage for consistency
+                    'rgb(34, 197, 94)',
+                    'rgb(59, 130, 246)',
+                    'rgb(234, 179, 8)',
+                    'rgb(239, 68, 68)',
+                ],
                 borderWidth: 2, hoverOffset: 4,
             }]
         };
@@ -155,7 +170,7 @@ export default function ProcessTab({ data }) {
             },
             {
                 title: 'Phân bổ Trạng thái (Health) OKR',
-                component: (charts.health_status_distribution?.on_track + charts.health_status_distribution?.at_risk + charts.health_status_distribution?.off_track) > 0 ? (
+                component: ((charts.health_status_distribution?.completed + charts.health_status_distribution?.on_track + charts.health_status_distribution?.at_risk + charts.health_status_distribution?.behind) > 0) ? (
                     <div className="absolute inset-0"><Doughnut data={healthDistData} options={healthDistOptions} /></div>
                 ) : <div className="flex items-center justify-center h-full"><EmptyState icon={FiPieChart} title="Không có dữ liệu" /></div>
             },
