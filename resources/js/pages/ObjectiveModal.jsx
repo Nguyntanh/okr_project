@@ -463,7 +463,9 @@ export default function ObjectiveModal({
                             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                         />
                     </div>
+                    {/* Combine Tags, Level/Department, and Is Aspirational into one grid container */}
                     <div className="grid gap-3 md:grid-cols-2 items-start">
+                        {/* Tags Input */}
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-600">
                                 Thẻ (cách nhau bởi dấu phẩy)
@@ -476,25 +478,8 @@ export default function ObjectiveModal({
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                             />
                         </div>
-                        <div className="flex items-center h-full mt-4">
-                            <input
-                                type="checkbox"
-                                id="is_aspirational"
-                                checked={createForm.is_aspirational || false}
-                                onChange={(e) =>
-                                    handleCreateFormChange(
-                                        "is_aspirational",
-                                        e.target.checked
-                                    )
-                                }
-                                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                            />
-                            <label htmlFor="is_aspirational" className="ml-2 block text-sm text-gray-900">
-                                Mục tiêu tham vọng
-                            </label>
-                        </div>
-                    </div>
-                <div className="grid gap-3 md:grid-cols-2 items-start">
+
+                        {/* Level Select Input */}
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-600">
                                 Cấp độ
@@ -525,8 +510,8 @@ export default function ObjectiveModal({
                             ))}
                             </select>
                         </div>
-                        {/* Thay thế toàn bộ phần hiển thị Phòng ban hiện tại bằng đoạn code mới này */}
-
+                        
+                        {/* Department Input (conditional) - always place after Level if Level is selected */}
                         {["unit", "team"].includes(createForm.level) && (
                             <div>
                                 <label className="mb-1 block text-xs font-semibold text-slate-600">
@@ -549,14 +534,7 @@ export default function ObjectiveModal({
                                             </span>
                                         </div>
                                     ) : null
-                                    // (
-                                    //     <div className="w-full rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
-                                    //         Bạn chưa thuộc phòng ban nào. Không thể
-                                    //         tạo Objective cấp Unit/Team.
-                                    //     </div>
-                                    // )
                                 }
-                                {/* Ẩn input để vẫn gửi dữ liệu khi submit */}
                                 <input
                                     type="hidden"
                                     name="department_id"
@@ -564,6 +542,25 @@ export default function ObjectiveModal({
                                 />
                             </div>
                         )}
+
+                        {/* Is Aspirational Checkbox */}
+                        <div className="flex items-center h-full"> {/* Removed mt-4 to align better in new grid */}
+                            <input
+                                type="checkbox"
+                                id="is_aspirational"
+                                checked={createForm.is_aspirational || false}
+                                onChange={(e) =>
+                                    handleCreateFormChange(
+                                        "is_aspirational",
+                                        e.target.checked
+                                    )
+                                }
+                                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <label htmlFor="is_aspirational" className="ml-2 block text-sm text-gray-900">
+                                Mục tiêu tham vọng
+                            </label>
+                        </div>
                     </div>
                     {creatingObjective && (
                         <div className="mt-4">

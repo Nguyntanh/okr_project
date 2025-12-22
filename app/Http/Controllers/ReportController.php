@@ -417,13 +417,13 @@ class ReportController extends Controller
     private function _getObjectiveStructuralIssues(int $krCount): ?string
     {
         if ($krCount === 0) {
-            return 'No KRs defined';
+            return 'Chưa định nghĩa KR';
         }
         if ($krCount < 2) {
-            return 'Too few KRs (<2)';
+            return 'Quá ít KR (<2)';
         }
         if ($krCount > 5) {
-            return 'Too many KRs (>5)';
+            return 'Quá nhiều KR (>5)';
         }
         return null; // No structural issues based on KR count
     }
@@ -574,7 +574,7 @@ class ReportController extends Controller
                     'owner_name' => optional($objective->user)->full_name ?? 'N/A',
                     'health_status' => $this->reportService->getHealthStatus((float) $objective->progress_percent, $idealProgress),
                     'last_checkin_date' => $lastCheckinDate ? $lastCheckinDate->toDateString() : null,
-                    'days_overdue' => $lastCheckinDate ? $lastCheckinDate->diffInDays(now(), false) : null,
+                    'days_overdue' => $lastCheckinDate ? (int) floor($lastCheckinDate->diffInDays(now(), false)) : null,
                     'periodic_checkin_rate' => round($periodicCheckinRate, 2),
                 ];
             })->sortBy('days_overdue', SORT_REGULAR, true)->values();
@@ -772,10 +772,16 @@ class ReportController extends Controller
             $healthStatus = 'at_risk'; // Yellow
         }
 
+        $levelTranslation = [
+            'company' => 'Công ty',
+            'unit' => 'Phòng ban',
+            'person' => 'Cá nhân',
+        ];
+
         return [
             'objective_id' => $objective->objective_id,
             'objective_name' => $objective->obj_title,
-            'level' => $objective->level,
+            'level' => $levelTranslation[$objective->level] ?? $objective->level,
             'department_name' => $objective->department->d_name ?? 'Công ty',
             'owner_name' => $objective->user->full_name ?? 'N/A',
             'progress' => $this->clampProgress($progress),
