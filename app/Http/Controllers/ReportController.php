@@ -772,10 +772,16 @@ class ReportController extends Controller
             $healthStatus = 'at_risk'; // Yellow
         }
 
+        $levelTranslation = [
+            'company' => 'Công ty',
+            'unit' => 'Phòng ban',
+            'person' => 'Cá nhân',
+        ];
+
         return [
             'objective_id' => $objective->objective_id,
             'objective_name' => $objective->obj_title,
-            'level' => $objective->level,
+            'level' => $levelTranslation[$objective->level] ?? $objective->level,
             'department_name' => $objective->department->d_name ?? 'Công ty',
             'owner_name' => $objective->user->full_name ?? 'N/A',
             'progress' => $this->clampProgress($progress),
